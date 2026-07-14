@@ -39,59 +39,74 @@ export function initializeChatKeyboardNavigation(chatListElement) {
   });
 }
 
+function triggerChatRowClick(row) {
+  const clickEvent = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+  });
+  row.dispatchEvent(clickEvent);
+}
+
+function focusPrevChatRow(allRows, currentIndex) {
+  if (currentIndex > 0) {
+    allRows[currentIndex - 1].focus();
+  }
+}
+
+function focusNextChatRow(allRows, currentIndex) {
+  if (currentIndex < allRows.length - 1) {
+    allRows[currentIndex + 1].focus();
+  }
+}
+
+function focusFirstChatRow(allRows) {
+  allRows[0]?.focus();
+}
+
+function focusLastChatRow(allRows) {
+  allRows[allRows.length - 1]?.focus();
+}
+
+function handleChatRowEscape(event) {
+  event.preventDefault();
+  closeChatMenus();
+}
+
+const CHAT_ROW_KEY_HANDLERS = {
+  Enter: (event, currentRow) => {
+    event.preventDefault();
+    triggerChatRowClick(currentRow);
+  },
+  ' ': (event, currentRow) => {
+    event.preventDefault();
+    triggerChatRowClick(currentRow);
+  },
+  ArrowUp: (event, _currentRow, allRows, currentIndex) => {
+    event.preventDefault();
+    focusPrevChatRow(allRows, currentIndex);
+  },
+  ArrowDown: (event, _currentRow, allRows, currentIndex) => {
+    event.preventDefault();
+    focusNextChatRow(allRows, currentIndex);
+  },
+  Escape: (event) => {
+    handleChatRowEscape(event);
+  },
+  Home: (event, _currentRow, allRows) => {
+    event.preventDefault();
+    focusFirstChatRow(allRows);
+  },
+  End: (event, _currentRow, allRows) => {
+    event.preventDefault();
+    focusLastChatRow(allRows);
+  },
+};
+
 function handleChatRowKeydown(event, currentRow, allRows, currentIndex) {
-  switch (event.key) {
-    case 'Enter':
-    case ' ': {
-      // Space
-      event.preventDefault();
-      // Trigger click handler
-      const clickEvent = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-      });
-      currentRow.dispatchEvent(clickEvent);
-      break;
-    }
-
-    case 'ArrowUp': {
-      event.preventDefault();
-      // Focus previous chat item
-      if (currentIndex > 0) {
-        const prevRow = allRows[currentIndex - 1];
-        prevRow.focus();
-      }
-      break;
-    }
-
-    case 'ArrowDown': {
-      event.preventDefault();
-      // Focus next chat item
-      if (currentIndex < allRows.length - 1) {
-        const nextRow = allRows[currentIndex + 1];
-        nextRow.focus();
-      }
-      break;
-    }
-
-    case 'Escape':
-      event.preventDefault();
-      // Close any open menu dropdowns
-      closeChatMenus();
-      break;
-
-    case 'Home':
-      event.preventDefault();
-      // Focus first chat item
-      allRows[0].focus();
-      break;
-
-    case 'End':
-      event.preventDefault();
-      // Focus last chat item
-      allRows[allRows.length - 1].focus();
-      break;
+  const handler = CHAT_ROW_KEY_HANDLERS[event.key];
+  if (handler) {
+    handler(event, currentRow, allRows, currentIndex);
   }
 }
 
