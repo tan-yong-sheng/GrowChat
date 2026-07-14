@@ -302,41 +302,57 @@ export function createIntegrationsModal(ctx) {
     });
     updateToggleLabel(bearerToggleBtn, bearerInput);
     updateToggleLabel(basicToggleBtn, basicPassInput);
-    oauthConnectBtn?.addEventListener('click', async () => {
-      if (sectionState.saving) return;
-      if (authTypeSelect?.value !== 'oauth') return;
+    function canStartOAuthConnection() {
+      if (sectionState.saving) return false;
+      return authTypeSelect?.value === 'oauth';
+    }
+
+    function requireServerIdForOAuth() {
       const serverId = server?.id || '';
       if (!serverId) {
         setTestStatus('error', 'Save the server before connecting OAuth');
-        return;
       }
+      return serverId;
+    }
+
+    function buildOAuthStartPayload(serverId, fields) {
+      return {
+        id: serverId,
+        name: String(nameInput?.value || '').trim(),
+        url: String(urlInput?.value || '').trim(),
+        headers: String(headersInput?.value || '').trim(),
+        enabled: true,
+        auth_type: 'oauth',
+        ...fields,
+        auth_bearer_token: fields.auth_bearer_token.trim(),
+        auth_basic_username: fields.auth_basic_username.trim(),
+        auth_basic_password: fields.auth_basic_password,
+        oauth_client_name: fields.oauth_client_name.trim(),
+        oauth_scope: fields.oauth_scope.trim(),
+        oauth_client_id: fields.oauth_client_id.trim(),
+        oauth_client_secret: fields.oauth_client_secret.trim(),
+        oauth_token_auth_method: fields.oauth_token_auth_method.trim(),
+      };
+    }
+
+    function handleOAuthStartSuccess(payload) {
+      if (!payload.authorization_url) return;
+      if (oauthStatus) oauthStatus.textContent = 'Awaiting authorization...';
+      setTestStatus('success', 'OAuth authorization started');
+    }
+
+    oauthConnectBtn?.addEventListener('click', async () => {
+      if (!canStartOAuthConnection()) return;
+      const serverId = requireServerIdForOAuth();
+      if (!serverId) return;
       try {
-        const f = readFormFields();
+        const fields = readFormFields();
         const res = await apiFetch('/api/users/me/resources/mcp-servers/oauth/start', {
           method: 'POST',
-          body: JSON.stringify({
-            id: serverId,
-            name: String(nameInput?.value || '').trim(),
-            url: String(urlInput?.value || '').trim(),
-            headers: String(headersInput?.value || '').trim(),
-            enabled: true,
-            auth_type: 'oauth',
-            ...f,
-            auth_bearer_token: f.auth_bearer_token.trim(),
-            auth_basic_username: f.auth_basic_username.trim(),
-            auth_basic_password: f.auth_basic_password,
-            oauth_client_name: f.oauth_client_name.trim(),
-            oauth_scope: f.oauth_scope.trim(),
-            oauth_client_id: f.oauth_client_id.trim(),
-            oauth_client_secret: f.oauth_client_secret.trim(),
-            oauth_token_auth_method: f.oauth_token_auth_method.trim(),
-          }),
+          body: JSON.stringify(buildOAuthStartPayload(serverId, fields)),
         });
         const payload = await handleOAuthApiFetchResponse(res);
-        if (payload.authorization_url) {
-          if (oauthStatus) oauthStatus.textContent = 'Awaiting authorization...';
-          setTestStatus('success', 'OAuth authorization started');
-        }
+        handleOAuthStartSuccess(payload);
       } catch (err) {
         setTestStatus('error', err?.message || 'OAuth start failed');
       }

@@ -1,29 +1,42 @@
+function ensureToolCallSlot(target, index) {
+  if (!target[index]) {
+    target[index] = { id: null, name: '', arguments: '' };
+  }
+}
+
+function applyToolCallFunction(target, index, delta) {
+  if (delta.function?.name) target[index].name += delta.function.name;
+  if (delta.function?.arguments) target[index].arguments += delta.function.arguments;
+}
+
+function mergeProviderMetadata(target, index, delta) {
+  if (!delta.providerMetadata) return;
+  target[index].providerMetadata = {
+    ...(target[index].providerMetadata || {}),
+    ...delta.providerMetadata,
+    google: {
+      ...(target[index].providerMetadata?.google || {}),
+      ...(delta.providerMetadata.google || {}),
+    },
+    vertex: {
+      ...(target[index].providerMetadata?.vertex || {}),
+      ...(delta.providerMetadata.vertex || {}),
+    },
+  };
+}
+
+function applySingleToolCallDelta(target, delta) {
+  if (!delta) return;
+  const index = Number.isFinite(delta.index) ? delta.index : 0;
+  ensureToolCallSlot(target, index);
+  if (delta.id) target[index].id = delta.id;
+  applyToolCallFunction(target, index, delta);
+  mergeProviderMetadata(target, index, delta);
+}
+
 export function applyToolCallDelta(target, deltas) {
   if (!Array.isArray(deltas)) return;
-  deltas.forEach((delta) => {
-    if (!delta) return;
-    const index = Number.isFinite(delta.index) ? delta.index : 0;
-    if (!target[index]) {
-      target[index] = { id: null, name: '', arguments: '' };
-    }
-    if (delta.id) target[index].id = delta.id;
-    if (delta.function?.name) target[index].name += delta.function.name;
-    if (delta.function?.arguments) target[index].arguments += delta.function.arguments;
-    if (delta.providerMetadata) {
-      target[index].providerMetadata = {
-        ...(target[index].providerMetadata || {}),
-        ...delta.providerMetadata,
-        google: {
-          ...(target[index].providerMetadata?.google || {}),
-          ...(delta.providerMetadata.google || {}),
-        },
-        vertex: {
-          ...(target[index].providerMetadata?.vertex || {}),
-          ...(delta.providerMetadata.vertex || {}),
-        },
-      };
-    }
-  });
+  deltas.forEach((delta) => applySingleToolCallDelta(target, delta));
 }
 
 export function normalizeToolCalls(stepToolCalls, toolMap) {

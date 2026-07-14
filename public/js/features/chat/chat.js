@@ -303,32 +303,32 @@ function wireChat(root) {
       maybeRefreshChatListObserver();
     });
   };
-  const unsubscribe = subscribe((currentState) => {
-    if (currentState.showSearch) {
-      ensureSearchModal();
-    }
-    if (currentState.showFiles) {
-      ensureFilesModal();
-    }
+  const updateSidebarBackdrop = (currentState) => {
     if (currentState.showSidebar && currentState.isMobile) {
       sidebarBackdrop.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
-    } else {
-      sidebarBackdrop.classList.add('hidden');
-      if (
-        !currentState.showSearch &&
-        !shareModalContainer.innerHTML &&
-        !archivedModalContainer.innerHTML
-      ) {
-        document.body.style.overflow = '';
-      }
+      return;
     }
+    sidebarBackdrop.classList.add('hidden');
+    if (
+      !currentState.showSearch &&
+      !shareModalContainer.innerHTML &&
+      !archivedModalContainer.innerHTML
+    ) {
+      document.body.style.overflow = '';
+    }
+  };
+
+  const updateActiveChat = (currentState) => {
     if (currentState.activeChatId && currentState.activeChatId !== lastActiveChatId) {
       if (lastActiveChatId) streamSession.stopStreamPolling(lastActiveChatId);
       void ensureRealtimeController();
       touchRecentChat(recentChatIds, currentState.activeChatId);
       schedulePrune();
     }
+  };
+
+  const updateChatList = (currentState) => {
     const chatListChanged = currentState.chats !== lastChatsRef;
     const activeChanged = currentState.activeChatId !== lastActiveChatId;
     lastActiveChatId = currentState.activeChatId;
@@ -342,6 +342,18 @@ function wireChat(root) {
     } else {
       maybeRefreshChatListObserver();
     }
+  };
+
+  const unsubscribe = subscribe((currentState) => {
+    if (currentState.showSearch) {
+      ensureSearchModal();
+    }
+    if (currentState.showFiles) {
+      ensureFilesModal();
+    }
+    updateSidebarBackdrop(currentState);
+    updateActiveChat(currentState);
+    updateChatList(currentState);
   });
   chatListContainerEl?.addEventListener('wheel', onChatListInteraction, {
     once: true,
@@ -387,7 +399,15 @@ function wireChat(root) {
     await ensureMessageSequenceTracker();
     return chatMessageFlow?.startResumeStream?.(chatId, messageId);
   }
-  return () => {
+  function maybeCall(fn) {
+    if (typeof fn === 'function') fn();
+  }
+
+  function removeEventListenerIfPresent(target, ...args) {
+    if (target) target.removeEventListener(...args);
+  }
+
+  function clearChatTimers() {
     if (sidebarHydrationWarmupTimer) {
       clearTimeout(sidebarHydrationWarmupTimer);
       sidebarHydrationWarmupTimer = null;
@@ -396,26 +416,38 @@ function wireChat(root) {
       cancelAnimationFrame(pendingChatListRaf);
       pendingChatListRaf = null;
     }
+  }
+
+  function disposeChatModals() {
+    maybeCall(destroySearchModal);
+    maybeCall(destroyFilesModal);
+    maybeCall(destroyModelSelector);
+    maybeCall(destroySidebar);
+    maybeCall(inputComponent?.destroy);
+    maybeCall(destroyPlaceholder);
+    maybeCall(destroyChatFileEvents);
+    maybeCall(destroyMessageListInteractions);
+  }
+
+  function removeChatEventListeners() {
+    window.removeEventListener('growchat:realtime', onRealtimeEvent);
+    unbindToolServersInvalidationListener();
+    removeEventListenerIfPresent(chatListContainerEl, 'wheel', onChatListInteraction);
+    removeEventListenerIfPresent(chatListContainerEl, 'touchstart', onChatListInteraction);
+    removeEventListenerIfPresent(chatListContainerEl, 'scroll', onChatListInteraction);
+    removeEventListenerIfPresent(messagesList, 'click', onMessageListInteraction, true);
+    maybeCall(destroyShellEvents);
+    maybeCall(shellController.dispose);
+  }
+
+  return () => {
+    clearChatTimers();
     if (activeStreamAbort) activeStreamAbort();
     streamSession.dispose();
     unsubscribe();
     uiResources.clearAttachmentCaches();
-    destroySearchModal?.();
-    destroyFilesModal?.();
-    destroyModelSelector?.();
-    destroySidebar?.();
-    inputComponent?.destroy?.();
-    destroyPlaceholder?.();
-    destroyChatFileEvents?.();
-    destroyMessageListInteractions?.();
-    window.removeEventListener('growchat:realtime', onRealtimeEvent);
-    unbindToolServersInvalidationListener();
-    chatListContainerEl?.removeEventListener('wheel', onChatListInteraction);
-    chatListContainerEl?.removeEventListener('touchstart', onChatListInteraction);
-    chatListContainerEl?.removeEventListener('scroll', onChatListInteraction);
-    messagesList?.removeEventListener('click', onMessageListInteraction, true);
-    destroyShellEvents?.();
-    shellController.dispose?.();
+    disposeChatModals();
+    removeChatEventListeners();
     root.__cleanup = null;
   };
 }

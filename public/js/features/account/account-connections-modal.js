@@ -41,20 +41,35 @@ function buildInitialModalState(connection, initialModels) {
   };
 }
 
+function getConnectionUrl(connection) {
+  return String(connection.base_url || connection.baseUrl || connection.url || '').trim();
+}
+
+function getConnectionProviderType(connection) {
+  return (
+    String(connection.provider_type || connection.providerType || 'openai')
+      .trim()
+      .toLowerCase() || 'openai'
+  );
+}
+
+function getConnectionKey(connection) {
+  return String(connection.key || connection.keyMasked || '').trim();
+}
+
+function hasConnectionKey(connection) {
+  return Boolean(connection.has_key || getConnectionKey(connection));
+}
+
 function buildConnectionForModal(connection, manualModelsMode) {
   if (!connection) return null;
   return {
     ...connection,
-    url: String(connection.base_url || connection.baseUrl || connection.url || '').trim(),
-    providerType:
-      String(connection.provider_type || connection.providerType || 'openai')
-        .trim()
-        .toLowerCase() || 'openai',
+    url: getConnectionUrl(connection),
+    providerType: getConnectionProviderType(connection),
     headers: formatHeadersValue(connection.headers),
-    key: String(connection.key || connection.keyMasked || '').trim(),
-    has_key: Boolean(
-      connection.has_key || String(connection.key || connection.keyMasked || '').trim()
-    ),
+    key: getConnectionKey(connection),
+    has_key: hasConnectionKey(connection),
     enabled: connection.enabled !== false,
     manualModelsMode,
   };

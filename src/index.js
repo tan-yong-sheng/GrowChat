@@ -39,30 +39,38 @@ function createRequestContext(env) {
   return { requestId, logger };
 }
 
+function isHtmlResponse(response) {
+  const contentType = response.headers.get('content-type') || '';
+  return contentType.includes('text/html');
+}
+
+function buildHtmlResponse(html, sourceResponse) {
+  const headers = new Headers(sourceResponse.headers);
+  headers.delete('content-length');
+  headers.delete('etag');
+  return new Response(html, { status: sourceResponse.status, headers });
+}
+
+async function injectSriIntoHtml(html, env, logger) {
+  try {
+    const hashes = await getSriHashes(env);
+    return injectSriHashes(html, hashes);
+  } catch (err) {
+    logger.error('SRI injection error', { error: err?.message || err });
+    return html;
+  }
+}
+
 async function injectSriIntoHtmlResponse(response, env, logger) {
   if (!response?.ok) return response;
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('text/html')) return response;
+  if (!isHtmlResponse(response)) return response;
   try {
     const html = await response.text();
-    const headers = new Headers(response.headers);
-    headers.delete('content-length');
-    headers.delete('etag');
     if (!html.includes('data-sri-key')) {
-      return new Response(html, { status: response.status, headers });
+      return buildHtmlResponse(html, response);
     }
-    let injectedHtml;
-    try {
-      const hashes = await getSriHashes(env);
-      injectedHtml = injectSriHashes(html, hashes);
-    } catch (err) {
-      logger.error('SRI injection error', { error: err?.message || err });
-      injectedHtml = html;
-    }
-    return new Response(injectedHtml, {
-      status: response.status,
-      headers,
-    });
+    const injectedHtml = await injectSriIntoHtml(html, env, logger);
+    return buildHtmlResponse(injectedHtml, response);
   } catch (err) {
     logger.error('HTML read error', { error: err?.message || err });
     return response;

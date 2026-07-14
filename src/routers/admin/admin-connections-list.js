@@ -22,23 +22,57 @@ import {
   parseHeadersForRequest,
 } from '../../admin/tool-servers.js';
 
+function firstPresentValue(obj, keys) {
+  for (const key of keys) {
+    const value = obj && obj[key];
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function normalizeConnectionType(conn) {
+  return String((conn && conn.providerType) || 'openai-compatible').toLowerCase();
+}
+
+function normalizeConnectionFamily(conn) {
+  const raw = conn && (conn.providerType || conn.providerFamily);
+  return normalizeProviderFamily(raw) || 'openai';
+}
+
+function connectionHasKey(conn) {
+  return Boolean(firstPresentValue(conn, ['key', 'keyMasked', 'hasKey', 'has_key']));
+}
+
+function maskConnectionKey(conn) {
+  if (conn?.keyMasked) return conn.keyMasked;
+  if (conn?.key) return `••••${String(conn.key).slice(-4)}`;
+  return '';
+}
+
+function isConnectionEnabled(conn) {
+  return conn?.enabled !== false;
+}
+
+function normalizeConnectionListItem(conn, index) {
+  return {
+    ...conn,
+    id: ensureConnectionId(conn, index),
+    providerType: normalizeConnectionType(conn),
+    providerFamily: normalizeConnectionFamily(conn),
+    hasKey: connectionHasKey(conn),
+    keyMasked: maskConnectionKey(conn),
+    key: undefined,
+    readOnly: false,
+    source: 'config',
+    enabled: isConnectionEnabled(conn),
+  };
+}
+
 function parseConnectionsList(raw) {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((conn, index) => ({
-      ...conn,
-      id: ensureConnectionId(conn, index),
-      providerType: String(conn?.providerType || 'openai-compatible').toLowerCase(),
-      providerFamily:
-        normalizeProviderFamily(conn?.providerType || conn?.providerFamily) || 'openai',
-      hasKey: Boolean(conn?.key || conn?.keyMasked || conn?.hasKey || conn?.has_key),
-      keyMasked: conn?.keyMasked || (conn?.key ? `••••${String(conn.key).slice(-4)}` : ''),
-      key: undefined,
-      readOnly: false,
-      source: 'config',
-      enabled: conn?.enabled !== false,
-    }));
+    return parsed.map(normalizeConnectionListItem);
   } catch {
     return [];
   }
@@ -89,42 +123,60 @@ function validateConnectionBaseUrl(req, baseUrl, requiresUrl, url) {
   return null;
 }
 
-function buildTestConnection(body, baseUrl, headers, key, existingConnection) {
-  const providerType = String(body.providerType || 'openai').toLowerCase();
-  const providerFamily =
-    normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
-  const rawAuthType = String(
+function resolveConnectionAuthType(body, existingConnection) {
+  const raw = String(
     body.authType ||
       body.auth_type ||
-      existingConnection?.authType ||
-      existingConnection?.auth_type ||
+      (existingConnection && existingConnection.authType) ||
+      (existingConnection && existingConnection.auth_type) ||
       ''
   )
     .trim()
     .toLowerCase();
-  const authType = ['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(rawAuthType)
-    ? rawAuthType
-    : '';
+  return ['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(raw) ? raw : '';
+}
+
+function resolveConnectionKey(key, existingConnection) {
+  return key || String((existingConnection && existingConnection.key) || '').trim();
+}
+
+function buildTestConnection(body, baseUrl, headers, key, existingConnection) {
+  const providerType = String(body.providerType || 'openai').toLowerCase();
+  const providerFamily =
+    normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
+  const authType = resolveConnectionAuthType(body, existingConnection);
   return {
     providerType,
     providerFamily,
     authType,
-    key: key || String(existingConnection?.key || '').trim(),
+    key: resolveConnectionKey(key, existingConnection),
     headers,
     baseUrl: normalizeBaseUrl(baseUrl),
   };
+}
+
+const DISPLAY_NAME_FIELDS = ['displayName', 'display_name', 'name', 'id'];
+
+function resolveDisplayName(item, rawId) {
+  for (const key of DISPLAY_NAME_FIELDS) {
+    const value = item && item[key];
+    if (value) return String(value).trim();
+  }
+  return rawId ? String(rawId).trim() : '';
+}
+
+function stripModelsPrefix(name) {
+  return name.startsWith('models/') ? name.slice('models/'.length) : name;
 }
 
 function formatDiscoveredModels(items) {
   return items
     .map((item) => {
       const rawId = extractConnectionModelId(item);
-      const displayName = String(
-        item?.displayName || item?.display_name || item?.name || item?.id || rawId || ''
-      ).trim();
+      const displayName = resolveDisplayName(item, rawId);
       return {
         id: rawId,
-        name: displayName.startsWith('models/') ? displayName.slice('models/'.length) : displayName,
+        name: stripModelsPrefix(displayName),
       };
     })
     .filter((item) => Boolean(item.id));

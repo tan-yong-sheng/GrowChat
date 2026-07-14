@@ -93,25 +93,31 @@ export function setupWireChatControllers(ctx, deps) {
     renderMessageInput,
   } = deps;
 
-  const buildFallbackAssistantMessage = (chatId, messageId, options = {}) => {
-    if (!chatId || !messageId) return null;
-    const { content, errorActive, errorMessage, model, parentId } = options;
+  function resolveExistingMessage(chatId, messageId) {
     const messages = state.messagesByChat[chatId] || [];
-    const existing = messages.find((msg) => String(msg.id) === String(messageId));
+    return messages.find((msg) => String(msg.id) === String(messageId));
+  }
+
+  function resolveFallbackContent(content, existing, errorActive, errorMessage) {
     const safeError = String(errorMessage || 'LLM request failed');
     let nextContent = content ?? existing?.content ?? '';
     if (errorActive && !nextContent) {
       nextContent = `Error: ${safeError}`;
     }
-    if (existing) {
-      return {
-        ...existing,
-        content: nextContent,
-        status: errorActive ? 'error' : existing.status,
-        error_message: errorActive ? safeError : existing.error_message,
-        done: true,
-      };
-    }
+    return { nextContent, safeError };
+  }
+
+  function buildExistingFallback(existing, nextContent, errorActive, safeError) {
+    return {
+      ...existing,
+      content: nextContent,
+      status: errorActive ? 'error' : existing.status,
+      error_message: errorActive ? safeError : existing.error_message,
+      done: true,
+    };
+  }
+
+  function buildNewFallback(messageId, nextContent, model, parentId, errorActive, safeError) {
     return {
       id: messageId,
       role: 'assistant',
@@ -123,6 +129,22 @@ export function setupWireChatControllers(ctx, deps) {
       created_at: Math.floor(Date.now() / 1000),
       done: true,
     };
+  }
+
+  const buildFallbackAssistantMessage = (chatId, messageId, options = {}) => {
+    if (!chatId || !messageId) return null;
+    const { content, errorActive, errorMessage, model, parentId } = options;
+    const existing = resolveExistingMessage(chatId, messageId);
+    const { nextContent, safeError } = resolveFallbackContent(
+      content,
+      existing,
+      errorActive,
+      errorMessage
+    );
+    if (existing) {
+      return buildExistingFallback(existing, nextContent, errorActive, safeError);
+    }
+    return buildNewFallback(messageId, nextContent, model, parentId, errorActive, safeError);
   };
   const resolveMessageList = (chatId) => state.messagesByChat[chatId] || [];
 

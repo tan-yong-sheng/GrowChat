@@ -79,28 +79,37 @@ export function openRoleModal(
     });
   };
 
-  const syncShell = () => {
-    const namePreview = modal.querySelector('[data-role-name-preview]');
-    const summaryPreview = modal.querySelector('[data-role-summary-preview]');
-    const systemNote = modal.querySelector('[data-role-system-note]');
-    const nameInput = modal.querySelector('#role-name');
+  function syncNamePreview(el) {
+    if (el) el.textContent = String(modalState.draft.name || '');
+  }
 
-    if (namePreview) namePreview.textContent = String(modalState.draft.name || '');
-    if (summaryPreview) {
-      summaryPreview.textContent = `${formatRoleSummary(modalState.draft)} · ${isSystemRole ? 'system' : 'custom'}`;
-    }
-    if (systemNote) {
-      if (isSystemRole) {
-        systemNote.textContent = 'System template names are fixed. Edit permissions only.';
-      }
-    }
-    if (nameInput && !isSystemRole) {
-      nameInput.value = String(modalState.draft.name || '');
-    }
-    const clearContainer = modal.querySelector('#role-permission-clear-container');
-    if (clearContainer) {
-      clearContainer.classList.toggle('hidden', !String(modalState.query || '').trim());
-    }
+  function syncSummaryPreview(el) {
+    if (!el) return;
+    const roleKind = isSystemRole ? 'system' : 'custom';
+    el.textContent = `${formatRoleSummary(modalState.draft)} · ${roleKind}`;
+  }
+
+  function syncSystemNote(el) {
+    if (!el || !isSystemRole) return;
+    el.textContent = 'System template names are fixed. Edit permissions only.';
+  }
+
+  function syncNameInput(el) {
+    if (!el || isSystemRole) return;
+    el.value = String(modalState.draft.name || '');
+  }
+
+  function syncClearContainer(el) {
+    if (!el) return;
+    el.classList.toggle('hidden', !String(modalState.query || '').trim());
+  }
+
+  const syncShell = () => {
+    syncNamePreview(modal.querySelector('[data-role-name-preview]'));
+    syncSummaryPreview(modal.querySelector('[data-role-summary-preview]'));
+    syncSystemNote(modal.querySelector('[data-role-system-note]'));
+    syncNameInput(modal.querySelector('#role-name'));
+    syncClearContainer(modal.querySelector('#role-permission-clear-container'));
   };
 
   const renderPermissionPane = () => {

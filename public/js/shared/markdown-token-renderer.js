@@ -60,32 +60,25 @@ function _renderInlineDefault(token) {
   return escapeHtml(token.text ?? token.raw ?? '');
 }
 
+const INLINE_TOKEN_HANDLERS = {
+  escape: _renderInlineTextOrEscape,
+  text: _renderInlineTextOrEscape,
+  strong: _renderInlineStrong,
+  em: _renderInlineEm,
+  del: _renderInlineDel,
+  codespan: _renderInlineCodespan,
+  br: () => '<br />',
+  link: _renderInlineLink,
+  image: _renderInlineImage,
+  html: (token) => token.raw ?? token.text ?? '',
+  __default: _renderInlineDefault,
+};
+
 export function renderInlineToken(token) {
   if (!token) return '';
   const type = String(token.type || '');
-  switch (type) {
-    case 'escape':
-    case 'text':
-      return _renderInlineTextOrEscape(token);
-    case 'strong':
-      return _renderInlineStrong(token);
-    case 'em':
-      return _renderInlineEm(token);
-    case 'del':
-      return _renderInlineDel(token);
-    case 'codespan':
-      return _renderInlineCodespan(token);
-    case 'br':
-      return '<br />';
-    case 'link':
-      return _renderInlineLink(token);
-    case 'image':
-      return _renderInlineImage(token);
-    case 'html':
-      return token.raw ?? token.text ?? '';
-    default:
-      return _renderInlineDefault(token);
-  }
+  const handler = INLINE_TOKEN_HANDLERS[type] || INLINE_TOKEN_HANDLERS.__default;
+  return handler(token);
 }
 
 function _renderSpecialBlockLatex(token, { interactive, streaming, langLabel, sourceLanguage }) {
@@ -270,33 +263,25 @@ function _renderDefaultMarkdownToken(token) {
   return escapeHtml(token.text ?? token.raw ?? '');
 }
 
+const MARKDOWN_TOKEN_HANDLERS = {
+  space: () => '',
+  hr: () => '<hr />',
+  heading: (token) => _renderHeadingToken(token),
+  paragraph: (token) => _renderParagraphToken(token),
+  text: (token) => _renderTextMarkdownToken(token),
+  code: (token, options) => renderCodeBlock(token, options),
+  blockquote: (token, options) => renderBlockquote(token, options),
+  list: (token, options) => _renderListToken(token, options),
+  table: (token, options) => renderTable(token, options),
+  html: (token) => token.raw ?? token.text ?? '',
+  __default: (token) => _renderDefaultMarkdownToken(token),
+};
+
 export function renderMarkdownToken(token, options = {}) {
   if (!token) return '';
   const type = String(token.type || '');
-  switch (type) {
-    case 'space':
-      return '';
-    case 'hr':
-      return '<hr />';
-    case 'heading':
-      return _renderHeadingToken(token);
-    case 'paragraph':
-      return _renderParagraphToken(token);
-    case 'text':
-      return _renderTextMarkdownToken(token);
-    case 'code':
-      return renderCodeBlock(token, options);
-    case 'blockquote':
-      return renderBlockquote(token, options);
-    case 'list':
-      return _renderListToken(token, options);
-    case 'table':
-      return renderTable(token, options);
-    case 'html':
-      return token.raw ?? token.text ?? '';
-    default:
-      return _renderDefaultMarkdownToken(token);
-  }
+  const handler = MARKDOWN_TOKEN_HANDLERS[type] || MARKDOWN_TOKEN_HANDLERS.__default;
+  return handler(token, options);
 }
 
 export function renderMarkdownTokens(tokens = [], options = {}) {

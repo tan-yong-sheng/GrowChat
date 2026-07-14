@@ -122,17 +122,26 @@ export function loadExternalStylesheet(href) {
   return promise;
 }
 
+const GRAPHVIZ_PATHS = [
+  ['window', 'Graphviz'],
+  ['Graphviz'],
+  ['window', 'graphviz'],
+  ['graphviz'],
+  ['window', '@hpcc-js/wasm', 'Graphviz'],
+  ['@hpcc-js/wasm', 'Graphviz'],
+  ['window', '@hpcc-js/wasm', 'graphviz'],
+  ['@hpcc-js/wasm', 'graphviz'],
+];
+
 function getGlobalGraphviz() {
-  return (
-    globalThis?.window?.Graphviz ||
-    globalThis?.Graphviz ||
-    globalThis?.window?.graphviz ||
-    globalThis?.graphviz ||
-    globalThis?.window?.['@hpcc-js/wasm']?.Graphviz ||
-    globalThis?.['@hpcc-js/wasm']?.Graphviz ||
-    globalThis?.window?.['@hpcc-js/wasm']?.graphviz ||
-    globalThis?.['@hpcc-js/wasm']?.graphviz
-  );
+  for (const path of GRAPHVIZ_PATHS) {
+    let obj = globalThis;
+    for (const key of path) {
+      obj = obj && obj[key];
+    }
+    if (obj) return obj;
+  }
+  return undefined;
 }
 
 export async function ensureKatexRuntime() {

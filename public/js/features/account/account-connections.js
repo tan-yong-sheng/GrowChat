@@ -87,14 +87,20 @@ function resolveConnectionEnabled(sources) {
  * Checks multiple key paths (camelCase + snake_case), falls back to normalization || 'all'.
  * Preserves || semantics (not ??) to match existing behavior.
  */
+const MANUAL_MODELS_MODE_FIELDS = ['manual_models_mode', 'manualModelsMode'];
+
+function firstPresentManualModelsMode(sources) {
+  for (const source of sources) {
+    if (!source) continue;
+    for (const field of MANUAL_MODELS_MODE_FIELDS) {
+      if (source[field]) return source[field];
+    }
+  }
+  return null;
+}
+
 function resolveConnectionManualModelsMode(sources) {
-  const { saved, payload, existing } = sources;
-  const raw =
-    saved?.manual_models_mode ||
-    saved?.manualModelsMode ||
-    payload?.manual_models_mode ||
-    payload?.manualModelsMode ||
-    existing?.manualModelsMode;
+  const raw = firstPresentManualModelsMode([sources.saved, sources.payload, sources.existing]);
   return normalizeConnectionModelSelectionMode(raw) || raw || 'all';
 }
 

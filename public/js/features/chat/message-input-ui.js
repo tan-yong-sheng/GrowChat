@@ -35,22 +35,46 @@ function stopMediaStream(stream) {
   if (stream) stream.getTracks().forEach((track) => track.stop());
 }
 
-async function createImageFileFromVideo(video, stream) {
-  const track = stream.getVideoTracks()[0];
-  const settings = typeof track?.getSettings === 'function' ? track.getSettings() : {};
-  const width = video.videoWidth || settings.width || 0;
-  const height = video.videoHeight || settings.height || 0;
+function getVideoTrackSettings(track) {
+  return typeof track?.getSettings === 'function' ? track.getSettings() : {};
+}
+
+function resolveCaptureDimensions(video, settings) {
+  return {
+    width: video.videoWidth || settings.width || 0,
+    height: video.videoHeight || settings.height || 0,
+  };
+}
+
+function requirePositiveDimensions(width, height) {
   if (!width || !height) {
     throw new Error('Unable to capture screen');
   }
+}
+
+function requireCanvasContext(canvas) {
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to capture screen');
+  return context;
+}
+
+async function createPngBlob(canvas) {
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('Unable to capture screen');
+  return blob;
+}
+
+async function createImageFileFromVideo(video, stream) {
+  const track = stream.getVideoTracks()[0];
+  const settings = getVideoTrackSettings(track);
+  const { width, height } = resolveCaptureDimensions(video, settings);
+  requirePositiveDimensions(width, height);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('Unable to capture screen');
+  const context = requireCanvasContext(canvas);
   context.drawImage(video, 0, 0, width, height);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error('Unable to capture screen');
+  const blob = await createPngBlob(canvas);
   return new File([blob], `screen-capture-${Date.now()}.png`, { type: 'image/png' });
 }
 

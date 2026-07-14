@@ -13,24 +13,39 @@ export { clonePreferencesImpl as clonePreferences };
 // Re-export so existing callers don't need to change.
 export { renderLoadingSkeleton, updateToolToggle };
 
+function pickFirstPresentString(tool, keys) {
+  for (const key of keys) {
+    const value = tool && tool[key];
+    if (value) return String(value).trim();
+  }
+  return '';
+}
+
+function pickToolObject(tool, keys) {
+  for (const key of keys) {
+    const value = tool && tool[key];
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  }
+  return undefined;
+}
+
+function isToolFlagEnabled(tool, key) {
+  return (tool && tool[key]) !== false;
+}
+
 export function normalizeTool(tool = {}) {
-  const name = String(tool.name || tool.id || tool.title || '').trim();
+  const name = pickFirstPresentString(tool, ['name', 'id', 'title']);
   if (!name) return null;
+  const title = pickFirstPresentString(tool, ['title', 'name']) || name;
+  const parameters = pickToolObject(tool, ['parameters', 'inputSchema']);
   return {
     name,
-    title: String(tool.title || tool.name || name).trim(),
-    description: String(tool.description || '').trim(),
-    parameters:
-      tool.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
-        ? tool.parameters
-        : tool.inputSchema &&
-            typeof tool.inputSchema === 'object' &&
-            !Array.isArray(tool.inputSchema)
-          ? tool.inputSchema
-          : undefined,
-    enabled: tool.enabled !== false,
-    visible_for_user: tool.visible_for_user !== false,
-    hidden_for_user: tool.hidden_for_user === true,
+    title,
+    description: pickFirstPresentString(tool, ['description']),
+    parameters,
+    enabled: isToolFlagEnabled(tool, 'enabled'),
+    visible_for_user: isToolFlagEnabled(tool, 'visible_for_user'),
+    hidden_for_user: tool && tool.hidden_for_user === true,
     _expanded: Boolean(tool._expanded),
   };
 }

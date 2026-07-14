@@ -198,18 +198,56 @@ export function applySpecialBlockModeToScope(scope, mode) {
   }
 }
 
+function getSpecialBlockMode(block) {
+  return block.dataset.markdownSpecialMode === 'code' ? 'code' : 'preview';
+}
+
+function isSpecialBlockCollapsed(block) {
+  return block.dataset.markdownSpecialCollapsed === '1';
+}
+
+function isSpecialBlockStreaming(block) {
+  return block.dataset.markdownSpecialStreaming === '1';
+}
+
+function isSpecialBlockErrored(block) {
+  return block.dataset.markdownSpecialHasError === '1';
+}
+
+function updateElementVisibility(el, hidden) {
+  if (el) el.classList.toggle('hidden', hidden);
+}
+
+function shouldHidePreview(collapsed, mode, streaming) {
+  return collapsed || mode === 'code' || streaming;
+}
+
+function shouldHideCode(collapsed, mode) {
+  return collapsed || mode !== 'code';
+}
+
+function shouldHideError(collapsed, hasError, mode) {
+  return collapsed || !hasError || mode !== 'code';
+}
+
 export function updateSpecialBlockVisibility(block) {
   if (!block) return;
-  const nextMode = block.dataset.markdownSpecialMode === 'code' ? 'code' : 'preview';
-  const collapsed = block.dataset.markdownSpecialCollapsed === '1';
-  const streaming = block.dataset.markdownSpecialStreaming === '1';
-  const hasError = block.dataset.markdownSpecialHasError === '1';
-  const preview = block.querySelector('[data-markdown-special-preview]');
-  const code = block.querySelector('[data-markdown-special-code-shell]');
-  const error = block.querySelector('[data-markdown-special-error]');
-  if (preview) preview.classList.toggle('hidden', collapsed || nextMode === 'code' || streaming);
-  if (code) code.classList.toggle('hidden', collapsed || nextMode !== 'code');
-  if (error) error.classList.toggle('hidden', collapsed || !hasError || nextMode !== 'code');
+  const mode = getSpecialBlockMode(block);
+  const collapsed = isSpecialBlockCollapsed(block);
+  const streaming = isSpecialBlockStreaming(block);
+  const hasError = isSpecialBlockErrored(block);
+  updateElementVisibility(
+    block.querySelector('[data-markdown-special-preview]'),
+    shouldHidePreview(collapsed, mode, streaming)
+  );
+  updateElementVisibility(
+    block.querySelector('[data-markdown-special-code-shell]'),
+    shouldHideCode(collapsed, mode)
+  );
+  updateElementVisibility(
+    block.querySelector('[data-markdown-special-error]'),
+    shouldHideError(collapsed, hasError, mode)
+  );
   updateSpecialBlockCollapseState(block);
 }
 

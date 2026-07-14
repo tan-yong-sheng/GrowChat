@@ -117,6 +117,25 @@ export function renderPoliciesSettings(container, _data = {}) {
     }
   };
 
+  function shouldProcessFamily(familyKey) {
+    return Boolean(familyKey && state.familyStatus[familyKey]);
+  }
+
+  function resetFamilyStatus(familyKey) {
+    abortFamilyLoad(familyKey);
+    state.familyStatus[familyKey] = 'idle';
+    state.familyError[familyKey] = null;
+    if (familyKey === 'models') state.modelConnectionRulesById = new Map();
+  }
+
+  function maybeRenderActive(renderActive, shouldRender) {
+    if (renderActive && shouldRender && isActiveTab(container)) render();
+  }
+
+  function maybeReloadActive(reloadActive, shouldReload) {
+    if (reloadActive && shouldReload) void loadFamilyResources(state.activeFamily, { force: true });
+  }
+
   const invalidateFamilyState = (
     familyKeys = [],
     { renderActive = false, reloadActive = false } = {}
@@ -125,16 +144,15 @@ export function renderPoliciesSettings(container, _data = {}) {
     let shouldRender = false;
     let shouldReload = false;
     for (const familyKey of normalizedKeys) {
-      if (!familyKey || !state.familyStatus[familyKey]) continue;
-      abortFamilyLoad(familyKey);
-      state.familyStatus[familyKey] = 'idle';
-      state.familyError[familyKey] = null;
-      if (familyKey === 'models') state.modelConnectionRulesById = new Map();
-      shouldRender = shouldRender || state.activeFamily === familyKey;
-      shouldReload = shouldReload || state.activeFamily === familyKey;
+      if (!shouldProcessFamily(familyKey)) continue;
+      resetFamilyStatus(familyKey);
+      if (state.activeFamily === familyKey) {
+        shouldRender = true;
+        shouldReload = true;
+      }
     }
-    if (renderActive && shouldRender && isActiveTab(container)) render();
-    if (reloadActive && shouldReload) void loadFamilyResources(state.activeFamily, { force: true });
+    maybeRenderActive(renderActive, shouldRender);
+    maybeReloadActive(reloadActive, shouldReload);
   };
 
   const handleModelsInvalidation = () => {

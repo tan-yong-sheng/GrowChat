@@ -2,20 +2,38 @@ import { normalizeCitations } from '../../shared/utils/chat-cache.js';
 import { escapeHtml } from '../../shared/utils.js';
 import { formatModelDisplayName } from './chat-message-utils.js';
 
-function computeMessageContext(m, i, projectedMessages, streamingOverride, state, rounds) {
-  const msgId = m.id || `idx-${i}`;
-  const hasOverride = Boolean(
-    streamingOverride &&
-    streamingOverride.targetMsgId &&
-    String(streamingOverride.targetMsgId) === String(msgId)
+function resolveMessageId(m, i) {
+  return m.id || `idx-${i}`;
+}
+
+function resolveStreamingOverride(streamingOverride, msgId) {
+  if (!streamingOverride?.targetMsgId) return null;
+  return String(streamingOverride.targetMsgId) === String(msgId) ? streamingOverride : null;
+}
+
+function resolveDisplayContent(m, override) {
+  return override ? override.content || '' : m.content;
+}
+
+function resolveIsStreaming(m, override, i, projectedMessages) {
+  return (
+    override != null || (m.role === 'assistant' && i === projectedMessages.length - 1 && !m.done)
   );
-  const displayContent = hasOverride ? streamingOverride.content || '' : m.content;
-  const isStreaming =
-    hasOverride || (m.role === 'assistant' && i === projectedMessages.length - 1 && !m.done);
-  const isEditing = msgId in (state?.ui?.editingMessages || {});
-  const editingContent = state?.ui?.editingMessages?.[msgId];
+}
+
+function resolveModelName(state, m) {
   const model = (state?.models || []).find((mod) => mod.id === m.model);
-  const modelName = model?.name || formatModelDisplayName(m.model) || 'Assistant';
+  return model?.name || formatModelDisplayName(m.model) || 'Assistant';
+}
+
+function computeMessageContext(m, i, projectedMessages, streamingOverride, state, rounds) {
+  const msgId = resolveMessageId(m, i);
+  const override = resolveStreamingOverride(streamingOverride, msgId);
+  const displayContent = resolveDisplayContent(m, override);
+  const isStreaming = resolveIsStreaming(m, override, i, projectedMessages);
+  const editingContent = state?.ui?.editingMessages?.[msgId];
+  const isEditing = msgId in (state?.ui?.editingMessages || {});
+  const modelName = resolveModelName(state, m);
   return {
     msgId,
     displayContent,

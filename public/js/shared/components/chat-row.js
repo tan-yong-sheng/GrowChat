@@ -156,6 +156,8 @@ export function createChatRow(chat, handlers) {
   });
 
   // Handle menu actions
+  const CHAT_ROW_ACTIONS = ['share', 'rename', 'pin', 'duplicate', 'archive', 'delete'];
+
   dropdown.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('button[data-action]');
     if (!actionBtn) return;
@@ -163,12 +165,12 @@ export function createChatRow(chat, handlers) {
     e.stopPropagation();
     const action = actionBtn.dataset.action;
 
-    if (action === 'share' && handlers.share) await handlers.share(chat.id);
-    if (action === 'rename' && handlers.rename) await handlers.rename(chat.id);
-    if (action === 'pin' && handlers.pin) await handlers.pin(chat.id);
-    if (action === 'duplicate' && handlers.duplicate) await handlers.duplicate(chat.id);
-    if (action === 'archive' && handlers.archive) await handlers.archive(chat.id);
-    if (action === 'delete' && handlers.delete) await handlers.delete(chat.id);
+    for (const key of CHAT_ROW_ACTIONS) {
+      if (action === key && handlers[key]) {
+        await handlers[key](chat.id);
+        break;
+      }
+    }
 
     dropdown.classList.add('hidden');
   });

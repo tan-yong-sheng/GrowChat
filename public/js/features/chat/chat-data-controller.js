@@ -163,18 +163,37 @@ export function createChatDataController({
     }
   }
 
+  function getChatsPaginationLimit(pagination) {
+    return pagination?.offset || pagination?.limit || 30;
+  }
+
+  function extractTempChats(chats) {
+    return chats.filter((chat) => isTempChatId(chat?.id));
+  }
+
+  function buildChatIdSet(chats) {
+    return new Set(chats.map((chat) => String(chat.id)));
+  }
+
+  function mergeTempAndServerChats(tempChats, serverChats, tempIds) {
+    return [...tempChats, ...serverChats.filter((chat) => !tempIds.has(String(chat.id)))];
+  }
+
+  function resolveNextActiveChatId(currentActiveChatId, chats) {
+    if (!currentActiveChatId) return null;
+    return chats.some((chat) => chat.id === currentActiveChatId)
+      ? currentActiveChatId
+      : chats[0]?.id || null;
+  }
+
   async function loadChats() {
-    const limit = state.chatsPagination?.offset || state.chatsPagination?.limit || 30;
+    const limit = getChatsPaginationLimit(state.chatsPagination);
     const data = await fetchChats({ limit, offset: 0 });
     const serverChats = data.chats || [];
-    const tempChats = state.chats.filter((chat) => isTempChatId(chat?.id));
-    const tempIds = new Set(tempChats.map((chat) => String(chat.id)));
-    const chats = [...tempChats, ...serverChats.filter((chat) => !tempIds.has(String(chat.id)))];
-
-    let nextActiveChatId = state.activeChatId;
-    if (nextActiveChatId && !chats.some((chat) => chat.id === nextActiveChatId)) {
-      nextActiveChatId = chats[0]?.id || null;
-    }
+    const tempChats = extractTempChats(state.chats);
+    const tempIds = buildChatIdSet(tempChats);
+    const chats = mergeTempAndServerChats(tempChats, serverChats, tempIds);
+    const nextActiveChatId = resolveNextActiveChatId(state.activeChatId, chats);
 
     setState({
       chats,

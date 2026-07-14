@@ -62,6 +62,32 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
     container.dataset.modelsMounted === '1' &&
     Boolean(container.querySelector('[data-models-scroll]'));
 
+  async function parseSaveModelSettingsError(res) {
+    const err = await res.json().catch(() => ({}));
+    return new Error(err.error || err.message || 'Failed to save model settings');
+  }
+
+  function commitSavedPreferences(payload, nextPreferences) {
+    const committedPreferences = payload?.user?.preferences || nextPreferences;
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: committedPreferences,
+    };
+  }
+
+  function markSectionSaved() {
+    sectionState.originalDisabledModelIds = new Set(sectionState.disabledModelIds);
+    sectionState.originalAttachmentCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
+    sectionState.error = '';
+  }
+
+  function handleSaveModelSettingsError(err, requestVersion, rollback) {
+    if (requestVersion !== saveRequestVersion) return;
+    if (rollback) applyRollbackState(sectionState, rollback);
+    sectionState.error = err?.message || 'Failed to save model settings';
+    render();
+  }
+
   const persistModelSettings = async ({ rollback = null } = {}) => {
     const requestVersion = ++saveRequestVersion;
     const nextPreferences = buildNextPreferencesPayload(sectionState, state.settings);
@@ -72,30 +98,67 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
         body: JSON.stringify({ preferences: nextPreferences }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save model settings');
+        throw await parseSaveModelSettingsError(res);
       }
       const payload = await res.json().catch(() => ({}));
       if (requestVersion !== saveRequestVersion) return;
-      const committedPreferences = payload?.user?.preferences || nextPreferences;
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: committedPreferences,
-      };
-      sectionState.originalDisabledModelIds = new Set(sectionState.disabledModelIds);
-      sectionState.originalAttachmentCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
-      sectionState.error = '';
+      commitSavedPreferences(payload, nextPreferences);
+      markSectionSaved();
       broadcastModelsInvalidation();
     } catch (err) {
-      if (requestVersion !== saveRequestVersion) return;
-      if (rollback) applyRollbackState(sectionState, rollback);
-      sectionState.error = err?.message || 'Failed to save model settings';
-      render();
+      handleSaveModelSettingsError(err, requestVersion, rollback);
     }
   };
 
+  function getVisibleModels() {
+    return Array.isArray(sectionState.models) ? sectionState.models : [];
+  }
+
+  function renderModelRowsHtml(visibleModels) {
+    if (sectionState.loading) return renderLoadingRows();
+    if (!visibleModels.length) return '';
+    return visibleModels.map((model) => renderModelRow(model)).join('');
+  }
+
+  function resolveModelsEmptyMessage(usingFilter) {
+    const noQuery = !normalizeModelSearchQuery(sectionState.query);
+    if (sectionState.total === 0 && noQuery && sectionState.provider === 'all') {
+      return 'No models are available to you.';
+    }
+    return `No models found${usingFilter ? ` matching "${escapeHtml(sectionState.query)}"` : ''}.`;
+  }
+
+  function buildPaginationRange() {
+    return {
+      pageStart: sectionState.total === 0 ? 0 : sectionState.offset + 1,
+      pageEnd: Math.min(
+        sectionState.offset + sectionState.limit,
+        sectionState.total || sectionState.models.length
+      ),
+    };
+  }
+
+  function resolvePageTotal() {
+    return Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length;
+  }
+
+  function resolveCurrentPage() {
+    return Math.max(1, Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1);
+  }
+
+  function resolveTotalPages(pageTotal) {
+    return Math.max(1, Math.ceil(pageTotal / Math.max(1, sectionState.limit)));
+  }
+
+  function renderErrorSlot() {
+    const errorSlot = container.querySelector('#account-models-error-container');
+    if (errorSlot) {
+      errorSlot.textContent = sectionState.error ? sectionState.error : '';
+    }
+  }
+
   const syncUi = () => {
-    const visibleModels = Array.isArray(sectionState.models) ? sectionState.models : [];
+    const visibleModels = getVisibleModels();
     const usingFilter = isUsingFilter(sectionState.query, sectionState.provider);
     const providerOpts = renderProviderOptionsHtml(
       sectionState.providerOptions,
@@ -118,82 +181,57 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
 
     syncModelsTableState(container, {
       loading: sectionState.loading,
-      rowsHtml: sectionState.loading
-        ? renderLoadingRows()
-        : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model)).join('') : ''}`,
-      emptyMessage:
-        sectionState.total === 0 &&
-        !normalizeModelSearchQuery(sectionState.query) &&
-        sectionState.provider === 'all'
-          ? 'No models are available to you.'
-          : `No models found${usingFilter ? ` matching "${escapeHtml(sectionState.query)}"` : ''}.`,
+      rowsHtml: renderModelRowsHtml(visibleModels),
+      emptyMessage: resolveModelsEmptyMessage(usingFilter),
       tbodyId: 'account-models-table-body',
     });
 
+    const pageTotal = resolvePageTotal();
     syncModelsPaginationState(container, {
       pageSizeId: 'page-size-select',
       limit: sectionState.limit,
-      pageStart: sectionState.total === 0 ? 0 : sectionState.offset + 1,
-      pageEnd: Math.min(
-        sectionState.offset + sectionState.limit,
-        sectionState.total || sectionState.models.length
-      ),
-      pageTotal: Number.isFinite(sectionState.total)
-        ? sectionState.total
-        : sectionState.models.length,
-      currentPage: Math.max(
-        1,
-        Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1
-      ),
-      totalPages: Math.max(
-        1,
-        Math.ceil(
-          (Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length) /
-            Math.max(1, sectionState.limit)
-        )
-      ),
+      ...buildPaginationRange(),
+      pageTotal,
+      currentPage: resolveCurrentPage(),
+      totalPages: resolveTotalPages(pageTotal),
       loading: sectionState.loading,
-      usingFilter: isUsingFilter(sectionState.query, sectionState.provider),
+      usingFilter,
     });
 
-    const errorSlot = container.querySelector('#account-models-error-container');
-    if (errorSlot) {
-      errorSlot.textContent = sectionState.error ? sectionState.error : '';
-    }
+    renderErrorSlot();
   };
 
   const bindDelegatedEvents = () => {
     bindModelsEvents({ container, sectionState, persistModelSettings, syncUi, loadModels });
   };
 
-  function render() {
-    const providerOptions = sectionState.providerOptions.length
+  function resolveProviderOptionsForRender() {
+    return sectionState.providerOptions.length
       ? sectionState.providerOptions
       : buildProviderOptions(sectionState.models, { includeAll: true });
-    const activeTotal = Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : 0;
-    const pageTotal = Number.isFinite(sectionState.total)
-      ? sectionState.total
-      : sectionState.models.length;
-    const totalPages = Math.max(1, Math.ceil((pageTotal || 0) / Math.max(1, sectionState.limit)));
-    const currentPage = Math.max(
-      1,
-      Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1
-    );
-    const pageStart = pageTotal === 0 ? 0 : sectionState.offset + 1;
-    const pageEnd = Math.min(sectionState.offset + sectionState.limit, pageTotal);
-    const usingFilter = isUsingFilter(sectionState.query, sectionState.provider);
-    const visibleModels = Array.isArray(sectionState.models) ? sectionState.models : [];
-    const rowsHtml = sectionState.loading
-      ? renderLoadingRows()
-      : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model)).join('') : ''}`;
-    const providerOpts = renderProviderOptionsHtml(
-      sectionState.providerOptions,
-      sectionState.models,
-      sectionState.provider
-    );
+  }
 
-    if (!ensureMounted()) {
-      const fragment = document.createRange().createContextualFragment(`
+  function resolveActiveTotal() {
+    return Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : 0;
+  }
+
+  function resolvePageRange(pageTotal) {
+    return {
+      pageStart: pageTotal === 0 ? 0 : sectionState.offset + 1,
+      pageEnd: Math.min(sectionState.offset + sectionState.limit, pageTotal),
+    };
+  }
+
+  function resolveRenderRowsHtml() {
+    const visibleModels = Array.isArray(sectionState.models) ? sectionState.models : [];
+    if (sectionState.loading) return renderLoadingRows();
+    if (!visibleModels.length) return '';
+    return visibleModels.map((model) => renderModelRow(model)).join('');
+  }
+
+  function renderUnmounted(pagination, usingFilter, providerOpts, rowsHtml) {
+    const { activeTotal, pageStart, pageEnd, pageTotal, currentPage, totalPages } = pagination;
+    const fragment = document.createRange().createContextualFragment(`
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div id="account-models-error-container"></div>
         ${renderModelsHeaderHtml({
@@ -224,12 +262,36 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
           totalPages,
           loading: sectionState.loading,
           usingFilter,
-        })} 
+        })}
       </div>
     `);
-      container.replaceChildren(fragment);
-      container.dataset.modelsMounted = '1';
-      bindDelegatedEvents();
+    container.replaceChildren(fragment);
+    container.dataset.modelsMounted = '1';
+    bindDelegatedEvents();
+  }
+
+  function render() {
+    const providerOptions = resolveProviderOptionsForRender();
+    const activeTotal = resolveActiveTotal();
+    const pageTotal = resolvePageTotal();
+    const totalPages = resolveTotalPages(pageTotal);
+    const currentPage = resolveCurrentPage();
+    const { pageStart, pageEnd } = resolvePageRange(pageTotal);
+    const usingFilter = isUsingFilter(sectionState.query, sectionState.provider);
+    const rowsHtml = resolveRenderRowsHtml();
+    const providerOpts = renderProviderOptionsHtml(
+      sectionState.providerOptions,
+      sectionState.models,
+      sectionState.provider
+    );
+
+    if (!ensureMounted()) {
+      renderUnmounted(
+        { activeTotal, pageStart, pageEnd, pageTotal, currentPage, totalPages },
+        usingFilter,
+        providerOpts,
+        rowsHtml
+      );
     } else {
       syncUi();
     }
@@ -341,6 +403,16 @@ function buildMergedAttachmentCaps(visibleModels, hiddenModels, savedSettings, a
   return mergedCaps;
 }
 
+function resolvePaginationField(payload, field, fallback) {
+  return Number.isFinite(payload?.[field]) ? payload[field] : fallback;
+}
+
+function resolveProviderOptions(payloadProviders, models) {
+  return Array.isArray(payloadProviders) && payloadProviders.length > 0
+    ? payloadProviders
+    : buildProviderOptions(models, { includeAll: true });
+}
+
 function applyLoadedModelsToState(
   payload,
   visibleModels,
@@ -351,16 +423,15 @@ function applyLoadedModelsToState(
 ) {
   const combinedModels = buildCombinedModelsArray(visibleModels, hiddenModels, mergedCaps);
   sectionState.models = sortModelsByActiveThenName(combinedModels);
-  sectionState.total = Number.isFinite(payload?.total) ? payload.total : sectionState.models.length;
-  sectionState.activeTotal = Number.isFinite(payload?.active_total)
-    ? payload.active_total
-    : countEnabledModels(sectionState.models);
-  sectionState.limit = Number.isFinite(payload?.limit) ? payload.limit : sectionState.limit;
-  sectionState.offset = Number.isFinite(payload?.offset) ? payload.offset : sectionState.offset;
-  sectionState.providerOptions =
-    Array.isArray(payload?.providers) && payload.providers.length > 0
-      ? payload.providers
-      : buildProviderOptions(sectionState.models, { includeAll: true });
+  sectionState.total = resolvePaginationField(payload, 'total', sectionState.models.length);
+  sectionState.activeTotal = resolvePaginationField(
+    payload,
+    'active_total',
+    countEnabledModels(sectionState.models)
+  );
+  sectionState.limit = resolvePaginationField(payload, 'limit', sectionState.limit);
+  sectionState.offset = resolvePaginationField(payload, 'offset', sectionState.offset);
+  sectionState.providerOptions = resolveProviderOptions(payload?.providers, sectionState.models);
   sectionState.disabledModelIds = new Set(mergedDisabledSet);
   sectionState.originalDisabledModelIds = new Set(mergedDisabledSet);
   sectionState.attachmentCaps = cloneAttachmentCaps(mergedCaps);

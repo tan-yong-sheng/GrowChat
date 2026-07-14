@@ -83,18 +83,28 @@ export function toAccessibleConnectionSummary(connection, accessVariant = 'admin
   };
 }
 
+function getToolString(tool, key) {
+  return String((tool && tool[key]) || '').trim();
+}
+
+function getToolBoolean(tool, key, defaultValue = false) {
+  return (tool && tool[key]) !== defaultValue;
+}
+
+function getToolObject(tool, key) {
+  const value = tool && tool[key];
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+}
+
 function normalizeTool(tool) {
   return {
-    name: String(tool?.name || '').trim(),
-    title: String(tool?.title || '').trim(),
-    description: String(tool?.description || '').trim(),
-    enabled: tool?.enabled !== false,
-    visible_for_user: tool?.visible_for_user !== false,
-    hidden_for_user: tool?.hidden_for_user === true,
-    parameters:
-      tool?.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
-        ? tool.parameters
-        : undefined,
+    name: getToolString(tool, 'name'),
+    title: getToolString(tool, 'title'),
+    description: getToolString(tool, 'description'),
+    enabled: getToolBoolean(tool, 'enabled', false),
+    visible_for_user: getToolBoolean(tool, 'visible_for_user', false),
+    hidden_for_user: tool && tool.hidden_for_user === true,
+    parameters: getToolObject(tool, 'parameters'),
   };
 }
 

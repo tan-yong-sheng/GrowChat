@@ -31,14 +31,24 @@ function normalizeStringToolType(type) {
   return undefined;
 }
 
+function hasToolName(toolChoice) {
+  return Boolean(
+    toolChoice.toolName || toolChoice.name || (toolChoice.function && toolChoice.function.name)
+  );
+}
+
+function hasFunctionName(toolChoice) {
+  return Boolean((toolChoice.function && toolChoice.function.name) || toolChoice.name);
+}
+
 function normalizeObjectToolChoice(toolChoice) {
   const type = String(toolChoice.type || '').toLowerCase();
   if (!type) return undefined;
   if (['auto', 'none', 'required'].includes(type)) return { type };
-  if (type === 'tool' && (toolChoice.toolName || toolChoice.name || toolChoice.function?.name)) {
+  if (type === 'tool' && hasToolName(toolChoice)) {
     return { type: 'tool', toolName: resolveToolName(toolChoice) };
   }
-  if (type === 'function' && (toolChoice.function?.name || toolChoice.name)) {
+  if (type === 'function' && hasFunctionName(toolChoice)) {
     return { type: 'tool', toolName: resolveFunctionName(toolChoice) };
   }
   return undefined;
@@ -69,37 +79,65 @@ function convertEmptySchema(jsonSchema) {
   return { type: 'object' };
 }
 
+const SIMPLE_SCHEMA_FIELDS = ['description', 'required', 'format'];
+
+function applySimpleSchemaField(result, jsonSchema, key) {
+  const value = jsonSchema[key];
+  if (value !== undefined) result[key] = value;
+}
+
+function applyConstSchemaField(result, constValue) {
+  if (constValue !== undefined) result.enum = [constValue];
+}
+
+function applyTypeSchemaField(result, type) {
+  if (!type) return;
+  if (Array.isArray(type)) handleTypeArray(type, result);
+  else result.type = type;
+}
+
+function applyEnumSchemaField(result, enumValues) {
+  if (enumValues !== undefined) result.enum = enumValues;
+}
+
+function applyPropertiesSchemaField(result, properties) {
+  if (properties) handleProperties(properties, result);
+}
+
+function applyItemsSchemaField(result, items) {
+  if (items) handleItems(items, result);
+}
+
+function applyAllOfSchemaField(result, allOf) {
+  if (allOf) handleAllOf(allOf, result);
+}
+
+function applyAnyOfSchemaField(result, anyOf) {
+  if (anyOf) handleAnyOfSchemas(anyOf, result);
+}
+
+function applyOneOfSchemaField(result, oneOf) {
+  if (oneOf) handleOneOf(oneOf, result);
+}
+
+function applyMinLengthSchemaField(result, minLength) {
+  if (minLength !== undefined) result.minLength = minLength;
+}
+
 function convertSchemaObject(jsonSchema) {
   const result = {};
-  const {
-    type,
-    description,
-    required,
-    properties,
-    items,
-    allOf,
-    anyOf,
-    oneOf,
-    format,
-    const: constValue,
-    minLength,
-    enum: enumValues,
-  } = jsonSchema;
-  if (description) result.description = description;
-  if (required) result.required = required;
-  if (format) result.format = format;
-  if (constValue !== undefined) result.enum = [constValue];
-  if (type) {
-    if (Array.isArray(type)) handleTypeArray(type, result);
-    else result.type = type;
+  for (const key of SIMPLE_SCHEMA_FIELDS) {
+    applySimpleSchemaField(result, jsonSchema, key);
   }
-  if (enumValues !== undefined) handleEnumValues(enumValues, result);
-  if (properties) handleProperties(properties, result);
-  if (items) handleItems(items, result);
-  if (allOf) handleAllOf(allOf, result);
-  if (anyOf) handleAnyOfSchemas(anyOf, result);
-  if (oneOf) handleOneOf(oneOf, result);
-  if (minLength !== undefined) handleMinLength(minLength, result);
+  applyConstSchemaField(result, jsonSchema.const);
+  applyTypeSchemaField(result, jsonSchema.type);
+  applyEnumSchemaField(result, jsonSchema.enum);
+  applyPropertiesSchemaField(result, jsonSchema.properties);
+  applyItemsSchemaField(result, jsonSchema.items);
+  applyAllOfSchemaField(result, jsonSchema.allOf);
+  applyAnyOfSchemaField(result, jsonSchema.anyOf);
+  applyOneOfSchemaField(result, jsonSchema.oneOf);
+  applyMinLengthSchemaField(result, jsonSchema.minLength);
   return result;
 }
 

@@ -30,47 +30,74 @@ export {
 } from './provider-adapters-utils.js';
 export { buildGooglePayload } from './provider-adapters-google.js';
 
+function addStringContent(blocks, content) {
+  if (content) blocks.push({ type: 'text', text: content });
+}
+
+function addTextPart(blocks, part) {
+  if (part.text) blocks.push({ type: 'text', text: String(part.text) });
+}
+
+function addImageUrlPart(blocks, part) {
+  const url = String(part.image_url?.url || '').trim();
+  const dataUrl = decodeDataUrl(url);
+  if (!dataUrl) return;
+  blocks.push({
+    type: 'image',
+    source: { type: 'base64', media_type: dataUrl.mimeType, data: dataUrl.data },
+  });
+}
+
+function addPdfDocument(blocks, part, decoded) {
+  blocks.push({
+    type: 'document',
+    source: { type: 'base64', media_type: decoded.mimeType, data: decoded.data },
+    title: part.file?.filename || 'attachment.pdf',
+  });
+}
+
+function addTextDocument(blocks, part, decoded) {
+  blocks.push({
+    type: 'document',
+    source: { type: 'text', media_type: decoded.mimeType, data: '' },
+    title: part.file?.filename || 'attachment.txt',
+  });
+}
+
+function addFilePart(blocks, part) {
+  const fileData = String(part.file?.file_data || '').trim();
+  const decoded = decodeDataUrl(fileData);
+  if (!decoded) return;
+  if (decoded.mimeType === 'application/pdf') {
+    addPdfDocument(blocks, part, decoded);
+  } else if (decoded.mimeType.startsWith('text/')) {
+    addTextDocument(blocks, part, decoded);
+  }
+}
+
+function addPartToAnthropicBlocks(blocks, part) {
+  if (!part) return;
+  if (part.type === 'text') {
+    addTextPart(blocks, part);
+    return;
+  }
+  if (part.type === 'image_url') {
+    addImageUrlPart(blocks, part);
+    return;
+  }
+  if (part.type === 'file') {
+    addFilePart(blocks, part);
+  }
+}
+
 function contentToAnthropicBlocks(content) {
   const blocks = [];
   if (typeof content === 'string') {
-    if (content) blocks.push({ type: 'text', text: content });
+    addStringContent(blocks, content);
     return blocks;
   }
   for (const part of Array.isArray(content) ? content : []) {
-    if (!part) continue;
-    if (part.type === 'text') {
-      if (part.text) blocks.push({ type: 'text', text: String(part.text) });
-      continue;
-    }
-    if (part.type === 'image_url') {
-      const url = String(part.image_url?.url || '').trim();
-      const dataUrl = decodeDataUrl(url);
-      if (dataUrl) {
-        blocks.push({
-          type: 'image',
-          source: { type: 'base64', media_type: dataUrl.mimeType, data: dataUrl.data },
-        });
-      }
-      continue;
-    }
-    if (part.type === 'file') {
-      const fileData = String(part.file?.file_data || '').trim();
-      const decoded = decodeDataUrl(fileData);
-      if (!decoded) continue;
-      if (decoded.mimeType === 'application/pdf') {
-        blocks.push({
-          type: 'document',
-          source: { type: 'base64', media_type: decoded.mimeType, data: decoded.data },
-          title: part.file?.filename || 'attachment.pdf',
-        });
-      } else if (decoded.mimeType.startsWith('text/')) {
-        blocks.push({
-          type: 'document',
-          source: { type: 'text', media_type: decoded.mimeType, data: '' },
-          title: part.file?.filename || 'attachment.txt',
-        });
-      }
-    }
+    addPartToAnthropicBlocks(blocks, part);
   }
   return blocks;
 }

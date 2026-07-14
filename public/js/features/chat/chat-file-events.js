@@ -65,24 +65,42 @@ export function bindChatFileEvents({
     setDraftAttachments(chatId, next);
   };
 
+  function pluralizeFiles(count) {
+    return `${count} file${count > 1 ? 's' : ''}`;
+  }
+
+  async function uploadSingleFile(file, chatId) {
+    const outcome = await processSelectedFile(file, chatId);
+    if (outcome.skippedUnsupported) return { kind: 'unsupported' };
+    if (outcome.skippedByModel) return { kind: 'model' };
+    if (outcome.uploaded) return { kind: 'uploaded', file: outcome.uploaded };
+    return { kind: 'other' };
+  }
+
+  async function collectUploadedFiles(files, chatId) {
+    const uploaded = [];
+    let skippedUnsupported = 0;
+    let skippedByModel = 0;
+    for (const file of files) {
+      const result = await uploadSingleFile(file, chatId);
+      if (result.kind === 'unsupported') skippedUnsupported += 1;
+      else if (result.kind === 'model') skippedByModel += 1;
+      else if (result.kind === 'uploaded') uploaded.push(result.file);
+    }
+    return { uploaded, skippedUnsupported, skippedByModel };
+  }
+
   const handleFilesSelected = async (event) => {
     const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
     if (!files.length) return;
-    const toast = showToastProgress(
-      `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`
-    );
+    const toast = showToastProgress(`Uploading ${pluralizeFiles(files.length)}...`);
     try {
       const allowedNonLocalKinds = getAllowedNonLocalKinds(state);
       const chatId = state.activeChatId;
-      const uploaded = [];
-      let skippedUnsupported = 0;
-      let skippedByModel = 0;
-      for (const file of files) {
-        const outcome = await processSelectedFile(file, chatId);
-        if (outcome.skippedUnsupported) skippedUnsupported += 1;
-        else if (outcome.skippedByModel) skippedByModel += 1;
-        else if (outcome.uploaded) uploaded.push(outcome.uploaded);
-      }
+      const { uploaded, skippedUnsupported, skippedByModel } = await collectUploadedFiles(
+        files,
+        chatId
+      );
       showUploadSkipMessages(skippedUnsupported, skippedByModel, allowedNonLocalKinds);
       if (uploaded.length) mergeUploadedAttachments(uploaded);
     } finally {

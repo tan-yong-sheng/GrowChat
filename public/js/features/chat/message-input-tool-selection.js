@@ -217,59 +217,129 @@ export function createToolSelectionController({
         '<div class="px-3 py-4 text-sm text-gray-400">No tools are enabled for this workspace.</div>';
       return;
     }
-    toolsMenuList.innerHTML = servers
-      .map((server) => {
-        const serverId = String(server.id || '');
-        const serverExpanded = expandedToolServerIds.has(serverId);
-        const selectionState = getServerSelectionState(server, selection);
-        const anyEnabled = selectionState.enabled || selectionState.partial;
-        const selectedSet =
-          selection === null
-            ? new Set(allowedKeys)
-            : new Set(Array.isArray(selection) ? selection : []);
-        const enabledToolCount = server.tools.length;
-        const scopeLabel = getToolServerScopeLabel(server);
-        const scopeBadgeClass = getToolServerScopeBadgeClass(server);
-        const toolRows = server.tools
-          .map((tool) => {
-            const key = buildToolKey(server.id, tool.name);
-            const enabled = selectedSet.has(key);
-            return `
-          <button type="button" data-tool-toggle data-tool-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name)}" aria-pressed="${enabled ? 'true' : 'false'}" class="w-full flex items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50">
-            <span class="min-w-0 flex-1 truncate">${escapeHtml(tool.title || tool.name)}</span>
-            <span class="ml-3 inline-flex h-5 w-9 items-center rounded-full px-0.5 transition ${enabled ? 'bg-emerald-500' : 'bg-gray-200'}" aria-hidden="true">
-              <span class="h-4 w-4 rounded-full bg-white shadow-sm transition ${enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
-            </span>
-          </button>
-        `;
-          })
-          .join('');
-        return `
+    const selectedSet =
+      selection === null
+        ? new Set(allowedKeys)
+        : new Set(Array.isArray(selection) ? selection : []);
+
+    function buildSelectedSet() {
+      return selectedSet;
+    }
+
+    function renderToolRow(tool, server) {
+      const key = buildToolKey(server.id, tool.name);
+      const enabled = selectedSet.has(key);
+      return `
+        <button type="button" data-tool-toggle data-tool-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name)}" aria-pressed="${enabled ? 'true' : 'false'}" class="w-full flex items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50">
+          <span class="min-w-0 flex-1 truncate">${escapeHtml(tool.title || tool.name)}</span>
+          <span class="ml-3 inline-flex h-5 w-9 items-center rounded-full px-0.5 transition ${enabled ? 'bg-emerald-500' : 'bg-gray-200'}" aria-hidden="true">
+            <span class="h-4 w-4 rounded-full bg-white shadow-sm transition ${enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
+          </span>
+        </button>
+      `;
+    }
+
+    function renderToolRows(server) {
+      return server.tools.map((tool) => renderToolRow(tool, server)).join('');
+    }
+
+    function getAriaPressed(anyEnabled) {
+      return anyEnabled ? 'true' : 'false';
+    }
+
+    function getToggleActionLabel(anyEnabled) {
+      return anyEnabled ? 'Disable' : 'Enable';
+    }
+
+    function getToggleBgClass(anyEnabled) {
+      return anyEnabled ? 'bg-emerald-500' : 'bg-gray-200';
+    }
+
+    function getKnobTranslateClass(anyEnabled) {
+      return anyEnabled ? 'translate-x-4' : 'translate-x-0';
+    }
+
+    function getChevronClass(serverExpanded) {
+      return serverExpanded ? 'bi-chevron-down' : 'bi-chevron-right';
+    }
+
+    function getExpansionClass(serverExpanded) {
+      return serverExpanded ? '' : 'hidden';
+    }
+
+    function pluralizeToolCount(count) {
+      return `${count} tool${count === 1 ? '' : 's'}`;
+    }
+
+    function renderServerToggleButton(server, anyEnabled) {
+      const pressed = getAriaPressed(anyEnabled);
+      const actionLabel = getToggleActionLabel(anyEnabled);
+      const bgClass = getToggleBgClass(anyEnabled);
+      const knobClass = getKnobTranslateClass(anyEnabled);
+      return `
+        <button type="button" data-tool-server-toggle data-tool-server-id="${escapeHtml(server.id)}" aria-pressed="${pressed}" aria-label="${actionLabel} ${escapeHtml(server.name)}" title="${actionLabel} ${escapeHtml(server.name)}" class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${bgClass}">
+          <span class="h-4 w-4 rounded-full bg-white shadow-sm transition ${knobClass}" aria-hidden="true"></span>
+        </button>
+      `;
+    }
+
+    function renderServerExpandButton(
+      server,
+      serverExpanded,
+      scopeLabel,
+      scopeBadgeClass,
+      enabledToolCount
+    ) {
+      const chevronClass = getChevronClass(serverExpanded);
+      const countLabel = pluralizeToolCount(enabledToolCount);
+      return `
+        <button type="button" data-tool-server-expand data-tool-server-id="${escapeHtml(server.id)}" class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-gray-50 transition">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <div class="min-w-0 text-sm font-medium text-gray-900 truncate">${escapeHtml(server.name)}</div>
+              <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
+            </div>
+            <div class="text-xs text-gray-400">${countLabel}</div>
+          </div>
+          <i class="bi ${chevronClass} text-gray-400 text-sm leading-none flex-shrink-0" aria-hidden="true"></i>
+        </button>
+      `;
+    }
+
+    function renderToolServerSection(server) {
+      const serverId = String(server.id || '');
+      const serverExpanded = expandedToolServerIds.has(serverId);
+      const selectionState = getServerSelectionState(server, selection);
+      const anyEnabled = selectionState.enabled || selectionState.partial;
+      const enabledToolCount = server.tools.length;
+      const scopeLabel = getToolServerScopeLabel(server);
+      const scopeBadgeClass = getToolServerScopeBadgeClass(server);
+      const toolRows = renderToolRows(server);
+      const toggleButton = renderServerToggleButton(server, anyEnabled);
+      const expandButton = renderServerExpandButton(
+        server,
+        serverExpanded,
+        scopeLabel,
+        scopeBadgeClass,
+        enabledToolCount
+      );
+      const expansionClass = getExpansionClass(serverExpanded);
+      return `
         <section class="rounded-lg border border-gray-100 bg-white overflow-hidden" data-tool-server-card data-tool-server-id="${escapeHtml(server.id)}">
           <div class="flex items-center gap-2 px-2 py-1.5">
-            <button type="button" data-tool-server-toggle data-tool-server-id="${escapeHtml(server.id)}" aria-pressed="${anyEnabled ? 'true' : 'false'}" aria-label="${anyEnabled ? 'Disable' : 'Enable'} ${escapeHtml(server.name)}" title="${anyEnabled ? 'Disable' : 'Enable'} ${escapeHtml(server.name)}" class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${anyEnabled ? 'bg-emerald-500' : 'bg-gray-200'}">
-              <span class="h-4 w-4 rounded-full bg-white shadow-sm transition ${anyEnabled ? 'translate-x-4' : 'translate-x-0'}" aria-hidden="true"></span>
-            </button>
-            <button type="button" data-tool-server-expand data-tool-server-id="${escapeHtml(server.id)}" class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-gray-50 transition">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <div class="min-w-0 text-sm font-medium text-gray-900 truncate">${escapeHtml(server.name)}</div>
-                  <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
-                </div>
-                <div class="text-xs text-gray-400">${enabledToolCount} tool${enabledToolCount === 1 ? '' : 's'}</div>
-              </div>
-              <i class="bi ${serverExpanded ? 'bi-chevron-down' : 'bi-chevron-right'} text-gray-400 text-sm leading-none flex-shrink-0" aria-hidden="true"></i>
-            </button>
+            ${toggleButton}
+            ${expandButton}
           </div>
-          <div class="${serverExpanded ? '' : 'hidden'} px-2 pb-2">
+          <div class="${expansionClass} px-2 pb-2">
             <div class="space-y-1">
               ${toolRows}
             </div>
           </div>
         </section>
       `;
-      })
-      .join('');
+    }
+
+    toolsMenuList.innerHTML = servers.map((server) => renderToolServerSection(server)).join('');
   }
 
   const closeToolsMenu = () => {
@@ -350,49 +420,64 @@ export function createToolSelectionController({
     return Array.isArray(currentState.models) && currentState.models.length > 0;
   }
 
+  function isToolsMenuAllOnButton(target) {
+    return target.closest?.('#tools-menu-all-on') != null;
+  }
+
+  function isToolsMenuAllOffButton(target) {
+    return target.closest?.('#tools-menu-all-off') != null;
+  }
+
+  function getToolServerToggleButton(target) {
+    return target.closest?.('[data-tool-server-toggle]');
+  }
+
+  function getToolServerExpandButton(target) {
+    return target.closest?.('[data-tool-server-expand]');
+  }
+
+  function getToolToggleButton(target) {
+    return target.closest?.('[data-tool-toggle]');
+  }
+
+  function findToolServerById(serverId) {
+    return getAllowedToolServers(state).find((entry) => String(entry.id) === String(serverId));
+  }
+
+  function handleToolServerToggleClick(btn) {
+    const serverId = btn.getAttribute('data-tool-server-id');
+    const server = findToolServerById(serverId);
+    if (!serverId || !server) return;
+    const selectionState = getServerSelectionState(server);
+    const anyEnabled = selectionState.enabled || selectionState.partial;
+    setServerSelectionForCurrentChat(serverId, !anyEnabled);
+  }
+
+  function handleToolServerExpandClick(btn) {
+    const serverId = btn.getAttribute('data-tool-server-id');
+    if (serverId) toggleToolServerExpansion(serverId);
+  }
+
+  function handleToolToggleClick(btn) {
+    const serverId = btn.getAttribute('data-tool-server-id');
+    const toolName = btn.getAttribute('data-tool-name');
+    if (serverId && toolName) setToolSelectionForCurrentChat(serverId, toolName);
+  }
+
+  const TOOLS_MENU_HANDLERS = [
+    { test: isToolsMenuAllOnButton, run: () => setAllToolSelectionsForCurrentChat(true) },
+    { test: isToolsMenuAllOffButton, run: () => setAllToolSelectionsForCurrentChat(false) },
+    { test: getToolServerToggleButton, run: handleToolServerToggleClick },
+    { test: getToolServerExpandButton, run: handleToolServerExpandClick },
+    { test: getToolToggleButton, run: handleToolToggleClick },
+  ];
+
   function bindToolsMenuEvents() {
     if (!toolsMenu) return;
     toolsMenu.addEventListener('click', (e) => {
       e.stopPropagation();
-      const allOnBtn = e.target.closest?.('#tools-menu-all-on');
-      if (allOnBtn) {
-        setAllToolSelectionsForCurrentChat(true);
-        return;
-      }
-      const allOffBtn = e.target.closest?.('#tools-menu-all-off');
-      if (allOffBtn) {
-        setAllToolSelectionsForCurrentChat(false);
-        return;
-      }
-      const serverToggleBtn = e.target.closest?.('[data-tool-server-toggle]');
-      if (serverToggleBtn) {
-        const serverId = serverToggleBtn.getAttribute('data-tool-server-id');
-        const server = getAllowedToolServers(state).find(
-          (entry) => String(entry.id) === String(serverId)
-        );
-        if (serverId && server) {
-          const selectionState = getServerSelectionState(server);
-          const anyEnabled = selectionState.enabled || selectionState.partial;
-          setServerSelectionForCurrentChat(serverId, !anyEnabled);
-        }
-        return;
-      }
-      const serverExpandBtn = e.target.closest?.('[data-tool-server-expand]');
-      if (serverExpandBtn) {
-        const serverId = serverExpandBtn.getAttribute('data-tool-server-id');
-        if (serverId) {
-          toggleToolServerExpansion(serverId);
-        }
-        return;
-      }
-      const toggleBtn = e.target.closest?.('[data-tool-toggle]');
-      if (toggleBtn) {
-        const serverId = toggleBtn.getAttribute('data-tool-server-id');
-        const toolName = toggleBtn.getAttribute('data-tool-name');
-        if (serverId && toolName) {
-          setToolSelectionForCurrentChat(serverId, toolName);
-        }
-      }
+      const handler = TOOLS_MENU_HANDLERS.find((h) => h.test(e.target));
+      if (handler) handler.run(e.target);
     });
   }
 
