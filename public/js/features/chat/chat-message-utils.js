@@ -1,40 +1,61 @@
+const THINKING_TAG_NAMES = ['thinking', 'thoughts', 'think', 'reasoning', 'reason'];
+
+function findNextThinkingTag(source, lower, cursor) {
+  let nextTag = null;
+  for (const tag of THINKING_TAG_NAMES) {
+    const openToken = `<${tag}`;
+    const idx = lower.indexOf(openToken, cursor);
+    if (idx !== -1 && (nextTag === null || idx < nextTag.index)) {
+      nextTag = { tag, index: idx };
+    }
+  }
+  return nextTag;
+}
+
+function pushTextSegment(segments, text) {
+  if (text.trim()) segments.push({ type: 'text', text });
+}
+
+function pushThinkingSegment(segments, text) {
+  if (text.trim()) segments.push({ type: 'thinking', text });
+}
+
+function parseNextThinkingSegment(source, lower, nextTag) {
+  const openEnd = source.indexOf('>', nextTag.index);
+  if (openEnd === -1) return { remainder: source.slice(nextTag.index) };
+  const closeToken = `</${nextTag.tag}>`;
+  const closeIdx = lower.indexOf(closeToken, openEnd + 1);
+  if (closeIdx === -1) {
+    return { remainder: source.slice(openEnd + 1) };
+  }
+  return {
+    inner: source.slice(openEnd + 1, closeIdx),
+    cursor: closeIdx + closeToken.length,
+  };
+}
+
 export function splitThinkingSegments(raw) {
   const source = String(raw || '');
   if (!source) return [];
   const segments = [];
-  const tagNames = ['thinking', 'thoughts', 'think', 'reasoning', 'reason'];
   let cursor = 0;
   const lower = source.toLowerCase();
   while (cursor < source.length) {
-    let nextTag = null;
-    for (const tag of tagNames) {
-      const openToken = `<${tag}`;
-      const idx = lower.indexOf(openToken, cursor);
-      if (idx !== -1 && (nextTag === null || idx < nextTag.index)) {
-        nextTag = { tag, index: idx };
-      }
-    }
+    const nextTag = findNextThinkingTag(source, lower, cursor);
     if (!nextTag) {
-      const text = source.slice(cursor);
-      if (text.trim()) segments.push({ type: 'text', text });
+      pushTextSegment(segments, source.slice(cursor));
       break;
     }
     if (nextTag.index > cursor) {
-      const text = source.slice(cursor, nextTag.index);
-      if (text.trim()) segments.push({ type: 'text', text });
+      pushTextSegment(segments, source.slice(cursor, nextTag.index));
     }
-    const openEnd = source.indexOf('>', nextTag.index);
-    if (openEnd === -1) break;
-    const closeToken = `</${nextTag.tag}>`;
-    const closeIdx = lower.indexOf(closeToken, openEnd + 1);
-    if (closeIdx === -1) {
-      const remainder = source.slice(openEnd + 1);
-      if (remainder.trim()) segments.push({ type: 'thinking', text: remainder });
+    const parsed = parseNextThinkingSegment(source, lower, nextTag);
+    if (parsed.remainder !== undefined) {
+      pushThinkingSegment(segments, parsed.remainder);
       break;
     }
-    const inner = source.slice(openEnd + 1, closeIdx);
-    if (inner.trim()) segments.push({ type: 'thinking', text: inner });
-    cursor = closeIdx + closeToken.length;
+    pushThinkingSegment(segments, parsed.inner);
+    cursor = parsed.cursor;
   }
   return segments;
 }
