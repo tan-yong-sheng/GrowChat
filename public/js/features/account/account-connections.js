@@ -249,6 +249,28 @@ export function renderAccountConnectionsSection(
   // fallow-ignore-next-line code-duplication
   let preferencesSaveVersion = 0;
 
+  function applyPersistedConnectionPreferences(persisted) {
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: persisted,
+    };
+    viewState.error = '';
+  }
+
+  function applyConnectionPreferencesRollback(rollback) {
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
+    };
+  }
+
+  function handleConnectionPreferencesError(err, requestVersion, rollback) {
+    if (requestVersion !== preferencesSaveVersion) return;
+    if (rollback) applyConnectionPreferencesRollback(rollback);
+    viewState.error = err?.message || 'Failed to save preferences';
+    render();
+  }
+
   const persistPreferences = async ({ rollback = null } = {}) => {
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});
@@ -257,24 +279,12 @@ export function renderAccountConnectionsSection(
         errorMessage: 'Failed to save preferences',
       });
       if (requestVersion !== preferencesSaveVersion) return;
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: persisted,
-      };
-      viewState.error = '';
+      applyPersistedConnectionPreferences(persisted);
       broadcastConnectionsInvalidation();
       broadcastModelsInvalidation();
       render();
     } catch (err) {
-      if (requestVersion !== preferencesSaveVersion) return;
-      if (rollback) {
-        state.settings = {
-          ...(state.settings || {}),
-          preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
-        };
-      }
-      viewState.error = err?.message || 'Failed to save preferences';
-      render();
+      handleConnectionPreferencesError(err, requestVersion, rollback);
     }
   };
 
