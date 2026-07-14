@@ -9,20 +9,21 @@ export function getModelDisplayLabel(model) {
   return String(model?.name || model?.id || '').trim();
 }
 
+function normalizeModelField(model, key) {
+  return String(model?.[key] || '')
+    .trim()
+    .toLowerCase();
+}
+
+function isPersonalModel(model) {
+  if (normalizeModelField(model, 'source') === 'user') return true;
+  return ['access_variant', 'access_label'].some(
+    (key) => normalizeModelField(model, key) === 'personal'
+  );
+}
+
 export function getModelScopeLabel(model) {
-  const accessVariant = String(model?.access_variant || '')
-    .trim()
-    .toLowerCase();
-  const accessLabel = String(model?.access_label || '')
-    .trim()
-    .toLowerCase();
-  const source = String(model?.source || '')
-    .trim()
-    .toLowerCase();
-  if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
-    return 'Personal';
-  }
-  return 'Shared';
+  return isPersonalModel(model) ? 'Personal' : 'Shared';
 }
 
 export function getModelScopeBadgeClass(model) {

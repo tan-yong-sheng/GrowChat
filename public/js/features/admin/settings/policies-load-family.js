@@ -29,13 +29,22 @@ function extractFamilyResources(familyKey, payload) {
   return payload.servers;
 }
 
+function resolveResourceId(rule) {
+  const idKey = ['model_id', 'connection_id', 'tool_server_id'].find((key) => rule?.[key]);
+  return String(idKey ? rule[idKey] : '').trim();
+}
+
+function pushRuleToGroup(byResource, rid, rule) {
+  if (!byResource.has(rid)) byResource.set(rid, []);
+  byResource.get(rid).push(rule);
+}
+
 function groupRulesByResourceId(rules) {
   const byResource = new Map();
   for (const rule of rules) {
-    const rid = String(rule?.model_id || rule?.connection_id || rule?.tool_server_id || '').trim();
+    const rid = resolveResourceId(rule);
     if (!rid) continue;
-    if (!byResource.has(rid)) byResource.set(rid, []);
-    byResource.get(rid).push(rule);
+    pushRuleToGroup(byResource, rid, rule);
   }
   return byResource;
 }
