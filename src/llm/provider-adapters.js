@@ -75,18 +75,27 @@ function contentToAnthropicBlocks(content) {
   return blocks;
 }
 
+function isAnthropicFunctionTool(tool) {
+  return tool?.type === 'function';
+}
+
+function buildAnthropicToolItem(tool, normalize) {
+  const fn = tool.function || {};
+  const name = String(fn.name || '').trim();
+  if (!name) return null;
+  return {
+    name,
+    description: String(fn.description || ''),
+    input_schema: normalize(fn.parameters),
+  };
+}
+
 function buildAnthropicTools(tools = [], normalize = normalizeToolParameters) {
   const anthropicTools = [];
   for (const tool of Array.isArray(tools) ? tools : []) {
-    if (tool?.type !== 'function') continue;
-    const fn = tool.function || {};
-    const name = String(fn.name || '').trim();
-    if (!name) continue;
-    anthropicTools.push({
-      name,
-      description: String(fn.description || ''),
-      input_schema: normalize(fn.parameters),
-    });
+    if (!isAnthropicFunctionTool(tool)) continue;
+    const item = buildAnthropicToolItem(tool, normalize);
+    if (item) anthropicTools.push(item);
   }
   return anthropicTools.length ? anthropicTools : undefined;
 }
