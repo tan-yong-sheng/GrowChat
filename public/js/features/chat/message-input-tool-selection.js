@@ -7,6 +7,7 @@
 
 import { state } from '../../shared/store.js';
 import { escapeHtml, normalizeToolNames } from '../../shared/utils.js';
+import { getItemScopeLabel } from '../../shared/utils/scope-label.js';
 export function createToolSelectionController({
   toolsMenu,
   toolsMenuAllOnBtn,
@@ -21,19 +22,7 @@ export function createToolSelectionController({
     return `mcp__${serverId}__${safeName}`;
   }
   function getToolServerScopeLabel(server) {
-    const source = String(server?.source || '')
-      .trim()
-      .toLowerCase();
-    const accessVariant = String(server?.access_variant || '')
-      .trim()
-      .toLowerCase();
-    const accessLabel = String(server?.access_label || '')
-      .trim()
-      .toLowerCase();
-    if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
-      return 'Personal';
-    }
-    return 'Shared';
+    return getItemScopeLabel(server);
   }
 
   function getToolServerScopeBadgeClass(server) {
@@ -187,9 +176,7 @@ export function createToolSelectionController({
   }
 
   function resolveDisableFromSelection(selection, serverKeys) {
-    return (Array.isArray(selection) ? selection : []).filter(
-      (key) => !serverKeys.includes(key)
-    );
+    return (Array.isArray(selection) ? selection : []).filter((key) => !serverKeys.includes(key));
   }
 
   function normalizeEmptySelection(nextSelection) {

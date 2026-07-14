@@ -4,26 +4,14 @@ import {
   normalizeModelSearchQuery,
 } from '../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { getItemScopeLabel } from '../../shared/utils/scope-label.js';
 
 export function getModelDisplayLabel(model) {
   return String(model?.name || model?.id || '').trim();
 }
 
-function normalizeModelField(model, key) {
-  return String(model?.[key] || '')
-    .trim()
-    .toLowerCase();
-}
-
-function isPersonalModel(model) {
-  if (normalizeModelField(model, 'source') === 'user') return true;
-  return ['access_variant', 'access_label'].some(
-    (key) => normalizeModelField(model, key) === 'personal'
-  );
-}
-
 export function getModelScopeLabel(model) {
-  return isPersonalModel(model) ? 'Personal' : 'Shared';
+  return getItemScopeLabel(model);
 }
 
 export function getModelScopeBadgeClass(model) {
