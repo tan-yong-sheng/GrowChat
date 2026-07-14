@@ -90,6 +90,33 @@ export function renderAccountIntegrationsSection(
       : [],
   });
 
+  function applyPersistedPreferences(persisted) {
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: persisted,
+    };
+    sectionState.error = '';
+  }
+
+  function applyPreferencesRollback(rollback) {
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
+    };
+  }
+
+  function refreshPreferencesUi() {
+    syncListShell();
+    syncFeedback();
+  }
+
+  function handlePreferencesSaveError(error, requestVersion, rollback) {
+    if (requestVersion !== preferencesSaveVersion) return;
+    if (rollback) applyPreferencesRollback(rollback);
+    sectionState.error = error?.message || 'Failed to update shared integration visibility';
+    refreshPreferencesUi();
+  }
+
   // fallow-ignore-next-line code-duplication
   const persistPreferences = async ({ rollback = null } = {}) => {
     const requestVersion = ++preferencesSaveVersion;
@@ -99,25 +126,11 @@ export function renderAccountIntegrationsSection(
         errorMessage: 'Failed to update shared integration visibility',
       });
       if (requestVersion !== preferencesSaveVersion) return;
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: persisted,
-      };
-      sectionState.error = '';
+      applyPersistedPreferences(persisted);
       broadcastToolServersInvalidation();
-      syncListShell();
-      syncFeedback();
+      refreshPreferencesUi();
     } catch (error) {
-      if (requestVersion !== preferencesSaveVersion) return;
-      if (rollback) {
-        state.settings = {
-          ...(state.settings || {}),
-          preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
-        };
-      }
-      sectionState.error = error?.message || 'Failed to update shared integration visibility';
-      syncFeedback();
-      syncListShell();
+      handlePreferencesSaveError(error, requestVersion, rollback);
     }
   };
 
