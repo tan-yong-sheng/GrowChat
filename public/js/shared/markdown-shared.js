@@ -88,44 +88,74 @@ function matchDisplayMathDelimiter(trimmedLine) {
   );
 }
 
+function isFenceToggle(trimmed) {
+  return trimmed.startsWith('```');
+}
+
+function applyInlineDisplayMath(out, trimmed, delimiter) {
+  out.push('```katex');
+  out.push(trimmed.slice(delimiter.open.length, -delimiter.close.length).trim());
+  out.push('```');
+}
+
+function collectDisplayMathBody(lines, startIdx, delimiter) {
+  const body = [];
+  let j = startIdx + 1;
+  while (j < lines.length && lines[j].trim() !== delimiter.close) {
+    body.push(lines[j]);
+    j += 1;
+  }
+  return { body, endIdx: j };
+}
+
+function applyBlockDisplayMath(out, body) {
+  out.push('```katex');
+  out.push(...body);
+  out.push('```');
+}
+
+function handleMathLine(lines, i, trimmed) {
+  const delimiter = matchDisplayMathDelimiter(trimmed);
+  if (!delimiter) return null;
+  if (trimmed === delimiter.open) {
+    const { body, endIdx } = collectDisplayMathBody(lines, i, delimiter);
+    if (endIdx < lines.length) {
+      const outputs = [];
+      applyBlockDisplayMath(outputs, body);
+      return { nextIndex: endIdx + 1, outputs };
+    }
+    return null;
+  }
+  const outputs = [];
+  applyInlineDisplayMath(outputs, trimmed, delimiter);
+  return { nextIndex: i + 1, outputs };
+}
+
+function processDisplayMathLine(lines, i, inFence) {
+  const line = lines[i];
+  const trimmed = line.trim();
+  if (isFenceToggle(trimmed)) {
+    return { nextIndex: i + 1, outputs: [line], inFence: !inFence };
+  }
+  if (inFence) {
+    return { nextIndex: i + 1, outputs: [line], inFence };
+  }
+  const mathResult = handleMathLine(lines, i, trimmed);
+  if (mathResult) {
+    return { ...mathResult, inFence };
+  }
+  return { nextIndex: i + 1, outputs: [line], inFence };
+}
+
 export function convertDisplayMathBlocks(content) {
   const lines = String(content ?? '').split('\n');
   const out = [];
   let inFence = false;
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (trimmed.startsWith('```')) {
-      inFence = !inFence;
-      out.push(line);
-      continue;
-    }
-    if (!inFence) {
-      const delimiter = matchDisplayMathDelimiter(trimmed);
-      if (delimiter) {
-        if (trimmed === delimiter.open) {
-          const body = [];
-          let j = i + 1;
-          while (j < lines.length && lines[j].trim() !== delimiter.close) {
-            body.push(lines[j]);
-            j += 1;
-          }
-          if (j < lines.length) {
-            out.push('```katex');
-            out.push(...body);
-            out.push('```');
-            i = j;
-            continue;
-          }
-        } else {
-          out.push('```katex');
-          out.push(trimmed.slice(delimiter.open.length, -delimiter.close.length).trim());
-          out.push('```');
-          continue;
-        }
-      }
-    }
-    out.push(line);
+    const result = processDisplayMathLine(lines, i, inFence);
+    inFence = result.inFence;
+    out.push(...result.outputs);
+    i = result.nextIndex - 1;
   }
   return out.join('\n');
 }
