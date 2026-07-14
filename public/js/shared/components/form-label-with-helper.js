@@ -20,6 +20,17 @@ export function renderFormLabelWithHelper({
   `;
 }
 
+function buildFormFieldHeader({ label, required, helper }) {
+  const requiredMarker = required ? ' <span class="text-red-500">*</span>' : '';
+  const helperHtml = helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : '';
+  return `
+    <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+      ${label}${requiredMarker}
+    </div>
+    ${helperHtml}
+  `;
+}
+
 /**
  * Renders a form input field with label and helper text
  */
@@ -38,10 +49,7 @@ export function renderFormInput({
 
   return `
     <label class="block">
-      <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-        ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
-      </div>
-      ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
+      ${buildFormFieldHeader({ label, required, helper })}
       <input
         type="${type}"
         name="${name}"
@@ -54,6 +62,15 @@ export function renderFormInput({
       />
     </label>
   `;
+}
+
+function buildSelectOptions(options, value) {
+  return options
+    .map(
+      (opt) =>
+        `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
+    )
+    .join('');
 }
 
 /**
@@ -73,17 +90,14 @@ export function renderFormSelect({
 
   return `
     <label class="block">
-      <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-        ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
-      </div>
-      ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
+      ${buildFormFieldHeader({ label, required, helper })}
       <select
         name="${name}"
         class="${selectClass}"
         ${required ? 'required' : ''}
         ${disabled ? 'disabled' : ''}
       >
-        ${options.map((opt) => `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+        ${buildSelectOptions(options, value)}
       </select>
     </label>
   `;
@@ -107,10 +121,7 @@ export function renderFormTextarea({
 
   return `
     <label class="block">
-      <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-        ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
-      </div>
-      ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
+      ${buildFormFieldHeader({ label, required, helper })}
       <textarea
         name="${name}"
         rows="${rows}"
