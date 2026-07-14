@@ -232,15 +232,25 @@ export function createIntegrationsModal(ctx) {
       }
     };
 
+    function resolveSavedServer(result) {
+      const key = ['server', 'saved_server'].find((k) => result?.[k]);
+      if (key) return result[key];
+      return result?.data?.server || null;
+    }
+
+    function buildMergedServer(payload, result) {
+      const savedServer = resolveSavedServer(result);
+      if (!savedServer && !isEdit) return null;
+      return mergeSavedServer(payload, savedServer, isEdit ? server : null);
+    }
+
     saveBtn?.addEventListener('click', async () => {
       if (sectionState.saving) return;
       setTestStatus('idle', '');
       await withSavingLock(async () => {
         const { payload, result } = await saveServer();
-        const savedServer = result?.server || result?.saved_server || result?.data?.server || null;
-        if (savedServer || isEdit) {
-          upsertServer(mergeSavedServer(payload, savedServer, isEdit ? server : null));
-        }
+        const mergedServer = buildMergedServer(payload, result);
+        if (mergedServer) upsertServer(mergedServer);
         broadcastToolServersInvalidation();
         finishAndRender();
       }, 'Failed to save integration');
