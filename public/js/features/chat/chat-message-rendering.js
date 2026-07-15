@@ -145,6 +145,62 @@ export function renderToolCallItem(messageId, call, toolExpandedByKey) {
   `;
 }
 
+/**
+ * Build the display block list by merging tool call IDs into the block array.
+ * Handles tool-call id deduplication — removes the `if (toolCalls.length)` branch
+ * from renderAssistantMessageBody.
+ */
+function buildDisplayBlocks(blocks, toolCalls) {
+  const result = [...blocks];
+  if (!toolCalls.length) return result;
+  const existingToolIds = new Set(
+    result
+      .filter((block) => block?.type === 'tool')
+      .map((block) => String(block.toolCallId || block.id || ''))
+  );
+  toolCalls.forEach((call) => {
+    const id = String(call?.id || '');
+    if (!id || existingToolIds.has(id)) return;
+    result.push({ id: `tool:${id}`, type: 'tool', toolCallId: id });
+  });
+  return result;
+}
+
+/**
+ * Render error content with toggle support — extracted from renderAssistantMessageBody
+ * to reduce its cyclomatic complexity.
+ */
+function renderErrorContent(raw, key, errorExpandedByKey, chatId, asyncNotice) {
+  const shouldToggle = raw.length > 240 || raw.includes('\n');
+  const expanded = errorExpandedByKey?.get(key) ?? false;
+  const bodyClass = expanded ? '' : 'max-h-24 overflow-hidden';
+  const overlayClass = expanded ? 'hidden' : '';
+  const toggleLabel = expanded ? 'Less' : 'More';
+  const toggleHtml = shouldToggle
+    ? `<button type="button" data-error-toggle="${key}" class="mt-2 text-[11px] font-semibold text-red-700 hover:text-red-800">${toggleLabel}</button>`
+    : '';
+  const overlayHtml = shouldToggle
+    ? `<div data-error-overlay="${key}" class="pointer-events-none absolute inset-x-0 bottom-7 h-10 bg-gradient-to-t from-red-50 to-transparent ${overlayClass}"></div>`
+    : '';
+  return `${asyncNotice}
+    <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-primary">
+      <div data-error-body="${key}" class="${bodyClass}">${renderMessageContent(raw, chatId ? { specialBlockScope: chatId } : {})}</div>
+      ${overlayHtml}
+      ${toggleHtml}
+    </div>
+  `;
+}
+
+/**
+ * Resolve the text answer from block content — extracted to reduce
+ * renderAssistantMessageBody cyclomatic complexity.
+ */
+function resolveDisplayAnswer(text, blocks, isStreaming, chatId) {
+  const textBlocks = blocks.filter((block) => block?.type === 'text');
+  const hasTextBlocks = textBlocks.length > 0;
+  return hasTextBlocks ? '' : text ? renderAssistantContent(text, { streaming: isStreaming }) : '';
+}
+
 export function renderAssistantMessageBody({
   messageId,
   content,
@@ -186,21 +242,9 @@ export function renderAssistantMessageBody({
       : '';
 
   if (!isError) {
-    const renderBlocks = [...blocks];
-    if (toolCalls.length) {
-      const existingToolIds = new Set(
-        renderBlocks
-          .filter((block) => block?.type === 'tool')
-          .map((block) => String(block.toolCallId || block.id || ''))
-      );
-      toolCalls.forEach((call) => {
-        const id = String(call?.id || '');
-        if (!id || existingToolIds.has(id)) return;
-        renderBlocks.push({ id: `tool:${id}`, type: 'tool', toolCallId: id });
-      });
-    }
+    const displayBlocks = buildDisplayBlocks(blocks, toolCalls);
     const toolMap = new Map(toolCalls.map((call) => [String(call.id), call]));
-    const blocksHtml = renderBlocks
+    const blocksHtml = displayBlocks
       .map((block) => {
         if (!block) return '';
         if (block.type === 'tool') {
@@ -240,33 +284,11 @@ export function renderAssistantMessageBody({
         return '';
       })
       .join('');
-    const textBlocks = renderBlocks.filter((block) => block?.type === 'text');
-    const hasTextBlocks = textBlocks.length > 0;
-    const renderedAnswer = hasTextBlocks
-      ? ''
-      : text
-        ? renderAssistantContent(text, { streaming: isStreaming })
-        : '';
+    const textBlocks = displayBlocks.filter((block) => block?.type === 'text');
+    const renderedAnswer = resolveDisplayAnswer(text, displayBlocks, isStreaming, chatId);
     return `${asyncNotice}${blocksHtml}${renderedAnswer}`;
   }
 
   const raw = String(errorMessage || content || '');
-  const shouldToggle = raw.length > 240 || raw.includes('\n');
-  const expanded = errorExpandedByMessageId?.get(key) ?? false;
-  const bodyClass = expanded ? '' : 'max-h-24 overflow-hidden';
-  const overlayClass = expanded ? 'hidden' : '';
-  const toggleLabel = expanded ? 'Less' : 'More';
-  const toggleHtml = shouldToggle
-    ? `<button type="button" data-error-toggle="${key}" class="mt-2 text-[11px] font-semibold text-red-700 hover:text-red-800">${toggleLabel}</button>`
-    : '';
-  const overlayHtml = shouldToggle
-    ? `<div data-error-overlay="${key}" class="pointer-events-none absolute inset-x-0 bottom-7 h-10 bg-gradient-to-t from-red-50 to-transparent ${overlayClass}"></div>`
-    : '';
-  return `${asyncNotice}
-    <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-primary">
-      <div data-error-body="${key}" class="${bodyClass}">${renderMessageContent(raw, chatId ? { specialBlockScope: chatId } : {})}</div>
-      ${overlayHtml}
-      ${toggleHtml}
-    </div>
-  `;
+  return renderErrorContent(raw, key, errorExpandedByMessageId, chatId, asyncNotice);
 }

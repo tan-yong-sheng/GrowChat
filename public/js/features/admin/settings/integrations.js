@@ -29,9 +29,7 @@ export function renderIntegrationsSettings(container, data) {
     });
 
   const getToolServersMarkup = () => {
-    if (integrationsState.loading) {
-      return renderLoadingSkeleton();
-    }
+    if (integrationsState.loading) return renderLoadingSkeleton();
     if (integrationsState.toolServers.length === 0) {
       return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
     }
@@ -90,9 +88,7 @@ export function renderIntegrationsSettings(container, data) {
           <div class="space-y-2">
             ${
               tools.length
-                ? tools
-                    .map((tool) => renderToolMarkup(tool, server.id, serverEnabled))
-                    .join('')
+                ? tools.map((tool) => renderToolMarkup(tool, server.id, serverEnabled)).join('')
                 : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'
             }
           </div>
@@ -108,7 +104,14 @@ export function renderIntegrationsSettings(container, data) {
   const renderToolMarkup = (tool, serverId, serverEnabled) => {
     const { description, preview, hasMore, isExpanded } = prepareToolPreview(tool);
     const toolEnabled = tool.enabled !== false;
-    const descriptionMarkup = renderToolDescription(tool, serverId, description, preview, hasMore, isExpanded);
+    const descriptionMarkup = renderToolDescription(
+      tool,
+      serverId,
+      description,
+      preview,
+      hasMore,
+      isExpanded
+    );
     return `
                 <div class="rounded-md border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
                   <div class="flex items-start justify-between gap-2">
