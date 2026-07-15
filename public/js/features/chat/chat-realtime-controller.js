@@ -354,6 +354,27 @@ export function createChatRealtimeController({
     );
   }
 
+  function handleRealtimeChatEvent(event) {
+    return handleChatEvent(event);
+  }
+
+  const REALTIME_EVENT_DISPATCH = {
+    'chat.': handleRealtimeChatEvent,
+    'tool.status': handleToolEvent,
+    'tool.result': handleToolEvent,
+    'message.cancelled': handleMessageCancelled,
+    'message.delta': handleMessageDelta,
+    'message.created': handleMessageCreatedOrCompleted,
+    'message.completed': handleMessageCreatedOrCompleted,
+  };
+
+  function findRealtimeEventDispatcher(type) {
+    const exactMatch = REALTIME_EVENT_DISPATCH[type];
+    if (exactMatch) return exactMatch;
+    const prefixKey = Object.keys(REALTIME_EVENT_DISPATCH).find((key) => type.startsWith(key));
+    return prefixKey ? REALTIME_EVENT_DISPATCH[prefixKey] : null;
+  }
+
   const onRealtimeEvent = async (evt) => {
     const event = evt?.detail || {};
     const type = String(event.type || '');
@@ -362,25 +383,11 @@ export function createChatRealtimeController({
     if (isDuplicateEvent(buildEventKey(event))) return;
     if (shouldIgnoreStreamedLifecycleEvent(event)) return;
 
-    if (type.startsWith('chat.')) {
-      await handleChatEvent(event);
-      return;
+    const handler = findRealtimeEventDispatcher(type);
+    if (handler) {
+      await handler(event);
     }
-    if (type === 'tool.status' || type === 'tool.result') {
-      handleToolEvent(event);
-      return;
-    }
-    if (type === 'message.cancelled') {
-      await handleMessageCancelled(event);
-      return;
-    }
-    if (type === 'message.delta') {
-      handleMessageDelta(event);
-      return;
-    }
-    if (type === 'message.created' || type === 'message.completed') {
-      await handleMessageCreatedOrCompleted(event);
-    }
+    return;
   };
 
   return {

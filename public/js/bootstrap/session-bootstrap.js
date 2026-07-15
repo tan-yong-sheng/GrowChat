@@ -172,10 +172,37 @@ export function scheduleDeferredBootstrap(user, preloadedRBAC = null) {
   return deferredBootstrapPromise;
 }
 
+function resolvePermissionsRequest(roleName) {
+  if (typeof fetchMyPermissions !== 'function') {
+    return Promise.resolve({
+      permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+    });
+  }
+  return Promise.resolve(fetchMyPermissions())
+    .then(
+      (value) =>
+        value || {
+          permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+        }
+    )
+    .catch(() => ({
+      permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+    }));
+}
+
+function resolveRolesRequest(roleName) {
+  if (typeof fetchMyRoles !== 'function') {
+    return Promise.resolve({ roles: [{ role_name: roleName }] });
+  }
+  return Promise.resolve(fetchMyRoles())
+    .then((value) => value || { roles: [{ role_name: roleName }] })
+    .catch(() => ({ roles: [{ role_name: roleName }] }));
+}
+
 async function initRBAC(user, preloaded = null) {
   setState({ rbacLoading: true });
+  const roleName = normalizePublicRole(user.primary_role);
   try {
-    const roleName = normalizePublicRole(user.primary_role);
     const hasPreloadedPermissions = Array.isArray(preloaded?.permissions);
     const hasPreloadedRoles = Array.isArray(preloaded?.roles);
     if (hasPreloadedPermissions || hasPreloadedRoles) {
@@ -187,29 +214,10 @@ async function initRBAC(user, preloaded = null) {
       return;
     }
 
-    const permissionsRequest =
-      typeof fetchMyPermissions === 'function'
-        ? Promise.resolve(fetchMyPermissions())
-            .then(
-              (value) =>
-                value || {
-                  permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
-                }
-            )
-            .catch(() => ({
-              permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
-            }))
-        : Promise.resolve({
-            permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
-          });
-    const rolesRequest =
-      typeof fetchMyRoles === 'function'
-        ? Promise.resolve(fetchMyRoles())
-            .then((value) => value || { roles: [{ role_name: roleName }] })
-            .catch(() => ({ roles: [{ role_name: roleName }] }))
-        : Promise.resolve({ roles: [{ role_name: roleName }] });
-
-    const [permData, roleData] = await Promise.all([permissionsRequest, rolesRequest]);
+    const [permData, roleData] = await Promise.all([
+      resolvePermissionsRequest(roleName),
+      resolveRolesRequest(roleName),
+    ]);
 
     setState({
       permissions: permData.permissions || [],
@@ -218,7 +226,6 @@ async function initRBAC(user, preloaded = null) {
     });
   } catch (err) {
     console.warn('RBAC initialization fallback:', err);
-    const roleName = normalizePublicRole(user.primary_role);
     setState({
       permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
       userRoles: [{ role_name: roleName }],

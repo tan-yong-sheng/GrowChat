@@ -169,6 +169,60 @@ export function createIntegrationsEvents(ctx) {
     footerHost.innerHTML = '';
   };
 
+  function handleToolToggleShared(context, id, toolName) {
+    const { state, sectionState, syncListShell, persistPreferences } = context;
+    const previousPreferences = clonePreferences(state.settings?.preferences || {});
+    const currentHidden = isToolHidden(state.settings?.preferences || {}, id, toolName);
+    const nextPreferences = setToolVisibility(
+      state.settings?.preferences || {},
+      id,
+      toolName,
+      currentHidden
+    );
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: nextPreferences,
+    };
+    sectionState.error = '';
+    syncListShell();
+    void persistPreferences({
+      rollback: { preferences: previousPreferences },
+    });
+  }
+
+  function handleToolTogglePersonal(server, toolName, deps) {
+    const { sectionState, syncListState, syncActionFooter, syncFeedback } = deps;
+    const tool = server.tools.find((entry) => entry.name === toolName);
+    if (!tool) return;
+    const previousEnabled = tool.enabled !== false;
+    const nextEnabled = !previousEnabled;
+    tool.enabled = nextEnabled;
+    syncListState();
+    syncActionFooter();
+    return previousEnabled;
+  }
+
+  async function callMcpUpdateAndRollback(server, toolName, previousEnabled, serverId, deps) {
+    const { sectionState, syncListState, syncFeedback, syncActionFooter } = deps;
+    try {
+      await updateUserMcpServer(server.id, {
+        tools: Array.isArray(server.tools)
+          ? server.tools.map((entry) => ({
+              ...entry,
+              enabled: entry.name === toolName ? !previousEnabled : entry.enabled !== false,
+            }))
+          : [],
+      });
+      broadcastToolServersInvalidation();
+    } catch (err) {
+      sectionState.error = err?.message || 'Failed to update integration';
+    } finally {
+      syncListState(serverId);
+      syncFeedback();
+      syncActionFooter();
+    }
+  }
+
   const handleToolToggle = (toolToggle, target, deps) => {
     const {
       sectionState,
@@ -186,56 +240,16 @@ export function createIntegrationsEvents(ctx) {
       toolToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
     const toolName = toolToggle.dataset.toolName;
     const scope = toolToggle.dataset.toolToggleScope || 'personal';
+
     if (scope === 'shared') {
-      const previousPreferences = clonePreferences(state.settings?.preferences || {});
-      const currentHidden = isToolHidden(state.settings?.preferences || {}, id, toolName);
-      const nextVisible = currentHidden;
-      const nextPreferences = setToolVisibility(
-        state.settings?.preferences || {},
-        id,
-        toolName,
-        nextVisible
-      );
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: nextPreferences,
-      };
-      sectionState.error = '';
-      syncListShell();
-      void persistPreferences({
-        rollback: { preferences: previousPreferences },
-      });
+      handleToolToggleShared(deps, id, toolName);
       return;
     }
     const server = sectionState.servers.find((entry) => entry.id === id);
     if (!server || server.enabled === false || !Array.isArray(server.tools)) return;
-    const tool = server.tools.find((entry) => entry.name === toolName);
-    if (!tool) return;
-    const previousEnabled = tool.enabled !== false;
-    const nextEnabled = !previousEnabled;
-    tool.enabled = nextEnabled;
-    syncListState(id);
-    syncActionFooter();
-    void (async () => {
-      try {
-        await updateUserMcpServer(server.id, {
-          tools: Array.isArray(server.tools)
-            ? server.tools.map((entry) => ({
-                ...entry,
-                enabled: entry.name === toolName ? nextEnabled : entry.enabled !== false,
-              }))
-            : [],
-        });
-        broadcastToolServersInvalidation();
-      } catch (err) {
-        tool.enabled = previousEnabled;
-        sectionState.error = err?.message || 'Failed to update integration';
-      } finally {
-        syncListState(id);
-        syncFeedback();
-        syncActionFooter();
-      }
-    })();
+    const prevEnabled = handleToolTogglePersonal(server, toolName, deps);
+    if (prevEnabled === undefined) return;
+    void callMcpUpdateAndRollback(server, toolName, prevEnabled, server.id, deps);
   };
 
   const handleServerToggle = (toggle, target, deps) => {
