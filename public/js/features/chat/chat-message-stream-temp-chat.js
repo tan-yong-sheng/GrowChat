@@ -68,9 +68,11 @@ function handleAutoTitle(tempChatId, chatId, text, state, hadMessagesBefore, upd
       const snippet = normalizeChatTitleSnippet(text);
       if (snippet) {
         updateChatTitleLocal(chatId, snippet);
+        return snippet;
       }
     }
   }
+  return null;
 }
 
 export function prepareOptimisticConversation({
@@ -85,7 +87,6 @@ export function prepareOptimisticConversation({
 } = {}) {
   let chatId = state.activeChatId;
   let tempChatId = null;
-  let autoTitle = null;
   const isTempChat = chatId && isTempChatId(chatId);
   const hadMessagesBefore = chatId ? (state.messagesByChat[chatId] || []).length > 0 : false;
 
@@ -93,12 +94,20 @@ export function prepareOptimisticConversation({
     tempChatId = handleNewChatCreation(state, setState, buildTempChat, pruneTempChats, syncChatUrl);
     chatId = tempChatId;
   } else if (isTempChat) {
+    tempChatId = chatId;
     handleExistingTempChat(chatId, state, setState, buildTempChat, pruneTempChats, syncChatUrl);
   }
 
   handleNewChatAttachments(state, setState, chatId);
 
-  handleAutoTitle(tempChatId, chatId, text, state, hadMessagesBefore, updateChatTitleLocal);
+  const autoTitle = handleAutoTitle(
+    tempChatId,
+    chatId,
+    text,
+    state,
+    hadMessagesBefore,
+    updateChatTitleLocal
+  );
 
   return { chatId, tempChatId, hadMessagesBefore, autoTitle };
 }

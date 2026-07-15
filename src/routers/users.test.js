@@ -945,7 +945,7 @@ describe('usersRouter', () => {
     ]);
     expect(body.access.mcp_servers).toEqual([
       expect.objectContaining({
-        family: 'mcp_server',
+        family: 'tool_server',
         resource_id: 'mcp-1',
         principal_label: 'Group: test1',
         action: 'manage',
