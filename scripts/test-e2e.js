@@ -150,21 +150,30 @@ async function killProcessTree(pid) {
 
 /** Kill all PIDs recorded in WRANGLER_PIDS_FILE (and their descendants).
  * This is the ONLY mechanism for killing wrangler — never blind port-based kills. */
-async function killRecordedWranglerPids() {
+function readRecordedPids() {
   let raw;
   try {
     raw = readFileSync(WRANGLER_PIDS_FILE, 'utf8');
   } catch {
-    return;
+    return [];
   }
-  const pids = raw.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
-  if (!pids.length) return;
+  return raw.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
+}
 
+function collectAllPidsToKill(pids) {
   const toKill = new Set();
   for (const pid of pids) {
     toKill.add(pid);
     for (const d of collectDescendants(pid)) toKill.add(d);
   }
+  return toKill;
+}
+
+async function killRecordedWranglerPids() {
+  const pids = readRecordedPids();
+  if (!pids.length) return;
+
+  const toKill = collectAllPidsToKill(pids);
   log(`  Killing ${toKill.size} recorded wrangler process(es)...`);
   for (const pid of toKill) await killProcessTree(pid);
 }
