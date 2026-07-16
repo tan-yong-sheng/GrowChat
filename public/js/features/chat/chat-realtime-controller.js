@@ -302,22 +302,27 @@ export function createChatRealtimeController({
     drawMessages(messages);
   }
 
-  function handleMessageDelta(event) {
+  function isDeltaFromSelfSession(event) {
+    return !event.origin_session_id || event.origin_session_id === clientSessionId;
+  }
+
+  function shouldSkipDelta(event) {
     const chatId = event.chat_id;
-    if (!chatId || chatId !== state.activeChatId) return;
-    if (
-      getActiveStreamAbort() &&
-      (!event.origin_session_id || event.origin_session_id === clientSessionId)
-    )
-      return;
-    const delta = String(event?.data?.delta || '');
+    if (!chatId || chatId !== state.activeChatId) return true;
+    return getActiveStreamAbort() && isDeltaFromSelfSession(event);
+  }
+
+  function handleMessageDelta(event) {
+    if (shouldSkipDelta(event)) return;
+    const eventData = event.data || {};
+    const delta = String(eventData.delta || '');
     if (!delta) return;
 
     applyMessageDelta(
-      chatId,
+      event.chat_id,
       String(event.message_id || ''),
       delta,
-      event?.data?.model || state.activeModelId
+      eventData.model || state.activeModelId
     );
   }
 
