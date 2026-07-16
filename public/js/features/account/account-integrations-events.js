@@ -372,56 +372,51 @@ export function createIntegrationsEvents(ctx) {
     canManageAcls,
   });
 
+  const handleEditButtonClick = (editBtn, _target, deps) => {
+    const id =
+      editBtn.dataset.accountIntegrationEdit ||
+      editBtn.dataset.id ||
+      editBtn.closest('[data-tool-server-row]')?.dataset.id;
+    const server = deps.sectionState.servers.find((entry) => entry.id === id);
+    deps.ctx.openModal(server || null);
+  };
+
+  const CLICK_HANDLERS = [
+    { selector: '.tool-toggle, [data-tool-toggle-scope]', handler: handleToolToggle },
+    { selector: '.server-toggle', handler: handleServerToggle },
+    { selector: '.tools-toggle', handler: handleToolsExpandToggle },
+    { selector: '.tool-desc-toggle', handler: handleToolDescToggle },
+    {
+      selector: '.tool-access-btn',
+      handler: (accessBtn, _target, deps) => handleAccessButton(accessBtn, deps),
+    },
+  ];
+
+  const handleListClick = (e, deps) => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+
+    for (const { selector, handler } of CLICK_HANDLERS) {
+      const el = target.closest(selector);
+      if (el) {
+        handler(el, target, deps);
+        return;
+      }
+    }
+
+    const editBtn = target.closest('[data-account-integration-edit], .edit-server-btn');
+    if (editBtn) {
+      handleEditButtonClick(editBtn, target, deps);
+    }
+  };
+
   const bindDelegatedEvents = () => {
     if (container.dataset.integrationsEventsBound === '1') return;
     container.dataset.integrationsEventsBound = '1';
 
     const list = container.querySelector('#tool-servers-list');
     const deps = buildDelegatedDeps();
-    list?.addEventListener('click', (e) => {
-      const target = e.target instanceof Element ? e.target : null;
-      if (!target) return;
-
-      const toolToggle = target.closest('.tool-toggle, [data-tool-toggle-scope]');
-      if (toolToggle) {
-        handleToolToggle(toolToggle, target, deps);
-        return;
-      }
-
-      const toggle = target.closest('.server-toggle');
-      if (toggle) {
-        handleServerToggle(toggle, target, deps);
-        return;
-      }
-
-      const toolsToggle = target.closest('.tools-toggle');
-      if (toolsToggle) {
-        handleToolsExpandToggle(toolsToggle, target, deps);
-        return;
-      }
-
-      const descToggle = target.closest('.tool-desc-toggle');
-      if (descToggle) {
-        handleToolDescToggle(descToggle, target, deps);
-        return;
-      }
-
-      const editBtn = target.closest('[data-account-integration-edit], .edit-server-btn');
-      if (editBtn) {
-        const id =
-          editBtn.dataset.accountIntegrationEdit ||
-          editBtn.dataset.id ||
-          editBtn.closest('[data-tool-server-row]')?.dataset.id;
-        const server = deps.sectionState.servers.find((entry) => entry.id === id);
-        deps.ctx.openModal(server || null);
-        return;
-      }
-
-      const accessBtn = target.closest('.tool-access-btn');
-      if (accessBtn) {
-        handleAccessButton(accessBtn, deps);
-      }
-    });
+    list?.addEventListener('click', (e) => handleListClick(e, deps));
 
     container.querySelector('#add-tool-server')?.addEventListener('click', () => {
       if (!canManageToolServers) return;
