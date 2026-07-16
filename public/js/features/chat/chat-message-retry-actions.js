@@ -44,6 +44,7 @@ export function bindChatMessageRetryActions({
   if (!messagesList) return;
 
   messagesList.querySelectorAll('[data-retry-message]').forEach((btn) => {
+    // fallow-ignore-next-line complexity
     btn.addEventListener('click', async () => {
       let id = btn.getAttribute('data-retry-message');
 

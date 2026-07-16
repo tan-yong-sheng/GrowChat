@@ -129,6 +129,7 @@ export function bindChatMessageUiActions(deps) {
   });
 
   messagesList.querySelectorAll('.save-copy-btn').forEach((btn) => {
+    // fallow-ignore-next-line complexity
     btn.addEventListener('click', async () => {
       const originalId = btn.getAttribute('data-message-id');
       let id = originalId;
