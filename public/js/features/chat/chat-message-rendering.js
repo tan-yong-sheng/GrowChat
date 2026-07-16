@@ -244,42 +244,53 @@ export function renderAssistantMessageBody({
   if (!isError) {
     const displayBlocks = buildDisplayBlocks(blocks, toolCalls);
     const toolMap = new Map(toolCalls.map((call) => [String(call.id), call]));
+    const renderToolBlock = (block) => {
+      return renderToolCallItem(
+        key,
+        toolMap.get(block.toolCallId || String(block.id || '').slice(5)),
+        toolExpandedByKey
+      );
+    };
+
+    const getThinkingLabel = () => {
+      if (!isStreaming) return hasThinking ? formatDuration(duration) : '';
+      if (hasThinking || isThinkingActive) return 'Thinking…';
+      return '';
+    };
+
+    const renderThinkingBlockFn = (block) => {
+      const label = getThinkingLabel();
+      if (!label) return '';
+      const toggleKey = `${key}:${block.id}`;
+      const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
+      return renderThinkingBlock({
+        label,
+        thinking: block.content,
+        collapsed,
+        toggleKey,
+        specialBlockScope: chatId,
+      });
+    };
+
+    const renderTextBlock = (block) => {
+      if (!block.content) return '';
+      return renderAssistantContent(block.content, {
+        streaming: isStreaming,
+        specialBlockScope: chatId,
+      });
+    };
+
     const blocksHtml = displayBlocks
       .map((block) => {
         if (!block) return '';
         if (block.type === 'tool') {
-          return renderToolCallItem(
-            key,
-            toolMap.get(block.toolCallId || String(block.id || '').slice(5)),
-            toolExpandedByKey
-          );
+          return renderToolBlock(block);
         }
         if (block.type === 'thinking') {
-          const label = isStreaming
-            ? hasThinking || isThinkingActive
-              ? 'Thinking…'
-              : ''
-            : hasThinking
-              ? formatDuration(duration)
-              : '';
-          const toggleKey = `${key}:${block.id}`;
-          const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
-          return label
-            ? renderThinkingBlock({
-                label,
-                thinking: block.content,
-                collapsed,
-                toggleKey,
-                specialBlockScope: chatId,
-              })
-            : '';
+          return renderThinkingBlockFn(block);
         }
         if (block.type === 'text') {
-          if (!block.content) return '';
-          return renderAssistantContent(block.content, {
-            streaming: isStreaming,
-            specialBlockScope: chatId,
-          });
+          return renderTextBlock(block);
         }
         return '';
       })
