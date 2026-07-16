@@ -24,6 +24,30 @@ const BYTES_PER_MB = 1024 * 1024;
 const DEFAULT_MAX_SIZE_MB = 5;
 const DEFAULT_MAX_SIZE_BYTES = DEFAULT_MAX_SIZE_MB * BYTES_PER_MB; // 5MB
 
+function parseMaxFilesArg(val) {
+  if (!Number.isFinite(val) || val <= 0) {
+    console.warn(`Warning: Invalid --max-files value ignored: ${val}`);
+    return null;
+  }
+  return Math.floor(val);
+}
+
+function parseMaxSizeArg(val) {
+  if (!Number.isFinite(val) || val <= 0) {
+    console.warn(`Warning: Invalid --max-size value ignored: ${val}`);
+    return null;
+  }
+  return val;
+}
+
+function isNotSnapshotDir(name) {
+  return name === 'node_modules' || name === '.git';
+}
+
+function isSnapshotDir(name) {
+  return name.endsWith('-snapshots') || name === '__snapshots__';
+}
+
 function parseArgs(argv) {
   const firstPositional = argv.find((a) => !a.startsWith('--'));
   let maxFiles = DEFAULT_MAX_FILES;
@@ -33,12 +57,13 @@ function parseArgs(argv) {
   for (const arg of argv) {
     if (arg.startsWith('--max-files=')) {
       const val = Number(arg.split('=')[1]);
-      if (Number.isFinite(val) && val > 0) maxFiles = Math.floor(val);
-      else console.warn(`Warning: Invalid --max-files value ignored: ${arg}`);
-    } else if (arg.startsWith('--max-size=')) {
+      const parsed = parseMaxFilesArg(val);
+      if (parsed !== null) maxFiles = parsed;
+    }
+    if (arg.startsWith('--max-size=')) {
       const val = Number(arg.split('=')[1]);
-      if (Number.isFinite(val) && val > 0) maxSize = val;
-      else console.warn(`Warning: Invalid --max-size value ignored: ${arg}`);
+      const parsed = parseMaxSizeArg(val);
+      if (parsed !== null) maxSize = parsed;
     }
   }
 
@@ -53,17 +78,13 @@ async function collectSnapshotFiles(dir, files = []) {
   const entries = await readDirEntries(dir);
 
   for (const entry of entries) {
-    // Skip node_modules and .git
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
-
+    if (isNotSnapshotDir(entry.name)) continue;
     const fullPath = join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      if (entry.name.endsWith('-snapshots') || entry.name === '__snapshots__') {
-        // This is a snapshot directory — collect all files within
+      if (isSnapshotDir(entry.name)) {
         await collectAllFiles(fullPath, files);
       } else {
-        // Recurse into non-snapshot directories
         await collectSnapshotFiles(fullPath, files);
       }
     }

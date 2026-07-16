@@ -114,6 +114,10 @@ function getStagedFiles() {
   }
 }
 
+function isCacheFile(file) {
+  return file === '.secrets.baseline' || file === '.secrets.cache.json';
+}
+
 function main() {
   const cache = loadCache();
   const stagedFiles = getStagedFiles();
@@ -130,7 +134,7 @@ function main() {
   let cacheMisses = 0;
 
   for (const file of stagedFiles) {
-    if (file === '.secrets.baseline' || file === '.secrets.cache.json') continue;
+    if (isCacheFile(file)) continue;
 
     const findings = scanFile(file, cache);
     if (findings) {

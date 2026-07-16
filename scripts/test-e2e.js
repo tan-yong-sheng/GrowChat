@@ -72,6 +72,10 @@ function isAlwaysOverride(name) {
   return ['TEST_EMAIL', 'TEST_PASSWORD'].includes(name);
 }
 
+function isCommentOrBlank(t) {
+  return !t || t.startsWith('#');
+}
+
 function parseEnvLine(t) {
   return t.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/) || null;
 }
@@ -82,16 +86,18 @@ function shouldSetVar(m, always) {
 
 function loadDevVars() {
   try {
-    for (const line of readFileSync('.dev.vars', 'utf8').split('\n')) {
+    const content = readFileSync('.dev.vars', 'utf8');
+    const lines = content.split('\n');
+    lines.forEach((line) => {
       const t = line.trim();
-      if (!t || t.startsWith('#')) continue;
+      if (isCommentOrBlank(t)) return;
       const m = parseEnvLine(t);
-      if (!m) continue;
+      if (!m) return;
       const always = isAlwaysOverride(m[1]);
       if (shouldSetVar(m, always)) {
         process.env[m[1]] = stripQuotes(m[2].trim());
       }
-    }
+    });
   } catch {
     /* no .dev.vars */
   }
