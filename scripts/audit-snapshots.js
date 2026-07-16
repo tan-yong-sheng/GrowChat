@@ -48,26 +48,22 @@ function isSnapshotDir(name) {
   return name.endsWith('-snapshots') || name === '__snapshots__';
 }
 
+function parseArgByPrefix(args, prefix, parser) {
+  const key = args.find((a) => a.startsWith(prefix));
+  if (!key) return null;
+  const val = Number(key.split('=')[1]);
+  return parser(val);
+}
+
 function parseArgs(argv) {
   const firstPositional = argv.find((a) => !a.startsWith('--'));
-  let maxFiles = DEFAULT_MAX_FILES;
-  let maxSize = DEFAULT_MAX_SIZE_BYTES;
-  let scanDir = firstPositional || '.';
-
-  for (const arg of argv) {
-    if (arg.startsWith('--max-files=')) {
-      const val = Number(arg.split('=')[1]);
-      const parsed = parseMaxFilesArg(val);
-      if (parsed !== null) maxFiles = parsed;
-    }
-    if (arg.startsWith('--max-size=')) {
-      const val = Number(arg.split('=')[1]);
-      const parsed = parseMaxSizeArg(val);
-      if (parsed !== null) maxSize = parsed;
-    }
-  }
-
-  return { maxFiles, maxSize, scanDir };
+  const parsedMaxFiles = parseArgByPrefix(argv, '--max-files=', parseMaxFilesArg);
+  const parsedMaxSize = parseArgByPrefix(argv, '--max-size=', parseMaxSizeArg);
+  return {
+    maxFiles: parsedMaxFiles ?? DEFAULT_MAX_FILES,
+    maxSize: parsedMaxSize ?? DEFAULT_MAX_SIZE_BYTES,
+    scanDir: firstPositional || '.',
+  };
 }
 
 /**
