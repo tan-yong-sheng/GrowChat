@@ -319,6 +319,25 @@ export function createIntegrationsEventHandlers(deps) {
       togglePasswordVisibility('#server-auth-basic-password', '#toggle-basic-visibility');
     });
 
+    function buildOAuthStartBody(serverId) {
+      const oauthFields = readOAuthFormFields(container);
+      return {
+        id: serverId,
+        url: container.querySelector('#server-url')?.value || '',
+        oauth_client_name: oauthFields.oauthClientName,
+        oauth_scope: oauthFields.oauthScope,
+        oauth_client_id: oauthFields.oauthClientId,
+        oauth_client_secret: oauthFields.oauthClientSecret,
+        oauth_token_auth_method: oauthFields.oauthTokenMethod,
+      };
+    }
+
+    function handleOAuthStartSuccess(payload) {
+      if (!payload.authorization_url) return;
+      const status = container.querySelector('#oauth-status');
+      if (status) status.textContent = 'Awaiting authorization...';
+    }
+
     container.querySelector('#connect-oauth')?.addEventListener('click', async () => {
       const serverId = integrationsState.selectedServer?.id || '';
       if (!serverId || integrationsState.modalMode !== 'update') {
@@ -326,24 +345,12 @@ export function createIntegrationsEventHandlers(deps) {
         return;
       }
       try {
-        const oauthFields = readOAuthFormFields(container);
         const res = await apiFetch('/api/admin/tool-servers/oauth/start', {
           method: 'POST',
-          body: JSON.stringify({
-            id: serverId,
-            url: container.querySelector('#server-url')?.value || '',
-            oauth_client_name: oauthFields.oauthClientName,
-            oauth_scope: oauthFields.oauthScope,
-            oauth_client_id: oauthFields.oauthClientId,
-            oauth_client_secret: oauthFields.oauthClientSecret,
-            oauth_token_auth_method: oauthFields.oauthTokenMethod,
-          }),
+          body: JSON.stringify(buildOAuthStartBody(serverId)),
         });
         const payload = await handleOAuthApiFetchResponse(res);
-        if (payload.authorization_url) {
-          const status = container.querySelector('#oauth-status');
-          if (status) status.textContent = 'Awaiting authorization...';
-        }
+        handleOAuthStartSuccess(payload);
       } catch (err) {
         setTestStatus('error', err.message || 'OAuth start failed');
       }
