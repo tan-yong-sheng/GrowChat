@@ -70,19 +70,7 @@ export function normalizeSavedConnectionModelId(providerId, modelId) {
 }
 export function normalizeConnectionManualModels(value = []) {
   if (!Array.isArray(value)) return [];
-  const seen = new Set();
-  const models = [];
-  // eslint-disable-next-line complexity -- normalizeConnectionManualModels
-  value.forEach((item) => {
-    const rawId = String(item?.modelId || item?.id || item?.name || item || '').trim();
-    if (!rawId) return;
-    const safeId = stripModelsPrefix(rawId);
-    if (seen.has(safeId)) return;
-    seen.add(safeId);
-    const modelName = String(item?.name || safeId).trim() || safeId;
-    models.push({ modelId: safeId, name: modelName });
-  });
-  return models;
+  return collectManualModels(value);
 }
 
 function stripModelsPrefix(value) {
@@ -93,6 +81,28 @@ function stripModelsPrefix(value) {
 
 function firstDefinedModelName(model, fallback) {
   return String(model?.name || model?.displayName || model?.id || fallback || '').trim();
+}
+
+function extractManualModelId(item) {
+  return String(item?.modelId || item?.id || item?.name || item || '').trim();
+}
+
+function buildManualModelName(item, safeId) {
+  return String(item?.name || safeId).trim() || safeId;
+}
+
+function collectManualModels(value) {
+  const seen = new Set();
+  const models = [];
+  for (const item of value) {
+    const rawId = extractManualModelId(item);
+    if (!rawId) continue;
+    const safeId = stripModelsPrefix(rawId);
+    if (seen.has(safeId)) continue;
+    seen.add(safeId);
+    models.push({ modelId: safeId, name: buildManualModelName(item, safeId) });
+  }
+  return models;
 }
 export function normalizeModelRecord(model = {}) {
   const id = String(model?.id || model?.modelId || model?.name || '').trim();

@@ -139,6 +139,43 @@ export function rollbackOptimisticConversation({
   });
 }
 
+function buildReplacedChatList(chats, tempChatId, realChat) {
+  let replaced = false;
+  const nextChats = chats.map((c) => {
+    if (String(c.id) === String(tempChatId)) {
+      replaced = true;
+      const nextChat = { ...realChat };
+      if (c.title && c.title !== 'New Chat' && realChat.title === 'New Chat') {
+        nextChat.title = c.title;
+      }
+      return nextChat;
+    }
+    return c;
+  });
+  return replaced ? nextChats : [realChat, ...nextChats];
+}
+
+function dedupeChats(chats) {
+  const seen = new Set();
+  const deduped = [];
+  for (const chat of chats) {
+    const key = String(chat.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(chat);
+  }
+  return deduped;
+}
+
+function migrateEntry(map, tempChatId, realChatId) {
+  const value = map[tempChatId];
+  if (value == null) return map;
+  const next = { ...map };
+  next[realChatId] = value;
+  delete next[tempChatId];
+  return next;
+}
+
 export function promoteOptimisticConversation({
   state,
   setState,
@@ -152,48 +189,20 @@ export function promoteOptimisticConversation({
   const realChatId = String(realChat.id);
 
   setState((prev) => {
-    let replaced = false;
-    let nextChats = prev.chats.map((c) => {
-      if (String(c.id) === String(tempChatId)) {
-        replaced = true;
-        const nextChat = { ...realChat };
-        if (c.title && c.title !== 'New Chat' && realChat.title === 'New Chat') {
-          nextChat.title = c.title;
-        }
-        return nextChat;
-      }
-      return c;
-    });
-    if (!replaced) {
-      nextChats = [realChat, ...nextChats];
-    }
-    const seen = new Set();
-    const deduped = [];
-    for (const chat of nextChats) {
-      const key = String(chat.id);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      deduped.push(chat);
-    }
-
-    const nextMessagesByChat = { ...prev.messagesByChat };
-    if (nextMessagesByChat[tempChatId]) {
-      nextMessagesByChat[realChatId] = nextMessagesByChat[tempChatId];
-      delete nextMessagesByChat[tempChatId];
-    }
-    const nextAttachmentsByChat = { ...(prev.attachmentsByChat || {}) };
-    if (nextAttachmentsByChat[tempChatId]) {
-      nextAttachmentsByChat[realChatId] = nextAttachmentsByChat[tempChatId];
-      delete nextAttachmentsByChat[tempChatId];
-    }
-    const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
-    const toolSelectionValue = nextToolSelectionsByChat[tempChatId];
-    if (toolSelectionValue != null) {
-      nextToolSelectionsByChat[realChatId] = toolSelectionValue;
-      delete nextToolSelectionsByChat[tempChatId];
-    }
+    const nextChats = dedupeChats(buildReplacedChatList(prev.chats, tempChatId, realChat));
+    const nextMessagesByChat = migrateEntry(prev.messagesByChat, tempChatId, realChatId);
+    const nextAttachmentsByChat = migrateEntry(
+      prev.attachmentsByChat || {},
+      tempChatId,
+      realChatId
+    );
+    const nextToolSelectionsByChat = migrateEntry(
+      prev.toolSelectionsByChat || {},
+      tempChatId,
+      realChatId
+    );
     return {
-      chats: deduped,
+      chats: nextChats,
       activeChatId: realChatId,
       activeModelId:
         prev.activeModelId || realChat.model || prev.defaultModelId || prev.globalDefaultModelId,

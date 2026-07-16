@@ -229,6 +229,61 @@ export async function discoverConnectionModels(connection = {}, options = {}) {
   return { url: null, items: [], payload: null, error: lastError };
 }
 
+function resolveConnectionProviderFamily(conn) {
+  return normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
+}
+
+function resolveConnectionProviderType(conn, providerFamily) {
+  return String(conn.providerType || providerFamily).toLowerCase();
+}
+
+function resolveConnectionName(conn, providerFamily) {
+  return String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120);
+}
+
+function resolveConnectionApiType(conn, providerFamily) {
+  return getConnectionApiType(conn.providerType || providerFamily);
+}
+
+function resolveConnectionManualModelsMode(conn) {
+  return (
+    normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all'
+  );
+}
+
+function buildConnectionRecord(conn, ctx) {
+  const { url, headers, providerFamily, id, providerType } = ctx;
+  return {
+    id,
+    name: resolveConnectionName(conn, providerFamily),
+    baseUrl: url,
+    key: String(conn.key || '').trim(),
+    headers,
+    source: 'config',
+    enabled: conn.enabled !== false,
+    providerType,
+    providerFamily,
+    providerId: buildProviderId({ id, providerType, providerFamily }),
+    authType: normalizeAuthType(conn.authType),
+    apiType: resolveConnectionApiType(conn, providerFamily),
+    manualModels: normalizeConnectionManualModels(conn.manualModels),
+    manualModelsMode: resolveConnectionManualModelsMode(conn),
+  };
+}
+
+function normalizeConnection(conn, index) {
+  const url = normalizeBaseUrl(conn.url || '');
+  if (!url) return null;
+  const headers = safeParseHeaders(conn.headers);
+  const providerFamily = resolveConnectionProviderFamily(conn);
+  const id = ensureConnectionId(
+    { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
+    index
+  );
+  const providerType = resolveConnectionProviderType(conn, providerFamily);
+  return buildConnectionRecord(conn, { url, headers, providerFamily, id, providerType });
+}
+
 export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
   const logger = createLogger(env);
   const includeDisabled = options.includeDisabled === true;
@@ -240,44 +295,7 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    const normalized = parsed
-      .map((conn, index) => {
-        const url = normalizeBaseUrl(conn.url || '');
-        if (!url) return null;
-        const headers = safeParseHeaders(conn.headers);
-        const enabled = conn?.enabled !== false;
-        const providerFamily =
-          normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
-        const id = ensureConnectionId(
-          { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
-          index
-        );
-        const providerType = String(conn.providerType || providerFamily).toLowerCase();
-        return {
-          id,
-          name: String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120),
-          baseUrl: url,
-          key: String(conn.key || '').trim(),
-          headers,
-          source: 'config',
-          enabled,
-          providerType,
-          providerFamily,
-          providerId: buildProviderId({
-            id,
-            providerType,
-            providerFamily,
-          }),
-          authType: normalizeAuthType(conn.authType),
-          apiType: getConnectionApiType(conn.providerType || providerFamily),
-          manualModels: normalizeConnectionManualModels(conn.manualModels),
-          manualModelsMode:
-            normalizeConnectionModelSelectionMode(
-              conn.manualModelsMode || conn.manual_models_mode
-            ) || 'all',
-        };
-      })
-      .filter(Boolean);
+    const normalized = parsed.map(normalizeConnection).filter(Boolean);
 
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);

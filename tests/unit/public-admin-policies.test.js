@@ -36,6 +36,137 @@ async function loadModule() {
   return import('../../public/js/features/admin/settings/policies.js');
 }
 
+function buildAdminConnectionsResponse() {
+  return new Response(
+    JSON.stringify({
+      connections: [
+        {
+          id: 'c1',
+          name: 'Conn 1',
+          providerType: 'openai-compatible',
+          baseUrl: 'https://example.com',
+          source: 'config',
+        },
+        {
+          id: 'c2',
+          name: 'Conn 2',
+          providerType: 'openai-compatible',
+          baseUrl: 'https://disabled.example.com',
+          source: 'config',
+          enabled: false,
+        },
+      ],
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+}
+
+function buildAdminToolServersResponse() {
+  return new Response(
+    JSON.stringify({
+      servers: [
+        { id: 's1', name: 'Server 1', url: 'https://mcp.example.com', source: 'config' },
+        {
+          id: 's2',
+          name: 'Server 2',
+          url: 'https://disabled-mcp.example.com',
+          source: 'config',
+          enabled: false,
+        },
+      ],
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+}
+
+function buildAccessRulesForPath(path) {
+  const rules = [];
+  if (path.includes('/models/')) {
+    rules.push({
+      model_id: 'm1',
+      principal_type: 'group',
+      principal_id: 'g1',
+      effect: 'allow',
+      action: 'use',
+    });
+  } else if (path.includes('/connections/access')) {
+    rules.push({
+      connection_id: 'c1',
+      principal_type: 'group',
+      principal_id: 'g2',
+      effect: 'allow',
+      action: 'use',
+    });
+  } else if (path.includes('/openai/connections/')) {
+    rules.push({
+      connection_id: 'c1',
+      principal_type: 'group',
+      principal_id: 'g1',
+      effect: 'allow',
+      action: 'use',
+    });
+  } else if (path.includes('/tool-servers/')) {
+    rules.push({
+      tool_server_id: 's1',
+      principal_type: 'group',
+      principal_id: 'g1',
+      effect: 'allow',
+      action: 'use',
+    });
+  } else if (path.includes('/models/access')) {
+    rules.push({
+      model_id: 'm1',
+      principal_type: 'group',
+      principal_id: 'g1',
+      effect: 'allow',
+      action: 'use',
+    });
+  }
+  return new Response(
+    JSON.stringify({
+      groups: [
+        { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+        { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+      ],
+      rules,
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+}
+
+function buildAccessPutResponse() {
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function defaultApiFetchResponse() {
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+const API_FETCH_RESPONSES = [
+  {
+    match: (path, init) => path.split('?')[0] === '/api/admin/openai/connections',
+    response: buildAdminConnectionsResponse,
+  },
+  {
+    match: (path, init) => path.split('?')[0] === '/api/admin/tool-servers',
+    response: buildAdminToolServersResponse,
+  },
+  {
+    match: (path, init) => path.includes('/access') && (!init.method || init.method === 'GET'),
+    response: buildAccessRulesForPath,
+  },
+  {
+    match: (path, init) => path.includes('/access') && init.method === 'PUT',
+    response: buildAccessPutResponse,
+  },
+];
+
 describe('admin policies settings', () => {
   const toggleVisibilityFilter = (container, key, checked) => {
     const input = container.querySelector(`[data-policy-filter="${key}"]`);
@@ -80,113 +211,8 @@ describe('admin policies settings', () => {
 
     mocks.apiFetch.mockImplementation(async (url, _init = {}) => {
       const path = String(url);
-      if (path.split('?')[0] === '/api/admin/openai/connections') {
-        return new Response(
-          JSON.stringify({
-            connections: [
-              {
-                id: 'c1',
-                name: 'Conn 1',
-                providerType: 'openai-compatible',
-                baseUrl: 'https://example.com',
-                source: 'config',
-              },
-              {
-                id: 'c2',
-                name: 'Conn 2',
-                providerType: 'openai-compatible',
-                baseUrl: 'https://disabled.example.com',
-                source: 'config',
-                enabled: false,
-              },
-            ],
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        );
-      }
-      if (path.split('?')[0] === '/api/admin/tool-servers') {
-        return new Response(
-          JSON.stringify({
-            servers: [
-              { id: 's1', name: 'Server 1', url: 'https://mcp.example.com', source: 'config' },
-              {
-                id: 's2',
-                name: 'Server 2',
-                url: 'https://disabled-mcp.example.com',
-                source: 'config',
-                enabled: false,
-              },
-            ],
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        );
-      }
-      if (path.includes('/access') && (!_init.method || _init.method === 'GET')) {
-        const rules = [];
-        if (path.includes('/models/')) {
-          rules.push({
-            model_id: 'm1',
-            principal_type: 'group',
-            principal_id: 'g1',
-            effect: 'allow',
-            action: 'use',
-          });
-        } else if (path.includes('/connections/access')) {
-          rules.push({
-            connection_id: 'c1',
-            principal_type: 'group',
-            principal_id: 'g2',
-            effect: 'allow',
-            action: 'use',
-          });
-        } else if (path.includes('/openai/connections/')) {
-          rules.push({
-            connection_id: 'c1',
-            principal_type: 'group',
-            principal_id: 'g1',
-            effect: 'allow',
-            action: 'use',
-          });
-        } else if (path.includes('/tool-servers/')) {
-          rules.push({
-            tool_server_id: 's1',
-            principal_type: 'group',
-            principal_id: 'g1',
-            effect: 'allow',
-            action: 'use',
-          });
-        } else if (path.includes('/models/access')) {
-          rules.push({
-            model_id: 'm1',
-            principal_type: 'group',
-            principal_id: 'g1',
-            effect: 'allow',
-            action: 'use',
-          });
-        }
-        return new Response(
-          JSON.stringify({
-            groups: [
-              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-            ],
-            rules,
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        );
-      }
-      if (path.includes('/access') && _init.method === 'PUT') {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        );
-      }
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      const entry = API_FETCH_RESPONSES.find((r) => r.match(path, _init));
+      return entry ? entry.response(path) : defaultApiFetchResponse();
     });
   });
 

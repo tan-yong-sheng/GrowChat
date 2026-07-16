@@ -1,18 +1,21 @@
-# Autoresearch: Reduce `dupes` to 0
+# Autoresearch: Reduce `functions_above_threshold` to 0
 
 ## Objective
 
-Drive `fallow audit` `dupes_total` to **0**, while keeping all quality
-gates green. The previous phase drove `complexity_introduced` to 0; this
-phase targets the remaining inherited duplication.
+Drive `fallow health` `functions_above_threshold` to **0**, while keeping
+all quality gates green. The previous phase drove `dupes` to 0 and
+`complexity_introduced` to 0; this phase targets the remaining functions
+above fallow's complexity/CRAP threshold.
 
+- `dupes` is already at 0 and must stay there
 - `complexity_introduced` is already at 0 and must stay there
 - `duplication_introduced` is already at 0 and must stay there
-- The remaining `dupes_total` comes from inherited clone groups, not new
-  code
+- The remaining `functions_above_threshold` comes from inherited complex
+  functions, not new code
 
 Quality gates that must NOT regress:
 
+- `dupes` = 0
 - `fallow_health_score` ≥ 77.6 (no score regression)
 - `dead_code_introduced` = 0 (audit verdict blocker)
 - `duplication_introduced` = 0
@@ -23,10 +26,13 @@ Quality gates that must NOT regress:
 
 ## Metrics
 
-- **Primary**: `dupes` (unitless, lower is better, target = 0)
-  - Counts total clone instances across the project (fallow duplication report)
-  - Removing a clone group drops the count by its number of instances
+- **Primary**: `functions_above_threshold` (unitless, lower is better, target = 0)
+  - Counts functions with cyclomatic complexity or CRAP above fallow's
+    threshold
+  - Decomposing a function into smaller helpers drops the count when the
+    parent and all new helpers fall below the threshold
 - **Secondary** (must not regress):
+  - `dupes` = 0
   - `fallow_health_score` ≥ 77.6
   - `complexity_introduced` = 0
   - `dead_code_total` = 0
@@ -46,33 +52,35 @@ Outputs structured `METRIC name=value` lines. Takes ~3 minutes.
 
 ## Strategy
 
-1. Inspect `fallow audit --format json` `duplication.clone_groups` for
-   remaining clone families
-2. Prefer safe deduplication targets:
-   - Same-file duplicates (zero import/export risk)
-   - Cross-file duplicates in files with no cyc>20 functions (no
-     `complexity_introduced` regression)
-   - Pure helper extractions that don't change public API contracts
-3. Extract shared helpers, barrel files, or factory modules as appropriate
-4. Verify: scoped tests pass, lint/typecheck pass, `complexity_introduced`
-   stays 0
-5. Log: if `dupes` dropped AND all gates green → `keep`; otherwise `discard`
-6. Repeat
+1. Inspect `fallow health --format json` for functions above threshold
+2. Prefer safe decomposition targets:
+   - Functions just above threshold (small reduction needed)
+   - Functions with sequential branches (easy to extract helpers)
+   - Functions in files with no other threshold findings (lower blast radius)
+3. Extract small helpers with cyc ≤ 4 / CRAP ≤ 30 (at 0% coverage, cyc ≤ 5
+   keeps CRAP ≤ 25)
+4. Keep helpers pure and behavior-preserving; avoid adding closure
+   complexity (`?.`, `||` chains)
+5. Verify: scoped tests pass, lint/typecheck pass, `complexity_introduced`
+   stays 0, `dupes` stays 0
+6. Log: if `functions_above_threshold` dropped AND all gates green →
+   `keep`; otherwise `discard`
+7. Repeat
 
 ## Files in Scope
 
-Current duplication targets (from `fallow audit`):
+Current targets (from `fallow health --format json`):
 
-- `src/chat/assistant-runner.js:20-44` ↔ `src/routers/chat.js:72-96`
-  Shared assistant-runner dependency contract (25 lines, 2 instances)
+- TBD after first inspection
 
 ## Off Limits
 
 - Do not bypass quality gates
-- Do not add `fallow-ignore` suppressions to hide real duplication
+- Do not add `fallow-ignore` suppressions to hide real complexity
 - Do not change `.auto/measure.sh` (already configured for current metric set)
 - Do not change `fallow.toml` config
 - Do not modify `.husky/` pre-commit hooks
+- Do not regress `dupes` from 0
 - Do not regress `complexity_introduced` from 0
 
 ## Constraints
@@ -81,20 +89,23 @@ Current duplication targets (from `fallow audit`):
 - Every iteration must NOT introduce new dead-code
 - Every iteration must NOT introduce new `duplication_introduced`
 - Every iteration must NOT regress `complexity_introduced`
+- Every iteration must NOT regress `dupes`
 - Refactors must be behavior-preserving (no semantic changes)
 - One concern per commit; small atomic commits are easier to revert
-- A `discard` log is fine if dedup work is net-positive — commit it manually first
+- A `discard` log is fine if decomposition work is net-positive — commit
+  it manually first
 
 ## Context
 
-Previous phase (88 runs) achieved:
+Previous phase (88+ runs) achieved:
 
 - `complexity_introduced`: 93 → 0
-- `dupes_total`: 20 → 3
+- `dupes_total`: 20 → 0
 - `dead_code_total`: 1 → 0
 - `audit_verdict`: fail → pass
+- `functions_above_threshold`: 57
 - `fallow_health_score`: 77.6 (config ceiling, unchanged)
 
 `fallow_health_score` remains blocked by config-level penalties
-(`hotspots` and `unit_size` capped at -10), so this phase focuses on the
-last remaining measurable quality signal: duplication.
+(`hotspots` and `unit_size` capped at -10), so this phase focuses on
+reducing the measurable `functions_above_threshold` signal.

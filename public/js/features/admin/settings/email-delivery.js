@@ -226,8 +226,36 @@ export function renderEmailDeliverySettings(container) {
     }
   };
 
+  function isMaskedApiKeyValue(value) {
+    return value.includes('\u2022');
+  }
+
+  function disableEmailApiKeyInput() {
+    const input = container.querySelector('#email-api-key');
+    if (input) input.disabled = true;
+  }
+
+  function formatApiKeyError(err) {
+    return err?.message || 'Failed to update API key.';
+  }
+
+  async function extractApiKeyErrorMessage(res) {
+    const err = await res.json().catch(() => ({}));
+    return err?.error || err?.message || 'Failed to update API key';
+  }
+
+  async function applyEmailApiKeyUpdate(newValue) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: JSON.stringify({ email_api_key: newValue }),
+    });
+    if (!res.ok) {
+      throw new Error(await extractApiKeyErrorMessage(res));
+    }
+  }
+
   const saveApiKey = async (newValue) => {
-    if (newValue.includes('\u2022')) {
+    if (isMaskedApiKeyValue(newValue)) {
       showFeedback(container, 'Invalid API key format.', true);
       render();
       return;
@@ -235,24 +263,16 @@ export function renderEmailDeliverySettings(container) {
     if (saving) return;
     saving = true;
     const prevConfigured = settingsState.apiKeyConfigured;
-    const input = container.querySelector('#email-api-key');
     try {
-      if (input) input.disabled = true;
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ email_api_key: newValue }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update API key');
-      }
+      disableEmailApiKeyInput();
+      await applyEmailApiKeyUpdate(newValue);
       settingsState.apiKeyConfigured = true;
       render();
       showFeedback(container, 'API key saved.');
     } catch (err) {
       settingsState.apiKeyConfigured = prevConfigured;
       render();
-      showFeedback(container, err?.message || 'Failed to update API key.', true);
+      showFeedback(container, formatApiKeyError(err), true);
     } finally {
       saving = false;
     }

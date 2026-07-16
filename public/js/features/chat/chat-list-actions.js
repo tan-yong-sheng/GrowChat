@@ -31,6 +31,25 @@ export function createChatListHandlers({
     const payload = await res.json().catch(() => ({}));
     alertFn(payload.error || `Failed to ${action} (${res.status})`);
   };
+
+  function computeNextActiveChatId(wasActive, chats, fallbackId) {
+    return wasActive ? chats[0]?.id || null : fallbackId;
+  }
+
+  function buildDeleteStateUpdate(prev, id, wasActive) {
+    const nextChats = (Array.isArray(prev.chats) ? prev.chats : []).filter(
+      (chatItem) => String(chatItem.id) !== String(id)
+    );
+    const nextActiveChatId = wasActive ? nextChats[0]?.id || null : prev.activeChatId;
+    const nextMessagesByChat = { ...(prev.messagesByChat || {}) };
+    delete nextMessagesByChat[id];
+    return {
+      chats: nextChats,
+      activeChatId: nextActiveChatId,
+      messagesByChat: nextMessagesByChat,
+    };
+  }
+
   return (chat = {}) => ({
     onClick: (id) => {
       handleClickChat(
@@ -106,21 +125,9 @@ export function createChatListHandlers({
       const removedChat = isTempChatId(id)
         ? null
         : prevChats.find((chatItem) => String(chatItem.id) === String(id)) || null;
-      setState((prev) => {
-        const nextChats = (Array.isArray(prev.chats) ? prev.chats : []).filter(
-          (chatItem) => String(chatItem.id) !== String(id)
-        );
-        const nextActiveChatId = wasActive ? nextChats[0]?.id || null : prev.activeChatId;
-        const nextMessagesByChat = { ...(prev.messagesByChat || {}) };
-        delete nextMessagesByChat[id];
-        return {
-          chats: nextChats,
-          activeChatId: nextActiveChatId,
-          messagesByChat: nextMessagesByChat,
-        };
-      });
+      setState((prev) => buildDeleteStateUpdate(prev, id, wasActive));
       const nextChatsSnapshot = prevChats.filter((chatItem) => String(chatItem.id) !== String(id));
-      const nextId = wasActive ? nextChatsSnapshot[0]?.id || null : state.activeChatId;
+      const nextId = computeNextActiveChatId(wasActive, nextChatsSnapshot, state.activeChatId);
       currentLeafByChatId.delete(id);
       streamingOverrideByChatId.delete(id);
       syncChatUrl(nextId, { replace: true });

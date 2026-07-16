@@ -111,9 +111,37 @@ export function renderSecuritySettings(container, data) {
     bindEvents();
   };
 
+  function isMaskedResendApiKeyValue(value) {
+    return value.includes('*');
+  }
+
+  function disableResendApiKeyInput() {
+    const apiKeyInput = container.querySelector('#resend-api-key');
+    if (apiKeyInput) apiKeyInput.disabled = true;
+  }
+
+  function formatResendApiKeyError(err) {
+    return err?.message || 'Failed to update Resend API key.';
+  }
+
+  async function extractResendApiKeyErrorMessage(res) {
+    const err = await res.json().catch(() => ({}));
+    return err.error || err.message || 'Failed to update Resend API key';
+  }
+
+  async function applyResendApiKeyUpdate(newValue) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: JSON.stringify({ resend_api_key: newValue }),
+    });
+    if (!res.ok) {
+      throw new Error(await extractResendApiKeyErrorMessage(res));
+    }
+  }
+
   const updateResendApiKey = async (newValue) => {
     // Validate: reject input containing asterisks (which indicate user didn't actually enter a new key)
-    if (newValue.includes('*')) {
+    if (isMaskedResendApiKeyValue(newValue)) {
       showFeedback(container, 'Invalid API key format.', true);
       render();
       return;
@@ -124,22 +152,10 @@ export function renderSecuritySettings(container, data) {
     savingApiKey = true;
 
     const prevConfigured = settingsState.resendApiKeyConfigured;
-    const apiKeyInput = container.querySelector('#resend-api-key');
 
     try {
-      if (apiKeyInput) {
-        apiKeyInput.disabled = true;
-      }
-
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ resend_api_key: newValue }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update Resend API key');
-      }
+      disableResendApiKeyInput();
+      await applyResendApiKeyUpdate(newValue);
 
       // Never store the actual key, only mark it as configured
       settingsState.resendApiKeyConfigured = true;
@@ -149,7 +165,7 @@ export function renderSecuritySettings(container, data) {
     } catch (err) {
       settingsState.resendApiKeyConfigured = prevConfigured;
       render();
-      showFeedback(container, err?.message || 'Failed to update Resend API key.', true);
+      showFeedback(container, formatResendApiKeyError(err), true);
     } finally {
       savingApiKey = false;
     }

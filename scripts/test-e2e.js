@@ -68,15 +68,29 @@ function stripQuotes(v) {
   return v;
 }
 
+function isAlwaysOverride(name) {
+  return ['TEST_EMAIL', 'TEST_PASSWORD'].includes(name);
+}
+
+function parseEnvLine(t) {
+  return t.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/) || null;
+}
+
+function shouldSetVar(m, always) {
+  return !process.env[m[1]] || always;
+}
+
 function loadDevVars() {
   try {
     for (const line of readFileSync('.dev.vars', 'utf8').split('\n')) {
       const t = line.trim();
       if (!t || t.startsWith('#')) continue;
-      const m = t.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
-      const always = ['TEST_EMAIL', 'TEST_PASSWORD'].includes(m?.[1]);
-      if (!m || (process.env[m[1]] && !always)) continue;
-      process.env[m[1]] = stripQuotes(m[2].trim());
+      const m = parseEnvLine(t);
+      if (!m) continue;
+      const always = isAlwaysOverride(m[1]);
+      if (shouldSetVar(m, always)) {
+        process.env[m[1]] = stripQuotes(m[2].trim());
+      }
     }
   } catch {
     /* no .dev.vars */
@@ -118,34 +132,42 @@ function collectDescendants(parentPid) {
  * children even if they were reparented after our parent died. Then awaits
  * until the PID is actually dead (with a short poll) so callers don't race
  * against zombie ports. */
-async function killProcessTree(pid) {
-  if (!pid) return;
-  // First signal the whole process group — catches descendants, reparented
-  // orphans, and grandchildren we can't see via pgrep -P.
+function signalProcessGroup(pid) {
   try {
     process.kill(-pid, 'SIGKILL');
   } catch {
     /* not a group leader or already dead */
   }
-  // Then belt-and-suspenders: kill by PID and any visible descendants.
+}
+
+function signalProcess(pid) {
   try {
     process.kill(pid, 'SIGKILL');
   } catch {
     /* */
   }
-  for (const d of collectDescendants(pid)) {
-    if (!isPidAlive(d)) continue;
-    try {
-      process.kill(d, 'SIGKILL');
-    } catch {
-      /* */
-    }
-  }
-  // Wait for the PID to actually exit (signal-flush race on slow runners).
+}
+
+async function waitForProcessExit(pid) {
   const deadline = Date.now() + KILL_TREE_TIMEOUT_MS;
   while (isPidAlive(pid) && Date.now() < deadline) {
     await sleep(PID_EXIT_POLL_MS);
   }
+}
+
+async function killProcessTree(pid) {
+  if (!pid) return;
+  // First signal the whole process group — catches descendants, reparented
+  // orphans, and grandchildren we can't see via pgrep -P.
+  signalProcessGroup(pid);
+  // Then belt-and-suspenders: kill by PID and any visible descendants.
+  signalProcess(pid);
+  for (const d of collectDescendants(pid)) {
+    if (!isPidAlive(d)) continue;
+    signalProcess(d);
+  }
+  // Wait for the PID to actually exit (signal-flush race on slow runners).
+  await waitForProcessExit(pid);
 }
 
 /** Kill all PIDs recorded in WRANGLER_PIDS_FILE (and their descendants).
@@ -286,7 +308,25 @@ function isD1File(filePath) {
   }
 }
 
-// eslint-disable-next-line complexity
+function isSqliteFile(name) {
+  return name !== 'metadata.sqlite' && name.endsWith('.sqlite');
+}
+
+function scanSqliteFiles(parentDir) {
+  let files;
+  try {
+    files = readdirSync(parentDir);
+  } catch {
+    return null;
+  }
+
+  const found = files?.find((f) => {
+    const nested = path.join(parentDir, f);
+    return isSqliteFile(f) && isD1File(nested) ? nested : false;
+  });
+  return found || null;
+}
+
 function findD1Sqlite(pd) {
   const dir = path.join(pd, 'v3', 'd1', 'miniflare-D1DatabaseObject');
   let entries;
@@ -296,24 +336,12 @@ function findD1Sqlite(pd) {
     return null;
   }
 
-  for (const name of entries) {
-    if (name === 'metadata.sqlite') continue;
-    if (!name.endsWith('.sqlite')) continue;
+  const sqlitePaths = entries?.filter((n) => isSqliteFile(n));
+  const candidate = sqlitePaths?.find((name) => {
     const direct = path.join(dir, name);
-    if (isD1File(direct)) return direct;
-    let files;
-    try {
-      files = readdirSync(path.join(dir, name));
-    } catch {
-      continue;
-    }
-    for (const f of files) {
-      if (f === 'metadata.sqlite' || !f.endsWith('.sqlite')) continue;
-      const nested = path.join(dir, name, f);
-      if (isD1File(nested)) return nested;
-    }
-  }
-  return null;
+    return isD1File(direct) ? direct : scanSqliteFiles(direct) || null;
+  });
+  return candidate || null;
 }
 
 /** Run a sqlite3 command by piping stdin to it. Returns when the child exits.
@@ -357,6 +385,22 @@ function cleanupStateDir() {
   mkdirSync(STATE_DIR, { recursive: true });
 }
 
+async function tryFetchRoot(port) {
+  try {
+    return await fetch(`http://127.0.0.1:${port}/`);
+  } catch {
+    return null;
+  }
+}
+
+async function tryFetchHealth(port) {
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/health`);
+  } catch {
+    /* ignore */
+  }
+}
+
 // eslint-disable-next-line max-statements
 async function bootWranglerForD1Init() {
   log(`Creating D1 file via wrangler dev (port ${PORT})...`);
@@ -374,20 +418,16 @@ async function bootWranglerForD1Init() {
   let httpReady = false;
   let dbPath = null;
   for (let i = 0; i < HTTP_READY_MAX_ATTEMPTS; i++) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/`);
-      if (r.ok && !httpReady) {
-        httpReady = true;
-        log('  wrangler HTTP-ready, triggering D1 init...');
-        await fetch(`http://127.0.0.1:${PORT}/api/health`);
-        await sleep(1000);
-      }
-      if (httpReady) {
-        dbPath = findD1Sqlite(STATE_DIR);
-        if (dbPath) break;
-      }
-    } catch {
-      /* not ready */
+    const r = await tryFetchRoot(PORT);
+    if (r?.ok && !httpReady) {
+      httpReady = true;
+      log('  wrangler HTTP-ready, triggering D1 init...');
+      await tryFetchHealth(PORT);
+      await sleep(1000);
+    }
+    if (httpReady) {
+      dbPath = findD1Sqlite(STATE_DIR);
+      if (dbPath) break;
     }
     await sleep(500);
   }
