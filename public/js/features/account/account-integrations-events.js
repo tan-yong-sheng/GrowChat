@@ -252,41 +252,45 @@ export function createIntegrationsEvents(ctx) {
     void callMcpUpdateAndRollback(server, toolName, prevEnabled, server.id, deps);
   };
 
-  const handleServerToggle = (toggle, target, deps) => {
-    const {
-      sectionState,
-      state,
-      syncListShell,
-      syncListState,
-      syncActionFooter,
-      syncFeedback,
-      persistPreferences,
-      canManageToolServers,
-    } = deps;
-    void target;
-    const id = toggle.dataset.id || toggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
-    const scope = toggle.dataset.toggleScope || 'personal';
-    if (scope === 'shared') {
-      const previousPreferences = clonePreferences(state.settings?.preferences || {});
-      const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'tool_servers', id);
-      const nextVisible = currentHidden;
-      const nextPreferences = setResourceVisibility(
-        state.settings?.preferences || {},
-        'tool_servers',
-        id,
-        nextVisible
-      );
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: nextPreferences,
-      };
-      sectionState.error = '';
-      syncListShell();
-      void persistPreferences({
-        rollback: { preferences: previousPreferences },
-      });
-      return;
+  const handleSharedServerToggle = (deps, id) => {
+    const { state, syncListShell, persistPreferences, sectionState } = deps;
+    const previousPreferences = clonePreferences(state.settings?.preferences || {});
+    const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'tool_servers', id);
+    const nextVisible = currentHidden;
+    const nextPreferences = setResourceVisibility(
+      state.settings?.preferences || {},
+      'tool_servers',
+      id,
+      nextVisible
+    );
+    state.settings = {
+      ...(state.settings || {}),
+      preferences: nextPreferences,
+    };
+    sectionState.error = '';
+    syncListShell();
+    void persistPreferences({
+      rollback: { preferences: previousPreferences },
+    });
+  };
+
+  const runPersonalServerToggleUpdate = async (server, nextEnabled, deps) => {
+    const { sectionState, syncListState, syncFeedback, syncActionFooter } = deps;
+    try {
+      await updateUserMcpServer(server.id, { enabled: nextEnabled });
+      broadcastToolServersInvalidation();
+    } catch (err) {
+      server.enabled = !nextEnabled;
+      sectionState.error = err?.message || 'Failed to update integration';
+    } finally {
+      syncListState(server.id);
+      syncFeedback();
+      syncActionFooter();
     }
+  };
+
+  const handlePersonalServerToggle = (deps, id, canManageToolServers) => {
+    const { sectionState, syncListState, syncActionFooter } = deps;
     if (!canManageToolServers) return;
     const server = sectionState.servers.find((entry) => entry.id === id);
     if (!server) return;
@@ -295,19 +299,19 @@ export function createIntegrationsEvents(ctx) {
     server.enabled = nextEnabled;
     syncListState(id);
     syncActionFooter();
-    void (async () => {
-      try {
-        await updateUserMcpServer(server.id, { enabled: nextEnabled });
-        broadcastToolServersInvalidation();
-      } catch (err) {
-        server.enabled = previousEnabled;
-        sectionState.error = err?.message || 'Failed to update integration';
-      } finally {
-        syncListState(id);
-        syncFeedback();
-        syncActionFooter();
-      }
-    })();
+    void runPersonalServerToggleUpdate(server, nextEnabled, deps);
+  };
+
+  const handleServerToggle = (toggle, target, deps) => {
+    void target;
+    const { canManageToolServers } = deps;
+    const id = toggle.dataset.id || toggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
+    const scope = toggle.dataset.toggleScope || 'personal';
+    if (scope === 'shared') {
+      handleSharedServerToggle(deps, id);
+      return;
+    }
+    handlePersonalServerToggle(deps, id, canManageToolServers);
   };
 
   const handleToolsExpandToggle = (toolsToggle, target, deps) => {
