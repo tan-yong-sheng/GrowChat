@@ -326,9 +326,27 @@ export function createChatRealtimeController({
     );
   }
 
+  function shouldMatchPendingTemp(event, eventMessage) {
+    return isSameSession(event) && eventMessage?.role === 'user';
+  }
+
+  function shouldReloadMessages(event) {
+    return event.chat_id && event.chat_id === state.activeChatId;
+  }
+
+  function upsertEventMessage(event, eventMessage) {
+    if (shouldMatchPendingTemp(event, eventMessage)) {
+      matchPendingTempMessage(event.chat_id, eventMessage);
+    }
+    upsertMessageFromEvent(event.chat_id, eventMessage, {
+      draw: event.chat_id === state.activeChatId,
+    });
+  }
+
   async function handleMessageCreatedOrCompleted(event) {
-    const eventChat = event?.data?.chat || null;
-    const eventMessage = event?.data?.message || null;
+    const data = event?.data || {};
+    const eventChat = data.chat || null;
+    const eventMessage = data.message || null;
 
     if (eventChat) {
       upsertChatFromEvent(eventChat);
@@ -337,16 +355,11 @@ export function createChatRealtimeController({
     }
 
     if (eventMessage) {
-      if (isSameSession(event) && eventMessage?.role === 'user') {
-        matchPendingTempMessage(event.chat_id, eventMessage);
-      }
-      upsertMessageFromEvent(event.chat_id, eventMessage, {
-        draw: event.chat_id === state.activeChatId,
-      });
+      upsertEventMessage(event, eventMessage);
       return;
     }
 
-    if (event.chat_id && event.chat_id === state.activeChatId) {
+    if (shouldReloadMessages(event)) {
       await loadMessages(event.chat_id);
     }
   }
