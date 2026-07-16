@@ -148,9 +148,20 @@ export function createModalUi(ctx) {
     if (searchInput) searchInput.value = modalState.query;
     return true;
   };
+  const hasModelUiElements = () => modelsList && modelsStatus;
+
+  const shouldShowEmptyModelsState = () =>
+    !connection?.id && (!Array.isArray(modalState.models) || modalState.models.length === 0);
+
+  const resolveSelectedModels = () =>
+    modalState.selection instanceof Set ? modalState.selection : new Set();
+
+  const buildModelsStatusText = (models, selected) =>
+    models.length ? `Models selected in this connection: ${selected.size}` : '';
+
   const renderModels = () => {
-    if (!modelsList || !modelsStatus) return;
-    if (!connection?.id && (!Array.isArray(modalState.models) || modalState.models.length === 0)) {
+    if (!hasModelUiElements()) return;
+    if (shouldShowEmptyModelsState()) {
       renderEmptyState('Click Verify to load models from this connection.');
       return;
     }
@@ -163,7 +174,7 @@ export function createModalUi(ctx) {
       return;
     }
     const models = sortModelsByActiveThenName(modalState.models);
-    const selected = modalState.selection instanceof Set ? modalState.selection : new Set();
+    const selected = resolveSelectedModels();
     modelsList.innerHTML = buildConnectionModalModelsMarkup(
       models,
       modalState.query,
@@ -172,9 +183,7 @@ export function createModalUi(ctx) {
       ''
     );
     modelsStatus.classList.remove('text-red-500');
-    modelsStatus.textContent = models.length
-      ? `Models selected in this connection: ${selected.size}`
-      : '';
+    modelsStatus.textContent = buildModelsStatusText(models, selected);
     if (searchInput) searchInput.value = modalState.query;
   };
   const resolveProviderType = () =>
