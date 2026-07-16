@@ -163,6 +163,119 @@ export function createAssistantStreamLifecycle({
     controller.close();
   };
 
+  function serializeCitations(citations) {
+    return Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
+  }
+
+  function serializeToolCalls(toolCallRecords) {
+    return Array.isArray(toolCallRecords) && toolCallRecords.length
+      ? JSON.stringify(toolCallRecords)
+      : null;
+  }
+
+  async function persistAssistantErrorMessage(params) {
+    const {
+      db: dbRef,
+      assistantMsgId: msgId,
+      chatId: chatIdRef,
+      model: modelRef,
+      parentId,
+      errorCode,
+      errorMessage,
+      errorDetails,
+      citationsJson,
+      toolCallsJson,
+    } = params;
+    try {
+      await dbRef.run(
+        `UPDATE messages
+         SET content = ?, model = ?, citations = ?, parent_id = ?, status = 'error',
+             error_code = ?, error_message = ?, tool_calls = ?
+         WHERE id = ?`,
+        [
+          errorDetails,
+          modelRef,
+          citationsJson,
+          parentId,
+          errorCode,
+          errorMessage,
+          toolCallsJson,
+          msgId,
+        ]
+      );
+    } catch {
+      try {
+        await dbRef.run(
+          'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
+          [
+            msgId,
+            chatIdRef,
+            'assistant',
+            errorDetails,
+            modelRef,
+            citationsJson,
+            parentId,
+            'error',
+            errorCode,
+            errorMessage,
+            toolCallsJson,
+          ]
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  async function publishAssistantErrorEvent(params) {
+    const {
+      db: dbRef,
+      env: envRef,
+      user,
+      chatId: chatIdRef,
+      assistantMsgId: msgId,
+      model: modelRef,
+    } = params;
+    const assistantError = await getMessageSnapshot(dbRef, msgId);
+    await publishRealtimeNow(
+      envRef,
+      createRealtimeEvent({
+        type: 'message.completed',
+        userId: user.sub,
+        chatId: chatIdRef,
+        messageId: msgId,
+        originSessionId: getOriginSessionId(req),
+        data: {
+          role: 'assistant',
+          model: modelRef,
+          error: true,
+          message: assistantError,
+          chat: await getOwnedChat(dbRef, chatIdRef, user.sub),
+        },
+      })
+    );
+    return assistantError;
+  }
+
+  async function emitErrorSsePayload(params) {
+    const {
+      emitSse: emit,
+      chatId: chatIdRef,
+      assistantMsgId: msgId,
+      userMsgId: userMsgIdRef,
+      errorCode,
+      errorMessage,
+    } = params;
+    if (typeof emit !== 'function') return;
+    await emit({
+      event: 'start',
+      chat_id: chatIdRef,
+      message_id: msgId,
+      user_message_id: userMsgIdRef,
+    });
+    await emit({ error: errorCode, message: errorMessage }, { persist: true });
+  }
+
   const sendErrorAndClose = async ({
     controller,
     encoder,
@@ -174,77 +287,34 @@ export function createAssistantStreamLifecycle({
   }) => {
     const errorMessage = normalizeErrorMessage(err, 'LLM request failed');
     const errorDetails = normalizeErrorMessage(err, 'LLM request failed', 8000);
-    try {
-      await db.run(
-        `UPDATE messages
-         SET content = ?, model = ?, citations = ?, parent_id = ?, status = 'error',
-             error_code = ?, error_message = ?, tool_calls = ?
-         WHERE id = ?`,
-        [
-          errorDetails,
-          model,
-          Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
-          parentId,
-          errorCode,
-          errorMessage,
-          Array.isArray(toolCallRecords) && toolCallRecords.length
-            ? JSON.stringify(toolCallRecords)
-            : null,
-          assistantMsgId,
-        ]
-      );
-    } catch {
-      try {
-        await db.run(
-          'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
-          [
-            assistantMsgId,
-            chatId,
-            'assistant',
-            errorDetails,
-            model,
-            Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
-            parentId,
-            'error',
-            errorCode,
-            errorMessage,
-            Array.isArray(toolCallRecords) && toolCallRecords.length
-              ? JSON.stringify(toolCallRecords)
-              : null,
-          ]
-        );
-      } catch {
-        // ignore
-      }
-    }
-
-    const assistantError = await getMessageSnapshot(db, assistantMsgId);
-    await publishRealtimeNow(
+    await persistAssistantErrorMessage({
+      db,
+      assistantMsgId,
+      chatId,
+      model,
+      parentId,
+      errorCode,
+      errorMessage,
+      errorDetails,
+      citationsJson: serializeCitations(citations),
+      toolCallsJson: serializeToolCalls(toolCallRecords),
+    });
+    const assistantError = await publishAssistantErrorEvent({
+      db,
       env,
-      createRealtimeEvent({
-        type: 'message.completed',
-        userId: user.sub,
-        chatId,
-        messageId: assistantMsgId,
-        originSessionId: getOriginSessionId(req),
-        data: {
-          role: 'assistant',
-          model,
-          error: true,
-          message: assistantError,
-          chat: await getOwnedChat(db, chatId, user.sub),
-        },
-      })
-    );
-    if (typeof emitSse === 'function') {
-      await emitSse({
-        event: 'start',
-        chat_id: chatId,
-        message_id: assistantMsgId,
-        user_message_id: userMsgId,
-      });
-      await emitSse({ error: errorCode, message: errorMessage }, { persist: true });
-    }
+      user,
+      chatId,
+      assistantMsgId,
+      model,
+    });
+    await emitErrorSsePayload({
+      emitSse,
+      chatId,
+      assistantMsgId,
+      userMsgId,
+      errorCode,
+      errorMessage,
+    });
     await emitDone(controller, encoder);
     return { errorMessage, assistantError };
   };

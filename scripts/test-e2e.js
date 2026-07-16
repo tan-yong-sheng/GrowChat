@@ -63,8 +63,8 @@ function log(...a) {
 // ── .dev.vars loader ──────────────────────────────────────────────────────────
 
 function stripQuotes(v) {
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))
-    return v.slice(1, -1);
+  const q = v[0];
+  if ((q === '"' || q === "'") && v.endsWith(q)) return v.slice(1, -1);
   return v;
 }
 
@@ -513,12 +513,19 @@ async function killDevServer() {
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
 
-async function seedUser() {
+function readSeedCredentials() {
   const { TEST_EMAIL: email, TEST_PASSWORD: password } = process.env;
   if (!email || !password) {
     log('TEST_EMAIL/TEST_PASSWORD not set');
-    return;
+    return null;
   }
+  return { email, password };
+}
+
+async function seedUser() {
+  const credentials = readSeedCredentials();
+  if (!credentials) return;
+  const { email, password } = credentials;
   log(`Seeding test user: ${email}`);
   const res = await fetch(`${BASE_URL}/api/auth/register`, {
     method: 'POST',
