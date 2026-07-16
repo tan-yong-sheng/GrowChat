@@ -53,20 +53,40 @@ function isActiveTab(container) {
   );
 }
 
+function parseUrlParams() {
+  const params = new URLSearchParams(window.location.search || '');
+  return {
+    initialGroupId: String(params.get('group') || 'all').trim() || 'all',
+    initialDeepLinkFamily: String(params.get('family') || '').trim(),
+    initialDeepLinkResource: String(params.get('resource') || '').trim(),
+    initialDeepLinkOpen: String(params.get('open') || '')
+      .trim()
+      .toLowerCase(),
+  };
+}
+
+function checkDeepLink(state, params) {
+  if (
+    FAMILIES.some((family) => family.key === params.initialDeepLinkFamily) &&
+    params.initialDeepLinkResource &&
+    (params.initialDeepLinkOpen === 'access' || params.initialDeepLinkOpen === 'acl')
+  ) {
+    state.pendingDeepLink = {
+      familyKey: params.initialDeepLinkFamily,
+      resourceId: params.initialDeepLinkResource,
+    };
+    state.activeFamily = params.initialDeepLinkFamily;
+  }
+}
+
 export function renderPoliciesSettings(container, _data = {}) {
-  const initialParams = new URLSearchParams(window.location.search || '');
-  const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
-  const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
-  const initialDeepLinkResource = String(initialParams.get('resource') || '').trim();
-  const initialDeepLinkOpen = String(initialParams.get('open') || '')
-    .trim()
-    .toLowerCase();
+  const params = parseUrlParams();
 
   const state = {
     loading: true,
     error: null,
     groups: [],
-    selectedGroupId: initialGroupId,
+    selectedGroupId: params.initialGroupId,
     query: '',
     visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
     filtersOpen: false,
@@ -90,17 +110,7 @@ export function renderPoliciesSettings(container, _data = {}) {
     deepLinkOpened: false,
   };
 
-  if (
-    FAMILIES.some((family) => family.key === initialDeepLinkFamily) &&
-    initialDeepLinkResource &&
-    (initialDeepLinkOpen === 'access' || initialDeepLinkOpen === 'acl')
-  ) {
-    state.pendingDeepLink = {
-      familyKey: initialDeepLinkFamily,
-      resourceId: initialDeepLinkResource,
-    };
-    state.activeFamily = initialDeepLinkFamily;
-  }
+  checkDeepLink(state, params);
 
   const familyLoadSeq = { connections: 0, models: 0, 'mcp-servers': 0 };
   const familyAbortControllers = { connections: null, models: null, 'mcp-servers': null };
