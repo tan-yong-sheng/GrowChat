@@ -77,10 +77,11 @@ export function createChatRealtimeController({
   }
 
   function matchesTempMessage(item, { msgRole, msgContent, msgParent }) {
-    if (!String(item?.id || '').startsWith('temp-')) return false;
-    if (String(item.role || '') !== msgRole) return false;
-    if (String(item.parent_id || '') !== String(msgParent || '')) return false;
-    if (msgRole !== 'assistant' && String(item.content || '') !== msgContent) return false;
+    if (!item) return false;
+    if (!String(item.id).startsWith('temp-')) return false;
+    if (String(item.role) !== msgRole) return false;
+    if (String(item.parent_id) !== String(msgParent)) return false;
+    if (msgRole !== 'assistant' && String(item.content) !== msgContent) return false;
     return true;
   }
 
