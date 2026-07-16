@@ -266,9 +266,14 @@ async function buildAndExecuteStatements(
   };
 }
 
-/* eslint-disable max-statements */
-/* eslint-disable complexity */
-async function validateUpdateRequest(req, env, user) {
+function hasNoModelChanges(sanitizedUpdates, sanitizedAttachmentUpdates, sanitizedAccessUpdates) {
+  if (sanitizedUpdates.length) return false;
+  if (sanitizedAttachmentUpdates.length) return false;
+  if (sanitizedAccessUpdates.length) return false;
+  return true;
+}
+
+async function requireAuthAndDatabase(req, env, user) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return { error: authError };
 
@@ -276,7 +281,14 @@ async function validateUpdateRequest(req, env, user) {
     return { error: error(req, 'Database unavailable', HTTP_STATUS.INTERNAL_SERVER_ERROR) };
   }
 
-  const db = createDB(env.DB);
+  return { db: createDB(env.DB) };
+}
+
+/* eslint-disable max-statements */
+async function validateUpdateRequest(req, env, user) {
+  const authDbResult = await requireAuthAndDatabase(req, env, user);
+  if (authDbResult.error) return { error: authDbResult.error };
+  const { db } = authDbResult;
   const body = await parseRequestBody(req);
   if (body === null) {
     return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
@@ -308,11 +320,7 @@ async function validateUpdateRequest(req, env, user) {
     if (aclError) return { error: aclError };
   }
 
-  if (
-    !sanitizedUpdates.length &&
-    !sanitizedAttachmentUpdates.length &&
-    !sanitizedAccessUpdates.length
-  ) {
+  if (hasNoModelChanges(sanitizedUpdates, sanitizedAttachmentUpdates, sanitizedAccessUpdates)) {
     return { error: error(req, 'No model changes provided', HTTP_STATUS.BAD_REQUEST) };
   }
 
