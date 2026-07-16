@@ -73,30 +73,47 @@ export function createModelSelectorNoticeHelpers(elems) {
       'mx-2 mt-1 rounded-md border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
   };
 
+  function shouldSkipModelsLoad() {
+    return state.modelsLoading || (state.models && state.models.length > 0);
+  }
+
+  function applyCachedModels(cache, requestGeneration) {
+    if (!cache?.models?.length) return false;
+    if (requestGeneration !== getModelsCacheGeneration()) return true;
+    const models = filterEnabledModels(cache.models);
+    setState({ models, modelCatalogMeta: cache.visibility || null, modelsLoading: false });
+    return true;
+  }
+
+  async function applyFetchedModels(data, requestGeneration) {
+    if (requestGeneration !== getModelsCacheGeneration()) return;
+    const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
+    setState({ models, modelCatalogMeta: data?.visibility || null, modelsLoading: false });
+  }
+
+  function handleModelsLoadError(err) {
+    console.error('Failed to load models:', err);
+    setState({ modelsLoading: false });
+  }
+
+  async function loadModelsOnce() {
+    setState({ modelsLoading: true });
+    const requestGeneration = getModelsCacheGeneration();
+    try {
+      const cache = await readModelsCache();
+      if (applyCachedModels(cache, requestGeneration)) return;
+      const data = await fetchModels({ cache: 'default', scope: 'effective' });
+      await applyFetchedModels(data, requestGeneration);
+    } catch (err) {
+      handleModelsLoadError(err);
+    } finally {
+      loadingPromise = null;
+    }
+  }
+
   const ensureModelsLoaded = async () => {
-    if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
-    loadingPromise = (async () => {
-      setState({ modelsLoading: true });
-      const requestGeneration = getModelsCacheGeneration();
-      try {
-        const cache = await readModelsCache();
-        if (cache?.models?.length) {
-          if (requestGeneration !== getModelsCacheGeneration()) return;
-          const models = filterEnabledModels(cache.models);
-          setState({ models, modelCatalogMeta: cache.visibility || null, modelsLoading: false });
-          return;
-        }
-        const data = await fetchModels({ cache: 'default', scope: 'effective' });
-        if (requestGeneration !== getModelsCacheGeneration()) return;
-        const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
-        setState({ models, modelCatalogMeta: data?.visibility || null, modelsLoading: false });
-      } catch (err) {
-        console.error('Failed to load models:', err);
-        setState({ modelsLoading: false });
-      } finally {
-        loadingPromise = null;
-      }
-    })();
+    if (shouldSkipModelsLoad()) return loadingPromise;
+    loadingPromise = loadModelsOnce();
     return loadingPromise;
   };
 
