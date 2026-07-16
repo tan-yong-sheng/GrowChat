@@ -78,7 +78,6 @@ export async function startChatResumeStream({
     }
 
     await consumeSseTextStream(res.body, {
-      // fallow-ignore-next-line complexity
       onEvent: (payload) => {
         notePayloadSeq(payload, messageId);
         if (payload?.event === 'reasoning_start') {
