@@ -35,9 +35,7 @@ export function renderIntegrationsSettings(container, data) {
     }
     return integrationsState.toolServers
       .map(
-        // fallow-ignore-next-line complexity
         (server) => `
-      // fallow-ignore-next-line complexity
       ${(() => {
         const serverEnabled = server.enabled !== false;
         const tools = Array.isArray(server.tools) ? server.tools : [];

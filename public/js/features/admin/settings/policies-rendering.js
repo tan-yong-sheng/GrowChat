@@ -129,7 +129,6 @@ export function renderResourceList({
       ${
         resources.length
           ? resources
-              // fallow-ignore-next-line complexity
               .map((resource) => {
                 const visibilityBadge = getResourceVisibilityBadge(resource, groupId);
                 const ownerBadge =
