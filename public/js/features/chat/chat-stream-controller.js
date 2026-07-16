@@ -36,42 +36,62 @@ export function createChatStreamController({
 
     const startedAt = Date.now();
     let failures = 0;
-    const poll = async () => {
+    const handlePollTimeout = () => {
       if (Date.now() - startedAt > pollTimeoutMs) {
         if (typeof onTimeout === 'function') onTimeout();
         stopStreamPolling(chatId);
-        return;
+        return true;
       }
+      return false;
+    };
+
+    const handlePollError = () => {
+      failures += 1;
+      if (failures >= 3) {
+        if (typeof onStop === 'function') onStop();
+        stopStreamPolling(chatId);
+      }
+    };
+
+    // fallow-ignore-next-line complexity
+    const handleOkResponse = async (res) => {
+      failures = 0;
+      const data = await res.json();
+      const msg = data?.message;
+      if (!msg) return;
+      const status = String(msg?.status || '');
+      const isRunning =
+        msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+      if (typeof onMessage === 'function') {
+        onMessage(msg, { isRunning, failures, startedAt });
+      }
+      if (!isRunning) {
+        if (typeof onStop === 'function') onStop();
+        stopStreamPolling(chatId);
+      }
+    };
+
+    const handleErrorResponse = (res) => {
+      failures += 1;
+      if (res.status === 404 || failures >= 3) {
+        if (typeof onStop === 'function') onStop();
+        stopStreamPolling(chatId);
+      }
+      return;
+    };
+
+    const poll = async () => {
+      if (handlePollTimeout()) return;
+
       try {
         const res = await apiFetch(`/api/chats/${chatId}/messages/${messageId}/status`);
         if (!res.ok) {
-          failures += 1;
-          if (res.status === 404 || failures >= 3) {
-            if (typeof onStop === 'function') onStop();
-            stopStreamPolling(chatId);
-          }
+          handleErrorResponse(res);
           return;
         }
-        failures = 0;
-        const data = await res.json();
-        const msg = data?.message;
-        if (!msg) return;
-        const status = String(msg?.status || '');
-        const isRunning =
-          msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-        if (typeof onMessage === 'function') {
-          onMessage(msg, { isRunning, failures, startedAt });
-        }
-        if (!isRunning) {
-          if (typeof onStop === 'function') onStop();
-          stopStreamPolling(chatId);
-        }
+        await handleOkResponse(res);
       } catch {
-        failures += 1;
-        if (failures >= 3) {
-          if (typeof onStop === 'function') onStop();
-          stopStreamPolling(chatId);
-        }
+        handlePollError();
       }
     };
 
