@@ -263,9 +263,7 @@ const ALLOWED_PROVIDER_TYPES = [
 
 function validateProviderType(providerType) {
   if (!ALLOWED_PROVIDER_TYPES.includes(providerType)) {
-    throw new Error(
-      `Provider type must be one of: ${ALLOWED_PROVIDER_TYPES.join(', ')}`
-    );
+    throw new Error(`Provider type must be one of: ${ALLOWED_PROVIDER_TYPES.join(', ')}`);
   }
 }
 
@@ -300,25 +298,53 @@ function defaultConnectionName(providerFamily) {
   return 'OpenAI Compatible';
 }
 
-function sanitizeConnectionInput(conn, currentConnectionMap) {
-  const existingConnection = currentConnectionMap.get(String(conn.id || ''));
-  const providerType = String(conn.providerType || 'openai').toLowerCase();
-  validateProviderType(providerType);
-  const providerFamily =
-    normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
-  const rawUrl = String(conn.url || '').trim();
-  const url = resolveAndValidateUrl(rawUrl, providerType, providerFamily);
-  const key = resolveConnectionApiKey(conn, existingConnection);
+function validateConnectionKey(key) {
   if (key.length > MAX_API_KEY_LENGTH) {
     throw new Error('API key is too long');
   }
-  const headers = normalizeHeaders(conn.headers);
+}
+
+function validateConnectionHeaders(headers) {
   if (headers.length > MAX_HEADERS_LENGTH) {
     throw new Error('Headers are too long');
   }
+}
+
+function resolveConnectionProviderType(conn) {
+  return String(conn.providerType || 'openai').toLowerCase();
+}
+
+function resolveConnectionProviderFamily(providerType, conn) {
+  return normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
+}
+
+function resolveConnectionName(conn, providerFamily) {
+  return String(conn.name || defaultConnectionName(providerFamily)).slice(
+    0,
+    MAX_CONNECTION_NAME_LENGTH
+  );
+}
+
+function resolveManualModelsMode(conn) {
+  return (
+    normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all'
+  );
+}
+
+function sanitizeConnectionInput(conn, currentConnectionMap) {
+  const existingConnection = currentConnectionMap.get(String(conn.id || ''));
+  const providerType = resolveConnectionProviderType(conn);
+  validateProviderType(providerType);
+  const providerFamily = resolveConnectionProviderFamily(providerType, conn);
+  const rawUrl = String(conn.url || '').trim();
+  const url = resolveAndValidateUrl(rawUrl, providerType, providerFamily);
+  const key = resolveConnectionApiKey(conn, existingConnection);
+  validateConnectionKey(key);
+  const headers = normalizeHeaders(conn.headers);
+  validateConnectionHeaders(headers);
   return {
     id: conn.id || crypto.randomUUID(),
-    name: String(conn.name || defaultConnectionName(providerFamily)).slice(0, MAX_CONNECTION_NAME_LENGTH),
+    name: resolveConnectionName(conn, providerFamily),
     url,
     key,
     headers,
@@ -327,9 +353,6 @@ function sanitizeConnectionInput(conn, currentConnectionMap) {
     apiType: getConnectionApiType(providerType),
     enabled: conn.enabled !== false,
     manualModels: normalizeConnectionManualModels(conn.manualModels),
-    manualModelsMode:
-      normalizeConnectionModelSelectionMode(
-        conn.manualModelsMode || conn.manual_models_mode
-      ) || 'all',
+    manualModelsMode: resolveManualModelsMode(conn),
   };
 }
