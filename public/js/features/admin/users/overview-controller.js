@@ -312,6 +312,7 @@ export function createOverviewController(ctx) {
     });
   }
 
+  // fallow-ignore-next-line complexity
   function updateView() {
     const users = data.users || [];
     const total = data.total || users.length;

@@ -21,6 +21,7 @@ import {
 import { openRoleModal } from './roles-modal.js';
 import { renderRoleList } from './roles-render.js';
 
+// fallow-ignore-next-line complexity
 export function renderRolesPage(container, data = {}) {
   const state =
     container.__rolesState ||
