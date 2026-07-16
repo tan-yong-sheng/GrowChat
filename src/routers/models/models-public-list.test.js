@@ -134,15 +134,11 @@ describe('handlePublicModelsList', () => {
       return { visibleModels: visible, hiddenModels: hidden };
     });
     mocks.matchesModelQuery.mockImplementation((model, query) => {
-      const name = String(model?.name || '').toLowerCase();
-      const id = String(model?.id || '').toLowerCase();
-      const connection = String(model?.connection_name || '').toLowerCase();
-      const provider = String(model?.provider || '').toLowerCase();
-      return (
-        name.includes(query) ||
-        id.includes(query) ||
-        connection.includes(query) ||
-        provider.includes(query)
+      const fields = ['name', 'id', 'connection_name', 'provider'];
+      return fields.some((key) =>
+        String(model?.[key] || '')
+          .toLowerCase()
+          .includes(query)
       );
     });
     mocks.parseModelListSearchParams.mockImplementation((params) => {
