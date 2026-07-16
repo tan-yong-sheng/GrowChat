@@ -199,6 +199,30 @@ function resolveRolesRequest(roleName) {
     .catch(() => ({ roles: [{ role_name: roleName }] }));
 }
 
+function applyPreloadedRbacState(hasPreloadedPermissions, hasPreloadedRoles, preloaded) {
+  setState({
+    permissions: hasPreloadedPermissions ? preloaded.permissions : [],
+    userRoles: hasPreloadedRoles ? preloaded.roles : [],
+    rbacLoading: false,
+  });
+}
+
+function applyFetchedRbacState(permData, roleData) {
+  setState({
+    permissions: permData.permissions || [],
+    userRoles: roleData.roles || [],
+    rbacLoading: false,
+  });
+}
+
+function applyFallbackRbacState(roleName) {
+  setState({
+    permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+    userRoles: [{ role_name: roleName }],
+    rbacLoading: false,
+  });
+}
+
 async function initRBAC(user, preloaded = null) {
   setState({ rbacLoading: true });
   const roleName = normalizePublicRole(user.primary_role);
@@ -206,11 +230,7 @@ async function initRBAC(user, preloaded = null) {
     const hasPreloadedPermissions = Array.isArray(preloaded?.permissions);
     const hasPreloadedRoles = Array.isArray(preloaded?.roles);
     if (hasPreloadedPermissions || hasPreloadedRoles) {
-      setState({
-        permissions: hasPreloadedPermissions ? preloaded.permissions : [],
-        userRoles: hasPreloadedRoles ? preloaded.roles : [],
-        rbacLoading: false,
-      });
+      applyPreloadedRbacState(hasPreloadedPermissions, hasPreloadedRoles, preloaded);
       return;
     }
 
@@ -219,18 +239,10 @@ async function initRBAC(user, preloaded = null) {
       resolveRolesRequest(roleName),
     ]);
 
-    setState({
-      permissions: permData.permissions || [],
-      userRoles: roleData.roles || [],
-      rbacLoading: false,
-    });
+    applyFetchedRbacState(permData, roleData);
   } catch (err) {
     console.warn('RBAC initialization fallback:', err);
-    setState({
-      permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
-      userRoles: [{ role_name: roleName }],
-      rbacLoading: false,
-    });
+    applyFallbackRbacState(roleName);
   }
 }
 
