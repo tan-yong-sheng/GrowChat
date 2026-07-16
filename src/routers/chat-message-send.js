@@ -133,35 +133,59 @@ export async function handleSendMessage({
   return response;
 }
 
-async function parseSendBody({ req, env, db, user, chat }) {
-  let body;
+async function parseJsonBody(req) {
   try {
-    body = await req.json();
+    return { ok: true, body: await req.json() };
   } catch {
+    return { ok: false, body: null };
+  }
+}
+
+function extractMessageContent(body) {
+  const content = String(body.message || '').trim();
+  if (!content) return { ok: false };
+  return { ok: true, content };
+}
+
+function resolveSendToolNames(body) {
+  return normalizeSelectedToolNames(body.selected_tool_names || body.tool_names || body.tools);
+}
+
+async function resolveSendModel(body, chat, env, db, userSub) {
+  const model = String(body.model || chat.model || '').trim();
+  if (model) return model;
+  return resolveDefaultModel(env, db, userSub);
+}
+
+function normalizeSendAttachmentIds(body) {
+  return Array.isArray(body.attachments) ? body.attachments : [];
+}
+
+function validateAttachmentCount(rawAttachmentIds, req) {
+  if (rawAttachmentIds.length <= MAX_ATTACHMENTS) return { ok: true };
+  return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400) };
+}
+
+async function parseSendBody({ req, env, db, user, chat }) {
+  const parseResult = await parseJsonBody(req);
+  if (!parseResult.ok) {
     return { error: error(req, 'Invalid JSON body', 400) };
   }
+  const body = parseResult.body;
 
-  const content = String(body.message || '').trim();
-  if (!content) {
+  const contentResult = extractMessageContent(body);
+  if (!contentResult.ok) {
     return { error: error(req, 'message is required', 400) };
   }
 
-  const selectedToolNames = normalizeSelectedToolNames(
-    body.selected_tool_names || body.tool_names || body.tools
-  );
-
-  let model = String(body.model || chat.model || '').trim();
-  if (!model) {
-    model = await resolveDefaultModel(env, db, user.sub);
-  }
-
-  const rawAttachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
-  if (rawAttachmentIds.length > MAX_ATTACHMENTS) {
-    return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400) };
-  }
+  const selectedToolNames = resolveSendToolNames(body);
+  const model = await resolveSendModel(body, chat, env, db, user.sub);
+  const rawAttachmentIds = normalizeSendAttachmentIds(body);
+  const attachmentResult = validateAttachmentCount(rawAttachmentIds, req);
+  if (attachmentResult.error) return attachmentResult;
 
   return {
-    content,
+    content: contentResult.content,
     selectedToolNames,
     model,
     attachmentIds: normalizeAttachmentIds(rawAttachmentIds),
