@@ -8,6 +8,28 @@ vi.mock('../../public/js/shared/utils.js', () => ({
       this._onEvent = typeof onEvent === 'function' ? onEvent : null;
     }
 
+    extractPayloadText(line) {
+      if (!line.startsWith('data: ')) return null;
+      const payload = line.slice(6).trim();
+      if (!payload || payload === '[DONE]') return null;
+      return payload;
+    }
+
+    processPayloadText(payload) {
+      try {
+        const parsed = JSON.parse(payload);
+        if (this._onEvent) this._onEvent(parsed);
+        const choices = parsed.choices;
+        return (
+          parsed.response ||
+          (choices && choices[0] && choices[0].delta && choices[0].delta.content) ||
+          ''
+        );
+      } catch {
+        return '';
+      }
+    }
+
     push(rawText) {
       this._buf += rawText;
       let text = '';
@@ -16,17 +38,9 @@ vi.mock('../../public/js/shared/utils.js', () => ({
         const line = this._buf.slice(0, newlineIdx).replace(/\r$/, '');
         this._buf = this._buf.slice(newlineIdx + 1);
 
-        if (!line.startsWith('data: ')) continue;
-        const payload = line.slice(6).trim();
-        if (!payload || payload === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(payload);
-          if (this._onEvent) this._onEvent(parsed);
-          text += parsed.response || parsed.choices?.[0]?.delta?.content || '';
-        } catch {
-          // Incomplete JSON
-        }
+        const payload = this.extractPayloadText(line);
+        if (!payload) continue;
+        text += this.processPayloadText(payload);
       }
       return text;
     }
@@ -80,5 +94,3 @@ describe('chat stream helper', () => {
     await expect(consumeSseTextStream(null)).rejects.toThrow('Stream body is required');
   });
 });
-
-
