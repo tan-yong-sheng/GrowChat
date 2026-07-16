@@ -242,6 +242,38 @@ export function renderPoliciesSettings(container, _data = {}) {
     openDeepLinkedAccessModal,
   });
 
+  function buildGroupOptions(groups, selectedGroupId) {
+    return [
+      `<option value="all"${selectedGroupId === 'all' ? ' selected' : ''}>All groups</option>`,
+      ...groups.map(
+        (g) =>
+          `<option value="${escapeHtml(g.id)}"${selectedGroupId === g.id ? ' selected' : ''}>${escapeHtml(g.name || g.id)}</option>`
+      ),
+    ].join('');
+  }
+
+  function buildFamilyOptions(activeFamily) {
+    return FAMILIES.map(
+      (f) =>
+        `<option value="${escapeHtml(f.key)}"${activeFamily === f.key ? ' selected' : ''}>${escapeHtml(f.label)}</option>`
+    ).join('');
+  }
+
+  function computeSelectionCounts(activePaged, activeSelectedIds) {
+    const activeVisibleIds = activePaged.items.map((r) => r.id);
+    const activeVisibleSelectedCount = activeVisibleIds.filter((id) =>
+      activeSelectedIds.has(id)
+    ).length;
+    const activeAllVisibleSelected =
+      activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
+    return { activeVisibleIds, activeVisibleSelectedCount, activeAllVisibleSelected };
+  }
+
+  function countActiveVisibilityFilters(visibilityFilters) {
+    return Object.entries(visibilityFilters).filter(([k, v]) => DEFAULT_VISIBILITY_FILTERS[k] !== v)
+      .length;
+  }
+
   function render() {
     if (!isActiveTab(container)) return;
     const renderSnapshot = captureRenderState(container, {
@@ -258,30 +290,15 @@ export function renderPoliciesSettings(container, _data = {}) {
       return;
     }
 
-    const groupOptions = [
-      `<option value="all"${state.selectedGroupId === 'all' ? ' selected' : ''}>All groups</option>`,
-      ...state.groups.map(
-        (g) =>
-          `<option value="${escapeHtml(g.id)}"${state.selectedGroupId === g.id ? ' selected' : ''}>${escapeHtml(g.name || g.id)}</option>`
-      ),
-    ].join('');
-    const familyOptions = FAMILIES.map(
-      (f) =>
-        `<option value="${escapeHtml(f.key)}"${state.activeFamily === f.key ? ' selected' : ''}>${escapeHtml(f.label)}</option>`
-    ).join('');
+    const groupOptions = buildGroupOptions(state.groups, state.selectedGroupId);
+    const familyOptions = buildFamilyOptions(state.activeFamily);
     const activeFamily = FAMILIES.find((f) => f.key === state.activeFamily) || FAMILIES[0];
     const activePaged = getPagedResources(activeFamily.key);
     const activeSelectedIds = getSelectedSet(activeFamily.key);
     const activeSelectionCount = activeSelectedIds.size;
-    const activeVisibleIds = activePaged.items.map((r) => r.id);
-    const activeVisibleSelectedCount = activeVisibleIds.filter((id) =>
-      activeSelectedIds.has(id)
-    ).length;
-    const activeAllVisibleSelected =
-      activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
-    const activeVisibilityCount = Object.entries(state.visibilityFilters).filter(
-      ([k, v]) => DEFAULT_VISIBILITY_FILTERS[k] !== v
-    ).length;
+    const { activeVisibleIds, activeVisibleSelectedCount, activeAllVisibleSelected } =
+      computeSelectionCounts(activePaged, activeSelectedIds);
+    const activeVisibilityCount = countActiveVisibilityFilters(state.visibilityFilters);
     const activeFamilyStatus = state.familyStatus[activeFamily.key] || 'idle';
     const activeFamilyError = state.familyError[activeFamily.key] || '';
 
