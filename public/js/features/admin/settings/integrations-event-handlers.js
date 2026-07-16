@@ -35,94 +35,99 @@ export function createIntegrationsEventHandlers(deps) {
       openModal(null);
     });
 
+    function handleToolToggleClick(el) {
+      const id = el.dataset.serverId;
+      const toolName = el.dataset.toolName;
+      const server = findServerById(id);
+      if (!server || server.enabled === false || !Array.isArray(server.tools)) return;
+      const tool = server.tools.find((entry) => entry.name === toolName);
+      if (!tool) return;
+      const previousState = tool.enabled;
+      tool.enabled = !tool.enabled;
+      updateToolRowState(id, toolName);
+      persistServersImmediate().catch((err) => {
+        tool.enabled = previousState;
+        updateToolRowState(id, toolName);
+        showFeedback(err.message || 'Failed to update tool', 'error');
+      });
+    }
+
+    function handleServerToggleClick(el) {
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      if (!server) return;
+      const previousState = server.enabled;
+      server.enabled = !server.enabled;
+      updateServerRowState(id);
+      persistServersImmediate().catch((err) => {
+        server.enabled = previousState;
+        updateServerRowState(id);
+        showFeedback(err.message || 'Failed to update server', 'error');
+      });
+    }
+
+    function handleToolsToggleClick(el) {
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      if (!server) return;
+      server.toolsExpanded = !server.toolsExpanded;
+      renderToolServersList();
+    }
+
+    function handleToolDescToggleClick(el) {
+      const serverId = el.dataset.serverId;
+      const toolName = el.dataset.toolName;
+      const server = findServerById(serverId);
+      if (!server || !Array.isArray(server.tools)) return;
+      const tool = server.tools.find((t) => t.name === toolName);
+      if (!tool) return;
+      tool._expanded = !tool._expanded;
+      renderToolServersList();
+    }
+
+    function handleEditServerClick(el) {
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      openModal(server || null);
+    }
+
+    async function applyServerAccessRules(id, rules) {
+      try {
+        await updateAdminToolServerAccess(id, rules);
+        broadcastToolServersInvalidation();
+        showFeedback('Access rules saved successfully');
+      } catch (err) {
+        showFeedback(err.message || 'Failed to save access rules', 'error');
+      }
+    }
+
+    function handleServerAccessClick(el) {
+      if (!canManageAcls) return;
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      if (!server) return;
+      void openToolServerAccessModal(server, {
+        onApply: (rules) => applyServerAccessRules(id, rules),
+      });
+    }
+
+    const TOOL_SERVERS_CLICK_HANDLERS = [
+      { selector: '.tool-toggle', handler: handleToolToggleClick },
+      { selector: '.server-toggle', handler: handleServerToggleClick },
+      { selector: '.tools-toggle', handler: handleToolsToggleClick },
+      { selector: '.tool-desc-toggle', handler: handleToolDescToggleClick },
+      { selector: '.edit-server-btn', handler: handleEditServerClick },
+      { selector: '.tool-access-btn', handler: handleServerAccessClick },
+    ];
+
     const list = container.querySelector('#tool-servers-list');
     list?.addEventListener('click', (e) => {
-      const toolToggle = e.target.closest('.tool-toggle');
-      if (toolToggle) {
-        const id = toolToggle.dataset.serverId;
-        const toolName = toolToggle.dataset.toolName;
-        const server = findServerById(id);
-        if (server && server.enabled !== false && Array.isArray(server.tools)) {
-          const tool = server.tools.find((entry) => entry.name === toolName);
-          if (tool) {
-            const previousState = tool.enabled;
-            tool.enabled = !tool.enabled;
-            updateToolRowState(id, toolName);
-            persistServersImmediate().catch((err) => {
-              tool.enabled = previousState;
-              updateToolRowState(id, toolName);
-              showFeedback(err.message || 'Failed to update tool', 'error');
-            });
-          }
+      for (const { selector, handler } of TOOL_SERVERS_CLICK_HANDLERS) {
+        const el = e.target.closest(selector);
+        if (el) {
+          handler(el);
+          return;
         }
-        return;
-      }
-      const toggle = e.target.closest('.server-toggle');
-      if (toggle) {
-        const id = toggle.dataset.id;
-        const server = findServerById(id);
-        if (server) {
-          const previousState = server.enabled;
-          server.enabled = !server.enabled;
-          updateServerRowState(id);
-          persistServersImmediate().catch((err) => {
-            server.enabled = previousState;
-            updateServerRowState(id);
-            showFeedback(err.message || 'Failed to update server', 'error');
-          });
-        }
-        return;
-      }
-      const toolsToggle = e.target.closest('.tools-toggle');
-      if (toolsToggle) {
-        const id = toolsToggle.dataset.id;
-        const server = findServerById(id);
-        if (server) {
-          server.toolsExpanded = !server.toolsExpanded;
-          renderToolServersList();
-        }
-        return;
-      }
-      const descToggle = e.target.closest('.tool-desc-toggle');
-      if (descToggle) {
-        const serverId = descToggle.dataset.serverId;
-        const toolName = descToggle.dataset.toolName;
-        const server = findServerById(serverId);
-        if (server && Array.isArray(server.tools)) {
-          const tool = server.tools.find((t) => t.name === toolName);
-          if (tool) {
-            tool._expanded = !tool._expanded;
-            renderToolServersList();
-          }
-        }
-        return;
-      }
-      const editBtn = e.target.closest('.edit-server-btn');
-      if (editBtn) {
-        const id = editBtn.dataset.id;
-        const server = findServerById(id);
-        openModal(server || null);
-        return;
-      }
-      const accessBtn = e.target.closest('.tool-access-btn');
-      if (accessBtn) {
-        if (!canManageAcls) return;
-        const id = accessBtn.dataset.id;
-        const server = findServerById(id);
-        if (server) {
-          void openToolServerAccessModal(server, {
-            onApply: async (rules) => {
-              try {
-                await updateAdminToolServerAccess(id, rules);
-                broadcastToolServersInvalidation();
-                showFeedback('Access rules saved successfully');
-              } catch (err) {
-                showFeedback(err.message || 'Failed to save access rules', 'error');
-              }
-            },
-          });
-        }
-        return;
       }
     });
 
