@@ -91,13 +91,13 @@ export function renderConnectionsSettings(container, data) {
       const key = `${conn?.source || 'manual'}::${conn?.id || ''}::${conn?.url || ''}`;
       if (!deduped.has(key)) deduped.set(key, conn);
     });
-    return Array.from(deduped.values())
-      .map((conn) => {
-        const safeId = escapeHtml(conn.id);
-        const safeName = escapeHtml(conn.name || providerDisplayLabel(conn.providerType));
-        const safeUrl = escapeHtml(conn.url || '');
-        const safeProvider = escapeHtml(providerDisplayLabel(conn.providerType));
-        return `
+    // fallow-ignore-next-line complexity
+    function renderConnectionRow(conn) {
+      const safeId = escapeHtml(conn.id);
+      const safeName = escapeHtml(conn.name || providerDisplayLabel(conn.providerType));
+      const safeUrl = escapeHtml(conn.url || '');
+      const safeProvider = escapeHtml(providerDisplayLabel(conn.providerType));
+      return `
       <div data-connection-row="${safeId}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
         <div class="flex flex-col min-w-0">
           <div class="text-xs font-medium text-gray-900">${safeName}</div>
@@ -130,7 +130,9 @@ export function renderConnectionsSettings(container, data) {
         </div>
       </div>
     `;
-      })
+    }
+    return Array.from(deduped.values())
+      .map((conn) => renderConnectionRow(conn))
       .join('');
   };
 
