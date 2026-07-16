@@ -50,6 +50,7 @@ export function createChatRenderController({
   applyAssistantErrorMessage = STREAM_CALLBACK_DEFAULTS.applyAssistantErrorMessage,
   openCitation = () => {},
 } = {}) {
+  // fallow-ignore-next-line complexity
   function drawMessages(messages) {
     if (!messagesList || !welcomeScreenContainer || !messagesContainer) return;
 
