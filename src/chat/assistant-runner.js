@@ -15,6 +15,15 @@ import { createStreamEventHandler } from './assistant-runner-stream-event.js';
 // Re-export for backward compatibility
 export { readStreamChunkWithHeartbeat } from './assistant-stream-utils.js';
 
+function normalizeSelectedToolNames(selectedToolNames) {
+  if (!Array.isArray(selectedToolNames)) return null;
+  return selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean);
+}
+
+function normalizeToolChoice(selectedToolNames) {
+  return Array.isArray(selectedToolNames) && selectedToolNames.length === 0 ? 'none' : undefined;
+}
+
 export function createAssistantRunner(deps) {
   return async function streamAssistantWithTools({
     req,
@@ -33,11 +42,8 @@ export function createAssistantRunner(deps) {
   }) {
     const assistantMsgId = crypto.randomUUID();
     const servers = await deps.loadToolServers(db, { userId: user?.sub || '' });
-    const selectedToolNameList = Array.isArray(selectedToolNames)
-      ? selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean)
-      : null;
-    const toolChoice =
-      Array.isArray(selectedToolNames) && selectedToolNames.length === 0 ? 'none' : undefined;
+    const selectedToolNameList = normalizeSelectedToolNames(selectedToolNames);
+    const toolChoice = normalizeToolChoice(selectedToolNames);
     const { tools, toolMap, serversById } = deps.buildMcpTools(servers, {
       selectedToolNames: selectedToolNameList,
     });
