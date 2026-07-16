@@ -308,28 +308,36 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   );
 
   if (shouldBootstrapChats) {
+    function buildChatsPagination(chatsData) {
+      return {
+        limit: chatsData.limit || INITIAL_CHAT_LIMIT,
+        offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
+        hasMore: chatsData.has_more === true,
+        loading: false,
+      };
+    }
+
+    function buildResetConversationState(resetConversationState) {
+      if (!resetConversationState) return null;
+      return {
+        messagesByChat: {},
+        models: state.models || [],
+        modelCatalogMeta: state.modelCatalogMeta || null,
+        activeModelId: initialModelId,
+        defaultModelId: serverDefaultModelId || null,
+        globalDefaultModelId: globalDefaultModelId || null,
+      };
+    }
+
     const applyChatsState = (chatsData, { resetConversationState = false } = {}) => {
       const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
+      const resetState = buildResetConversationState(resetConversationState);
       setState({
         user,
         chats: nextChatsData,
-        chatsPagination: {
-          limit: chatsData.limit || INITIAL_CHAT_LIMIT,
-          offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
-          hasMore: chatsData.has_more === true,
-          loading: false,
-        },
+        chatsPagination: buildChatsPagination(chatsData),
         activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
-        ...(resetConversationState
-          ? {
-              messagesByChat: {},
-              models: state.models || [],
-              modelCatalogMeta: state.modelCatalogMeta || null,
-              activeModelId: initialModelId,
-              defaultModelId: serverDefaultModelId || null,
-              globalDefaultModelId: globalDefaultModelId || null,
-            }
-          : {}),
+        ...(resetState || {}),
       });
     };
 
