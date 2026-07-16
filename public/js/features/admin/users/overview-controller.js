@@ -53,6 +53,21 @@ export function createOverviewController(ctx) {
     syncPendingState();
   }
 
+  function baseValueFor(key, user) {
+    switch (key) {
+      case 'primary_role':
+        return normalizeRole(user.primary_role || 'member');
+      case 'account_status':
+        return String(user.account_status || 'active');
+      case 'name':
+        return String(user.name || '').trim();
+      case 'email':
+        return String(user.email || '').trim();
+      default:
+        return '';
+    }
+  }
+
   async function refreshAccessInspector(userId) {
     if (!userId) return;
     const modal = uiState.accessInspector.modalEl;
@@ -237,20 +252,14 @@ export function createOverviewController(ctx) {
           const form = document.getElementById('edit-user-form');
           const saveBtn = modal?.querySelector('#edit-user-save-btn');
 
-          const fields = {
-            primary_role: form?.querySelector('[name="primary_role"]'),
-            account_status: form?.querySelector('[name="account_status"]'),
-            name: form?.querySelector('[name="name"]'),
-            email: form?.querySelector('[name="email"]'),
-            password: form?.querySelector('[name="password"]'),
-          };
-          const baseValues = {
-            primary_role: normalizeRole(user.primary_role || 'member'),
-            account_status: String(user.account_status || 'active'),
-            name: String(user.name || '').trim(),
-            email: String(user.email || '').trim(),
-            password: '',
-          };
+          const fieldNames = ['primary_role', 'account_status', 'name', 'email', 'password'];
+          const fields = Object.fromEntries(
+            fieldNames.map((n) => [n, form?.querySelector(`[name="${n}"]`)])
+          );
+          const baseValueKeys = ['primary_role', 'account_status', 'name', 'email', 'password'];
+          const baseValues = Object.fromEntries(
+            baseValueKeys.map((k) => [k, baseValueFor(k, user)])
+          );
 
           const close = () => {
             modal?.remove();
