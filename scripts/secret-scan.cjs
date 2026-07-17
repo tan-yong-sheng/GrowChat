@@ -118,6 +118,26 @@ function isCacheFile(file) {
   return file === '.secrets.baseline' || file === '.secrets.cache.json';
 }
 
+function scanFilesForSecrets(files, cache) {
+  let allFindings = [];
+  let cacheHits = 0;
+  let cacheMisses = 0;
+
+  files.forEach(file => {
+    if (isCacheFile(file)) return;
+    const findings = scanFile(file, cache);
+    if (findings) {
+      allFindings = allFindings.concat(findings);
+    } else if (cache[file]) {
+      cacheHits++;
+    } else {
+      cacheMisses++;
+    }
+  });
+
+  return { allFindings, cacheHits, cacheMisses };
+}
+
 function main() {
   const cache = loadCache();
   const stagedFiles = getStagedFiles();
@@ -129,23 +149,7 @@ function main() {
     process.exit(0);
   }
 
-  let allFindings = [];
-  let cacheHits = 0;
-  let cacheMisses = 0;
-
-  for (const file of stagedFiles) {
-    if (isCacheFile(file)) continue;
-
-    const findings = scanFile(file, cache);
-    if (findings) {
-      allFindings = allFindings.concat(findings);
-    } else if (cache[file]) {
-      cacheHits++;
-    } else {
-      cacheMisses++;
-    }
-  }
-
+  const { allFindings, cacheHits, cacheMisses } = scanFilesForSecrets(stagedFiles, cache);
   saveCache(cache);
 
   if (allFindings.length === 0) {
