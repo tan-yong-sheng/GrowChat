@@ -64,6 +64,58 @@ export async function startChatResumeStream({
       streaming,
     });
 
+  function handleReasoningStart(payload) {
+    if (!thinkingStartByMessageId.has(String(messageId))) {
+      thinkingStartByMessageId.set(String(messageId), Date.now());
+    }
+    thinkingActiveByMessageId.set(String(messageId), true);
+    ensureThinkingBlock(messageBlocksById, messageId);
+    applyAssistantText(true);
+  }
+
+  function handleReasoningDelta(payload) {
+    const delta = String(payload.delta || '');
+    if (!delta) return;
+    appendBlock(messageBlocksById, messageId, 'thinking', delta);
+    thinkingActiveByMessageId.set(String(messageId), true);
+    applyAssistantText(true);
+  }
+
+  function handleReasoningEnd(payload) {
+    const duration = Number(payload.duration_ms);
+    if (Number.isFinite(duration) && duration > 0) {
+      thinkingDurationByMessageId.set(String(messageId), duration);
+    }
+    thinkingActiveByMessageId.delete(String(messageId));
+  }
+
+  function handleToolEvent(payload) {
+    updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
+    applyAssistantText(true);
+  }
+
+  function handleStreamError(payload) {
+    errorMessage = payload.message || payload.error || 'LLM request failed';
+    errorActive = true;
+    assistantText = '';
+    applyAssistantText(false);
+  }
+
+  function handleTextDelta(delta) {
+    if (!delta) return;
+    assistantText += delta;
+    appendBlock(messageBlocksById, messageId, 'text', delta);
+    applyAssistantText(true);
+  }
+
+  const eventHandlers = {
+    reasoning_start: handleReasoningStart,
+    reasoning_delta: handleReasoningDelta,
+    reasoning_end: handleReasoningEnd,
+    tool_status: handleToolEvent,
+    tool_result: handleToolEvent,
+  };
+
   try {
     const res = await apiFetch(
       `/api/chats/${chatId}/messages/${messageId}/resume?after_seq=${lastSeq}`,
@@ -80,46 +132,11 @@ export async function startChatResumeStream({
     await consumeSseTextStream(res.body, {
       onEvent: (payload) => {
         notePayloadSeq(payload, messageId);
-        if (payload?.event === 'reasoning_start') {
-          if (!thinkingStartByMessageId.has(String(messageId))) {
-            thinkingStartByMessageId.set(String(messageId), Date.now());
-          }
-          thinkingActiveByMessageId.set(String(messageId), true);
-          ensureThinkingBlock(messageBlocksById, messageId);
-          applyAssistantText(true);
-        }
-        if (payload?.event === 'reasoning_delta') {
-          const delta = String(payload.delta || '');
-          if (delta) {
-            appendBlock(messageBlocksById, messageId, 'thinking', delta);
-            thinkingActiveByMessageId.set(String(messageId), true);
-            applyAssistantText(true);
-          }
-        }
-        if (payload?.event === 'reasoning_end') {
-          const duration = Number(payload.duration_ms);
-          if (Number.isFinite(duration) && duration > 0) {
-            thinkingDurationByMessageId.set(String(messageId), duration);
-          }
-          thinkingActiveByMessageId.delete(String(messageId));
-        }
-        if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-          updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
-          applyAssistantText(true);
-        }
-        if (payload?.error) {
-          errorMessage = payload.message || payload.error || 'LLM request failed';
-          errorActive = true;
-          assistantText = '';
-          applyAssistantText(false);
-        }
+        const handler = eventHandlers[payload?.event];
+        if (handler) handler(payload);
+        if (payload?.error) handleStreamError(payload);
       },
-      onDelta: (delta) => {
-        if (!delta) return;
-        assistantText += delta;
-        appendBlock(messageBlocksById, messageId, 'text', delta);
-        applyAssistantText(true);
-      },
+      onDelta: handleTextDelta,
     });
     const startedAt = thinkingStartByMessageId.get(String(messageId));
     if (startedAt && !thinkingDurationByMessageId.has(String(messageId))) {
