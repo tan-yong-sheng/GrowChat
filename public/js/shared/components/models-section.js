@@ -128,6 +128,42 @@ export function renderModelsPaginationHtml({
   `;
 }
 
+function setCountElement(container, countValue, countTitle) {
+  const countEl = container.querySelector('[data-models-count-value]');
+  if (!countEl) return;
+  countEl.textContent = String(countValue ?? '');
+  countEl.title = countTitle;
+}
+
+function setSearchInput(container, searchId, searchValue) {
+  const searchInput = searchId ? container.querySelector(`#${escapeHtml(searchId)}`) : null;
+  if (!searchInput || document.activeElement === searchInput) return;
+  const next = String(searchValue ?? '');
+  if (searchInput.value !== next) searchInput.value = next;
+}
+
+function setClearWrap(container, clearId, clearHidden) {
+  const clearWrap = clearId ? container.querySelector(`#${escapeHtml(clearId)}`) : null;
+  if (clearWrap) clearWrap.classList.toggle('hidden', Boolean(clearHidden));
+}
+
+function setClearButton(container, clearButtonId) {
+  const clearBtn = clearButtonId ? container.querySelector(`#${escapeHtml(clearButtonId)}`) : null;
+  if (clearBtn) clearBtn.disabled = false;
+}
+
+function setProviderSelect(container, providerId, providerValue, providerOptionsMarkup) {
+  const providerSelect = providerId ? container.querySelector(`#${escapeHtml(providerId)}`) : null;
+  if (!providerSelect) return;
+  const currentValue = String(providerValue ?? 'all');
+  if (providerSelect.value !== currentValue) providerSelect.value = currentValue;
+  if (!providerOptionsMarkup) return;
+  const nextHtml = providerOptionsMarkup.trim();
+  if (providerSelect.innerHTML.trim() === nextHtml) return;
+  providerSelect.innerHTML = providerOptionsMarkup;
+  providerSelect.value = currentValue;
+}
+
 export function syncModelsHeaderState(
   container,
   {
@@ -145,45 +181,11 @@ export function syncModelsHeaderState(
   } = {}
 ) {
   if (!container) return;
-  const countEl = container.querySelector('[data-models-count-value]');
-  if (countEl) {
-    countEl.textContent = String(countValue ?? '');
-    countEl.title = countTitle;
-  }
-
-  const searchInput = searchId ? container.querySelector(`#${escapeHtml(searchId)}`) : null;
-  if (
-    searchInput &&
-    document.activeElement !== searchInput &&
-    searchInput.value !== String(searchValue ?? '')
-  ) {
-    searchInput.value = String(searchValue ?? '');
-  }
-
-  const clearWrap = clearId ? container.querySelector(`#${escapeHtml(clearId)}`) : null;
-  if (clearWrap) {
-    clearWrap.classList.toggle('hidden', Boolean(clearHidden));
-  }
-
-  const clearBtn = clearButtonId ? container.querySelector(`#${escapeHtml(clearButtonId)}`) : null;
-  if (clearBtn) {
-    clearBtn.disabled = false;
-  }
-
-  const providerSelect = providerId ? container.querySelector(`#${escapeHtml(providerId)}`) : null;
-  if (providerSelect) {
-    const currentValue = String(providerValue ?? 'all');
-    if (providerSelect.value !== currentValue) {
-      providerSelect.value = currentValue;
-    }
-    if (providerOptionsMarkup) {
-      const nextHtml = providerOptionsMarkup.trim();
-      if (providerSelect.innerHTML.trim() !== nextHtml) {
-        providerSelect.innerHTML = providerOptionsMarkup;
-        providerSelect.value = currentValue;
-      }
-    }
-  }
+  setCountElement(container, countValue, countTitle);
+  setSearchInput(container, searchId, searchValue);
+  setClearWrap(container, clearId, clearHidden);
+  setClearButton(container, clearButtonId);
+  setProviderSelect(container, providerId, providerValue, providerOptionsMarkup);
 }
 
 export function syncModelsTableState(
