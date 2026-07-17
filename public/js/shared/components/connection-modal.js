@@ -15,6 +15,118 @@ import {
   formatHeadersValue,
 } from './connection-modal-utils.js';
 
+const PROVIDER_OPTIONS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'openai-compatible', label: 'OpenAI Compatible' },
+  { value: 'google', label: 'Gemini' },
+  { value: 'gemini-compatible', label: 'Gemini Compatible' },
+  { value: 'anthropic', label: 'Claude' },
+  { value: 'claude-compatible', label: 'Claude Compatible' },
+];
+
+function resolveProviderModels(models, selection) {
+  return {
+    resolvedModels: Array.isArray(models) ? models : [],
+    resolvedSelection: selection instanceof Set ? selection : new Set(),
+  };
+}
+
+function resolveApiType(resolvedProviderType, apiType) {
+  return apiType || connectionApiTypeDetails(resolvedProviderType);
+}
+
+function resolveNamePlaceholder(resolvedProviderType, namePlaceholder) {
+  return namePlaceholder || `e.g. ${providerDisplayLabel(resolvedProviderType)}`;
+}
+
+function resolveUrlPlaceholder(resolvedProviderType, urlPlaceholder) {
+  return urlPlaceholder || providerUrlPlaceholder(resolvedProviderType);
+}
+
+function resolveUrlHint(resolvedProviderType, urlHint) {
+  return (
+    urlHint ||
+    (isCompatibleProviderType(resolvedProviderType)
+      ? 'Required for compatible providers.'
+      : 'Uses the built-in default if left blank.')
+  );
+}
+
+function resolveProviderHint(resolvedProviderType, providerHint) {
+  return providerHint || providerDisplayLabel(resolvedProviderType);
+}
+
+function resolveKeyPlaceholder(hasKey, keyPlaceholder) {
+  return keyPlaceholder || (hasKey ? 'Leave blank to keep current key' : 'Enter API key');
+}
+
+function resolveConnectionValues({
+  providerType,
+  apiType,
+  models,
+  selection,
+  namePlaceholder,
+  urlPlaceholder,
+  urlHint,
+  providerHint,
+  keyPlaceholder,
+  hasKey,
+  query,
+  loadingModels,
+  modelsError,
+}) {
+  const resolvedProviderType = normalizeProviderType(providerType);
+  const { resolvedModels, resolvedSelection } = resolveProviderModels(models, selection);
+  return {
+    resolvedProviderType,
+    resolvedApiType: resolveApiType(resolvedProviderType, apiType),
+    resolvedModels,
+    resolvedSelection,
+    resolvedModelMarkup: buildConnectionModalModelsMarkup(
+      resolvedModels,
+      query,
+      resolvedSelection,
+      loadingModels,
+      modelsError
+    ),
+    resolvedNamePlaceholder: resolveNamePlaceholder(resolvedProviderType, namePlaceholder),
+    resolvedUrlPlaceholder: resolveUrlPlaceholder(resolvedProviderType, urlPlaceholder),
+    resolvedUrlHint: resolveUrlHint(resolvedProviderType, urlHint),
+    resolvedProviderHint: resolveProviderHint(resolvedProviderType, providerHint),
+    resolvedKeyPlaceholder: resolveKeyPlaceholder(hasKey, keyPlaceholder),
+  };
+}
+
+function buildProviderOptionsMarkup(resolvedProviderType) {
+  return PROVIDER_OPTIONS.map(
+    (opt) =>
+      `<option value="${escapeHtml(opt.value)}"${
+        resolvedProviderType === opt.value ? ' selected' : ''
+      }>${escapeHtml(opt.label)}</option>`
+  ).join('');
+}
+
+function buildTestConnectionButtonMarkup(testHiddenClass, disabledControlClass, disabledAttr) {
+  return `<button type="button" id="test-connection" class="p-2 text-gray-600 hover:text-gray-700 rounded-lg transition${testHiddenClass}${disabledControlClass}" title="Test connection" aria-label="Test connection"${disabledAttr}>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
+          </svg>
+        </button>`;
+}
+
+function buildKeyHintMarkup(keyHintText, hasKey) {
+  const text =
+    keyHintText ||
+    (hasKey
+      ? 'A key is already saved. Leave this blank to keep it.'
+      : 'Leave blank if your provider does not require authentication.');
+  return `<div id="modal-conn-key-hint" class="mt-1 text-label-sm text-gray-700">${escapeHtml(text)}</div>`;
+}
+
+function buildManualModelAddClass(manualModelsHiddenClass, showManualModelAdd) {
+  return `${manualModelsHiddenClass}${showManualModelAdd ? '' : ' hidden'}`;
+}
+
 export function buildConnectionModalBodyMarkup({
   providerType = 'openai',
   name = '',
@@ -43,28 +155,37 @@ export function buildConnectionModalBodyMarkup({
   modelSectionTitle = 'Models',
   showManualModelAdd = true,
 } = {}) {
-  const resolvedProviderType = normalizeProviderType(providerType);
-  const resolvedApiType = apiType || connectionApiTypeDetails(resolvedProviderType);
-  const resolvedModels = Array.isArray(models) ? models : [];
-  const resolvedSelection = selection instanceof Set ? selection : new Set();
-  const resolvedModelMarkup = buildConnectionModalModelsMarkup(
-    resolvedModels,
+  const {
+    resolvedProviderType,
+    resolvedApiType,
+    resolvedModelMarkup,
+    resolvedNamePlaceholder,
+    resolvedUrlPlaceholder,
+    resolvedUrlHint,
+    resolvedProviderHint,
+    resolvedKeyPlaceholder,
+  } = resolveConnectionValues({
+    providerType,
+    apiType,
+    models,
+    selection,
+    namePlaceholder,
+    urlPlaceholder,
+    urlHint,
+    providerHint,
+    keyPlaceholder,
+    hasKey,
     query,
-    resolvedSelection,
     loadingModels,
-    modelsError
-  );
-  const resolvedNamePlaceholder =
-    namePlaceholder || `e.g. ${providerDisplayLabel(resolvedProviderType)}`;
-  const resolvedUrlPlaceholder = urlPlaceholder || providerUrlPlaceholder(resolvedProviderType);
-  const resolvedUrlHint =
-    urlHint ||
-    (isCompatibleProviderType(resolvedProviderType)
-      ? 'Required for compatible providers.'
-      : 'Uses the built-in default if left blank.');
-  const resolvedProviderHint = providerHint || providerDisplayLabel(resolvedProviderType);
-  const resolvedKeyPlaceholder =
-    keyPlaceholder || (hasKey ? 'Leave blank to keep current key' : 'Enter API key');
+    modelsError,
+  });
+
+  const testButtonMarkup = showTestButton
+    ? buildTestConnectionButtonMarkup(testHiddenClass, disabledControlClass, disabledAttr)
+    : '';
+  const providerOptionsMarkup = buildProviderOptionsMarkup(resolvedProviderType);
+  const keyHintMarkup = showKeyHint ? buildKeyHintMarkup(keyHintText, hasKey) : '';
+  const manualAddClass = buildManualModelAddClass(manualModelsHiddenClass, showManualModelAdd);
 
   return `
     <div class="space-y-1">
@@ -76,15 +197,7 @@ export function buildConnectionModalBodyMarkup({
       <label id="modal-conn-url-label" class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(resolvedProviderType))}</label>
       <div class="flex items-center gap-2">
         <input id="modal-conn-url" type="text" value="${escapeHtml(url)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedUrlPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="URL"${disabledAttr}>
-        ${
-          showTestButton
-            ? `<button type="button" id="test-connection" class="p-2 text-gray-600 hover:text-gray-700 rounded-lg transition${testHiddenClass}${disabledControlClass}" title="Test connection" aria-label="Test connection"${disabledAttr}>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
-          </svg>
-        </button>`
-            : ''
-        }
+        ${testButtonMarkup}
       </div>
       <div id="connection-test-message" class="text-label-sm text-gray-700${testHiddenClass}"></div>
       <div id="modal-conn-url-hint" class="text-label-sm text-gray-700">${escapeHtml(resolvedUrlHint)}</div>
@@ -100,7 +213,7 @@ export function buildConnectionModalBodyMarkup({
           </button>
         </div>
       </div>
-      ${showKeyHint ? `<div id="modal-conn-key-hint" class="mt-1 text-label-sm text-gray-700">${escapeHtml(keyHintText || (hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Leave blank if your provider does not require authentication.'))}</div>` : ''}
+      ${keyHintMarkup}
     </div>
 
     <div class="space-y-1">
@@ -112,12 +225,7 @@ export function buildConnectionModalBodyMarkup({
       <div class="space-y-1">
         <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Provider Type</label>
         <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}"${disabledAttr}>
-          <option value="openai"${resolvedProviderType === 'openai' ? ' selected' : ''}>OpenAI</option>
-          <option value="openai-compatible"${resolvedProviderType === 'openai-compatible' ? ' selected' : ''}>OpenAI Compatible</option>
-          <option value="google"${resolvedProviderType === 'google' ? ' selected' : ''}>Gemini</option>
-          <option value="gemini-compatible"${resolvedProviderType === 'gemini-compatible' ? ' selected' : ''}>Gemini Compatible</option>
-          <option value="anthropic"${resolvedProviderType === 'anthropic' ? ' selected' : ''}>Claude</option>
-          <option value="claude-compatible"${resolvedProviderType === 'claude-compatible' ? ' selected' : ''}>Claude Compatible</option>
+          ${providerOptionsMarkup}
         </select>
         <div id="modal-conn-provider-hint" class="text-label-sm text-gray-700">${escapeHtml(resolvedProviderHint)}</div>
       </div>
@@ -142,7 +250,7 @@ export function buildConnectionModalBodyMarkup({
         </svg>
         <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Search models" value="${escapeHtml(query)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
       </div>
-      <div class="flex items-center gap-2 rounded-md border border-dashed border-gray-200 bg-white px-3 py-2${manualModelsHiddenClass}${showManualModelAdd ? '' : ' hidden'}">
+      <div class="flex items-center gap-2 rounded-md border border-dashed border-gray-200 bg-white px-3 py-2${manualAddClass}">
         <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
         ${renderButton({ label: 'Add', variant: 'primary', id: 'modal-manual-model-add', className: `shrink-0 px-3 py-1 text-label-sm font-medium${disabledControlClass}`, disabled: !!disabledAttr })}
       </div>
