@@ -1,5 +1,37 @@
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 
+function shouldSkipResume(chatId, messageId, state, getActiveStreamAbort, streamSession) {
+  if (!chatId || !messageId) return true;
+  if (getActiveStreamAbort() && state.activeChatId === chatId) return true;
+  const existing = streamSession?.getResumeStream?.(chatId);
+  if (existing && String(existing.messageId) === String(messageId)) return true;
+  return false;
+}
+
+function stopPriorStreams(chatId, streamSession) {
+  const existing = streamSession?.getResumeStream?.(chatId);
+  if (existing) streamSession?.stopResumeStream?.(chatId);
+  streamSession?.stopStreamPolling?.(chatId);
+}
+
+function initResumeAssistantText(
+  chatId,
+  messageId,
+  lastSeq,
+  getMessageById,
+  extractThinkingBlocksFn,
+  messageBlocksById,
+  toolCallsByMessageId
+) {
+  const existingMsg = getMessageById(chatId, messageId);
+  if (lastSeq > 0 && existingMsg?.content) {
+    return extractThinkingBlocksFn(existingMsg.content).cleaned || '';
+  }
+  messageBlocksById.delete(String(messageId));
+  toolCallsByMessageId.delete(String(messageId));
+  return '';
+}
+
 export async function startChatResumeStream({
   chatId,
   messageId,
@@ -26,26 +58,23 @@ export async function startChatResumeStream({
   toolCallsByMessageId = new Map(),
   streamingOverrideByChat = new Map(),
 }) {
-  if (!chatId || !messageId) return;
-  if (getActiveStreamAbort() && state.activeChatId === chatId) return;
-  const existing = streamSession?.getResumeStream?.(chatId);
-  if (existing && String(existing.messageId) === String(messageId)) return;
-  if (existing) streamSession?.stopResumeStream?.(chatId);
-  streamSession?.stopStreamPolling?.(chatId);
+  if (shouldSkipResume(chatId, messageId, state, getActiveStreamAbort, streamSession)) return;
+  stopPriorStreams(chatId, streamSession);
 
   const lastSeq = getMessageSeq(messageId);
   const controller = new AbortController();
   streamSession?.setResumeStream?.(chatId, { controller, messageId });
   setStreamingState(chatId, true);
 
-  const existingMsg = getMessageById(chatId, messageId);
-  let assistantText = '';
-  if (lastSeq > 0 && existingMsg?.content) {
-    assistantText = extractThinkingBlocksFn(existingMsg.content).cleaned || '';
-  } else {
-    messageBlocksById.delete(String(messageId));
-    toolCallsByMessageId.delete(String(messageId));
-  }
+  let assistantText = initResumeAssistantText(
+    chatId,
+    messageId,
+    lastSeq,
+    getMessageById,
+    extractThinkingBlocksFn,
+    messageBlocksById,
+    toolCallsByMessageId
+  );
 
   let errorMessage = null;
   let errorActive = false;
