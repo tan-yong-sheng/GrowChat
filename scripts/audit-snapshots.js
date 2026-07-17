@@ -71,10 +71,9 @@ function parseArgs(argv) {
  * Playwright (*-snapshots/) and Vitest (__snapshots__/) conventions.
  */
 async function collectSnapshotFiles(dir, files = []) {
-  const entries = await readDirEntries(dir);
+  const entries = (await readDirEntries(dir)).filter((entry) => !isNotSnapshotDir(entry.name));
 
   for (const entry of entries) {
-    if (isNotSnapshotDir(entry.name)) continue;
     const fullPath = join(dir, entry.name);
 
     if (entry.isDirectory()) {
