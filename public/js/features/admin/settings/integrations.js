@@ -11,7 +11,44 @@ import { prepareToolPreview } from '../../../shared/components/tool-preview.js';
 import {
   updateServerRowVisibility,
   updateAllToolToggles,
+  updateServerToggleUI,
 } from '../../../shared/components/integrations-shared.js';
+
+function getServerEnabled(server) {
+  return server.enabled !== false;
+}
+
+function getServerToolsArray(server) {
+  return Array.isArray(server.tools) ? server.tools : [];
+}
+
+function getRowClass(serverEnabled) {
+  return serverEnabled ? '' : 'opacity-70';
+}
+
+function getBadgeClass(serverEnabled) {
+  return serverEnabled ? 'hidden' : '';
+}
+
+function getToolsErrorMarkup(toolsError) {
+  return toolsError ? `<span class="text-red-500 ml-2">${escapeHtml(toolsError)}</span>` : '';
+}
+
+function getButtonClass(serverEnabled, canManageAcls) {
+  return serverEnabled && canManageAcls ? '' : 'hidden';
+}
+
+function getCanManageAttrs(canManageAcls) {
+  return canManageAcls ? '' : 'disabled aria-disabled="true"';
+}
+
+function getExpandedClass(toolsExpanded) {
+  return toolsExpanded ? 'rotate-180' : '';
+}
+
+function getToolsExpandedVisibility(toolsExpanded) {
+  return toolsExpanded ? '' : 'hidden';
+}
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
@@ -34,16 +71,14 @@ export function renderIntegrationsSettings(container, data) {
       return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
     }
     return integrationsState.toolServers
-      .map(
-        (server) => `
-      ${(() => {
-        const serverEnabled = server.enabled !== false;
-        const tools = Array.isArray(server.tools) ? server.tools : [];
-        const enabledCount = tools.filter((tool) => tool.enabled !== false).length;
-        const totalCount = tools.length;
-        return `
-      <div data-tool-server-row="${escapeHtml(server.id)}" class="border-b border-gray-50 last:border-0 ${serverEnabled ? '' : 'opacity-70'}">
-        <div class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2">
+      .map((server) => renderServerRow(server, canManageAcls))
+      .join('');
+  };
+
+  function renderServerInfo(server, serverEnabled) {
+    const tools = getServerToolsArray(server);
+    const enabledCount = tools.filter((tool) => tool.enabled !== false).length;
+    return `
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-2">
               <div class="text-xs font-medium text-gray-900">${escapeHtml(server.name)}</div>
@@ -51,17 +86,23 @@ export function renderIntegrationsSettings(container, data) {
             </div>
             <div class="text-label-sm text-gray-400 font-mono">${escapeHtml(server.url)}</div>
             <div class="text-label-sm text-gray-400 mt-1">
-              Tools: <span class="text-gray-900">${enabledCount}</span> / <span class="text-gray-900">${totalCount}</span> enabled
+              Tools: <span class="text-gray-900">${enabledCount}</span> / <span class="text-gray-900">${tools.length}</span> enabled
               ${server.toolsError ? `<span class="text-red-500 ml-2">${escapeHtml(server.toolsError)}</span>` : ''}
             </div>
-          </div>
+          </div>`;
+  }
+
+  function renderServerActions(server, serverEnabled, canManageAcls) {
+    const accessClass = serverEnabled && canManageAcls ? '' : 'hidden';
+    const canManageAttrs = getCanManageAttrs(canManageAcls);
+    return `
           <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
             <button
               data-id="${escapeHtml(server.id)}"
-              class="tool-access-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${serverEnabled && canManageAcls ? '' : 'hidden'}"
+              class="tool-access-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${accessClass}"
               title="Edit access rules"
               aria-label="Edit access rules"
-              ${canManageAcls ? '' : 'disabled aria-disabled="true"'}
+              ${canManageAttrs}
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
@@ -81,27 +122,35 @@ export function renderIntegrationsSettings(container, data) {
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
             </button>
-          </div>
-        </div>
+          </div>`;
+  }
+
+  function renderServerToolsSection(server, serverEnabled) {
+    const tools = getServerToolsArray(server);
+    const toolsListHtml = tools.length
+      ? tools.map((tool) => renderToolMarkup(tool, server.id, serverEnabled)).join('')
+      : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>';
+    return `
         <div class="px-2 pb-3 ${server.toolsExpanded ? '' : 'hidden'}">
           ${server.toolsError ? `<div class="text-label-sm text-red-500 mb-2">${server.toolsError}</div>` : ''}
-          <div class="space-y-2">
-            ${
-              tools.length
-                ? tools.map((tool) => renderToolMarkup(tool, server.id, serverEnabled)).join('')
-                : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'
-            }
-          </div>
+          <div class="space-y-2">${toolsListHtml}</div>
+        </div>`;
+  }
+
+  const renderServerRow = (server, canManageAcls) => {
+    const serverEnabled = getServerEnabled(server);
+    const rowClass = getRowClass(serverEnabled);
+    return `<div data-tool-server-row="${escapeHtml(server.id)}" class="border-b border-gray-50 last:border-0 ${rowClass}">
+        <div class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2">
+          ${renderServerInfo(server, serverEnabled)}
+          ${renderServerActions(server, serverEnabled, canManageAcls)}
         </div>
+        ${renderServerToolsSection(server, serverEnabled)}
       </div>
     `;
-      })()}
-    `
-      )
-      .join('');
   };
 
-  const renderToolMarkup = (tool, serverId, serverEnabled) => {
+  function renderToolMarkup(tool, serverId, serverEnabled) {
     const { description, preview, hasMore, isExpanded } = prepareToolPreview(tool);
     const toolEnabled = tool.enabled !== false;
     const descriptionMarkup = renderToolDescription(
@@ -124,7 +173,7 @@ export function renderIntegrationsSettings(container, data) {
                   ${descriptionMarkup}
                 </div>
               `;
-  };
+  }
 
   function renderToolToggle(tool, serverId, serverEnabled, toolEnabled) {
     const toggleClass = `tool-toggle relative inline-flex h-5 w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-primary' : 'bg-gray-200'} ${serverEnabled ? '' : 'opacity-40 cursor-not-allowed'}`;
@@ -162,7 +211,7 @@ export function renderIntegrationsSettings(container, data) {
     const serverEnabled = server.enabled !== false;
     updateServerRowVisibility(row, serverEnabled, canManageAcls);
     const serverToggle = row.querySelector('.server-toggle');
-    if (serverToggle) updateServerToggle(serverToggle, serverEnabled);
+    if (serverToggle) updateServerToggleUI(serverToggle, serverEnabled);
     updateAllToolToggles(row, server, serverEnabled);
   };
 
@@ -179,11 +228,11 @@ export function renderIntegrationsSettings(container, data) {
     if (toggle) updateToolToggle(toggle, tool.enabled !== false, serverEnabled);
   };
 
-  const renderToolServersList = () => {
+  function renderToolServersList() {
     const list = container.querySelector('#tool-servers-list');
     if (!list) return;
     list.innerHTML = getToolServersMarkup();
-  };
+  }
 
   const render = () => {
     if (!isActiveTab()) return;
