@@ -146,57 +146,119 @@ export function renderConnectionsSettings(container, data) {
     import('./connections-access-modal.js').then((m) =>
       m.openConnectionAccessModal(connection, { ...opts, connectionsState })
     );
-  const render = () => {
-    if (!isActiveTab()) return;
-    const isReadOnlyConnection = Boolean(connectionsState.selectedConnection?.readOnly);
-    container.innerHTML = `
-      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
-        <div class="pt-0.5 pb-6 bg-white">
-          <div class="max-w-2xl mx-auto w-full flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
-            <div class="flex items-center text-xl font-medium px-0.5 gap-2">
-              <div class="flex-shrink-0 text-gray-900">Connections</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex-1 min-h-0">
-          <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
-            <section class="space-y-1">
-              <div class="py-2.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pr-2">
-                <div class="flex flex-col">
-                  <div class="text-xs font-medium text-gray-900">LLM Providers</div>
-                  <div class="text-label-sm text-gray-400">Manage each provider directly below.</div>
-                </div>
-              </div>
-            </section>
-
-            <section id="manage-connections-section" class="space-y-1 mt-4">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-0.5">
-                <div class="text-base font-medium text-gray-900">Manage LLM Chat Providers</div>
-                <button id="add-connection" class="shrink-0 p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                </button>
-              </div>
-              <hr class="border-gray-100/30 my-2" />
-
-              <div id="connections-list" class="space-y-2">
-                ${getConnectionsListMarkup()}
-              </div>
-            </section>
-
-            <div id="connections-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
+  function buildConnectionsHeaderMarkup() {
+    return `
+      <div class="pt-0.5 pb-6 bg-white">
+        <div class="max-w-2xl mx-auto w-full flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
+          <div class="flex items-center text-xl font-medium px-0.5 gap-2">
+            <div class="flex-shrink-0 text-gray-900">Connections</div>
           </div>
         </div>
       </div>
+    `;
+  }
 
-      <!-- Edit Connection Modal -->
+  function buildConnectionsListSectionMarkup() {
+    return `
+      <section class="space-y-1">
+        <div class="py-2.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pr-2">
+          <div class="flex flex-col">
+            <div class="text-xs font-medium text-gray-900">LLM Providers</div>
+            <div class="text-label-sm text-gray-400">Manage each provider directly below.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="manage-connections-section" class="space-y-1 mt-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-0.5">
+          <div class="text-base font-medium text-gray-900">Manage LLM Chat Providers</div>
+          <button id="add-connection" class="shrink-0 p-1 text-gray-400 hover:text-gray-600 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        </div>
+        <hr class="border-gray-100/30 my-2" />
+
+        <div id="connections-list" class="space-y-2">
+          ${getConnectionsListMarkup()}
+        </div>
+      </section>
+
+      <div id="connections-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
+    `;
+  }
+
+  function resolveProviderType(selected) {
+    return selected?.providerType || 'openai';
+  }
+
+  function buildModalNameProps(selected) {
+    return {
+      name: selected?.name || '',
+      url: selected?.url || '',
+    };
+  }
+
+  function buildModalKeyProps(selected) {
+    return {
+      keyValue: '',
+      hasKey: Boolean(selected?.key || selected?.keyMasked),
+      headers: selected?.headers || '',
+    };
+  }
+
+  function buildModalIdentityProps(selected) {
+    const providerType = resolveProviderType(selected);
+    return {
+      providerType,
+      apiType: connectionApiTypeDetails(providerType),
+      ...buildModalNameProps(selected),
+      ...buildModalKeyProps(selected),
+    };
+  }
+
+  function buildModalTestProps(isReadOnlyConnection) {
+    return {
+      canManage: true,
+      showTestButton: !isReadOnlyConnection,
+      testHiddenClass: isReadOnlyConnection ? ' hidden' : '',
+      manualModelsHiddenClass: isReadOnlyConnection ? ' hidden' : '',
+      disabledAttr: '',
+      disabledControlClass: '',
+      testButtonAttrs: '',
+      testMessageAttrs: '',
+    };
+  }
+
+  function buildModalModelsProps() {
+    return {
+      models: connectionsState.modalModels || [],
+      query: connectionsState.modalModelsQuery || '',
+      selection: connectionsState.modalModelsSelection || new Set(),
+      loadingModels: Boolean(connectionsState.modalModelsLoading),
+      modelsError: connectionsState.modalModelsError || '',
+    };
+  }
+
+  function buildModalBodyProps(isReadOnlyConnection) {
+    return {
+      ...buildModalIdentityProps(connectionsState.selectedConnection),
+      ...buildModalTestProps(isReadOnlyConnection),
+      ...buildModalModelsProps(),
+      showKeyHint: true,
+    };
+  }
+
+  function buildEditConnectionModalMarkup(isReadOnlyConnection) {
+    const selected = connectionsState.selectedConnection;
+    const modalBodyProps = buildModalBodyProps(isReadOnlyConnection);
+    return `
       <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} z-[${STANDARD_MODAL_PRESET.zIndex}] ${connectionsState.showModal ? '' : 'hidden'}">
         <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">
-            <h3 id="modal-title" class="text-lg font-medium text-gray-900">${connectionsState.selectedConnection ? 'Edit Connection' : 'Add Connection'}</h3>
+            <h3 id="modal-title" class="text-lg font-medium text-gray-900">${selected ? 'Edit Connection' : 'Add Connection'}</h3>
             <button type="button" id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -205,42 +267,33 @@ export function renderConnectionsSettings(container, data) {
           </div>
 
           <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
-            ${buildConnectionModalBodyMarkup({
-              providerType: connectionsState.selectedConnection?.providerType || 'openai',
-              name: connectionsState.selectedConnection?.name || '',
-              url: connectionsState.selectedConnection?.url || '',
-              keyValue: '',
-              hasKey: Boolean(
-                connectionsState.selectedConnection?.key ||
-                connectionsState.selectedConnection?.keyMasked
-              ),
-              headers: connectionsState.selectedConnection?.headers || '',
-              apiType: connectionApiTypeDetails(
-                connectionsState.selectedConnection?.providerType || 'openai'
-              ),
-              canManage: true,
-              showTestButton: !isReadOnlyConnection,
-              testHiddenClass: isReadOnlyConnection ? ' hidden' : '',
-              manualModelsHiddenClass: isReadOnlyConnection ? ' hidden' : '',
-              disabledAttr: '',
-              disabledControlClass: '',
-              testButtonAttrs: '',
-              testMessageAttrs: '',
-              models: connectionsState.modalModels || [],
-              query: connectionsState.modalModelsQuery || '',
-              selection: connectionsState.modalModelsSelection || new Set(),
-              loadingModels: Boolean(connectionsState.modalModelsLoading),
-              modelsError: connectionsState.modalModelsError || '',
-              showKeyHint: true,
-            })}
+            ${buildConnectionModalBodyMarkup(modalBodyProps)}
           </div>
 
           <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
-            ${renderButton({ label: 'Delete', variant: 'ghost', id: 'delete-connection', className: `px-5 py-1.5 focus:ring-red-500 active:scale-95 ${connectionsState.selectedConnection ? '' : 'hidden'}` })}
+            ${renderButton({ label: 'Delete', variant: 'ghost', id: 'delete-connection', className: `px-5 py-1.5 focus:ring-red-500 active:scale-95 ${selected ? '' : 'hidden'}` })}
             ${renderButton({ label: 'Save', variant: 'primary', id: 'save-modal', className: 'px-5 py-1.5 active:scale-95' })}
           </div>
         </div>
       </div>
+    `;
+  }
+
+  const render = () => {
+    if (!isActiveTab()) return;
+    const isReadOnlyConnection = Boolean(connectionsState.selectedConnection?.readOnly);
+    container.innerHTML = `
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
+        ${buildConnectionsHeaderMarkup()}
+
+        <div class="flex-1 min-h-0">
+          <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
+            ${buildConnectionsListSectionMarkup()}
+          </div>
+        </div>
+      </div>
+
+      ${buildEditConnectionModalMarkup(isReadOnlyConnection)}
     `;
 
     bindEvents();
