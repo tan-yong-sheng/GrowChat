@@ -407,7 +407,6 @@ async function tryFetchHealth(port) {
   }
 }
 
-// eslint-disable-next-line max-statements
 async function bootWranglerForD1Init() {
   log(`Creating D1 file via wrangler dev (port ${PORT})...`);
   const tmp = spawn(
@@ -421,22 +420,7 @@ async function bootWranglerForD1Init() {
   );
   recordWranglerPid(tmp.pid);
 
-  let httpReady = false;
-  let dbPath = null;
-  for (let i = 0; i < HTTP_READY_MAX_ATTEMPTS; i++) {
-    const r = await tryFetchRoot(PORT);
-    if (r?.ok && !httpReady) {
-      httpReady = true;
-      log('  wrangler HTTP-ready, triggering D1 init...');
-      await tryFetchHealth(PORT);
-      await sleep(1000);
-    }
-    if (httpReady) {
-      dbPath = findD1Sqlite(STATE_DIR);
-      if (dbPath) break;
-    }
-    await sleep(500);
-  }
+  const dbPath = await waitForWranglerReady();
   // Stop tmp wrangler BEFORE applying migrations so it doesn't hold the file lock
   // or cache an empty schema. Record the dbPath while wrangler is still alive so
   // we know the exact file wrangler opened. killProcessTree polls for actual
@@ -448,6 +432,25 @@ async function bootWranglerForD1Init() {
   }
   log(`D1 database: ${path.basename(path.dirname(dbPath))}/${path.basename(dbPath)}`);
   return dbPath;
+}
+
+function isOkResponse(r) {
+  return r && r.ok;
+}
+
+async function waitForWranglerReady() {
+  for (let i = 0; i < HTTP_READY_MAX_ATTEMPTS; i++) {
+    const r = await tryFetchRoot(PORT);
+    if (isOkResponse(r)) {
+      log('  wrangler HTTP-ready, triggering D1 init...');
+      await tryFetchHealth(PORT);
+      await sleep(1000);
+      const dbPath = findD1Sqlite(STATE_DIR);
+      if (dbPath) return dbPath;
+    }
+    await sleep(500);
+  }
+  return null;
 }
 
 async function applyMigrations(dbPath) {
