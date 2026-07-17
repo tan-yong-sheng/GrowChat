@@ -64,6 +64,59 @@ export async function mcpFetchWithRetry({ url, headers, sessionId, body }) {
   }
 }
 
+async function handleMcpErrorResponse(response) {
+  const text = await response.text().catch(() => '');
+  throw new Error(`MCP request failed (${response.status}): ${text || response.statusText}`);
+}
+
+function extractMessageById(payload, id) {
+  return Array.isArray(payload)
+    ? payload.find((item) => String(item?.id) === String(id)) || payload[0]
+    : payload;
+}
+
+function throwIfMessageError(message) {
+  if (message?.error) {
+    throw new Error(message.error.message || 'MCP error');
+  }
+}
+
+async function handleJsonMcpResponse(response, id, nextSessionId) {
+  const payload = await response.json();
+  const message = extractMessageById(payload, id);
+  throwIfMessageError(message);
+  return { result: message?.result, sessionId: nextSessionId };
+}
+
+async function handleSseMcpResponse(response, id, nextSessionId) {
+  const text = await response.text();
+  const messages = parseSseMessages(text);
+  const message = extractMessageById(messages, id);
+  throwIfMessageError(message);
+  return { result: message?.result, sessionId: nextSessionId };
+}
+
+function handleMcpResponseByContentType(response, id, nextSessionId) {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return handleJsonMcpResponse(response, id, nextSessionId);
+  }
+  if (contentType.includes('text/event-stream')) {
+    return handleSseMcpResponse(response, id, nextSessionId);
+  }
+  throw new Error(`Unexpected MCP response content type: ${contentType}`);
+}
+
+function handleMcpResponse(response, id, nextSessionId) {
+  if (response.status === 202) {
+    return { result: null, sessionId: nextSessionId };
+  }
+  if (!response.ok) {
+    return handleMcpErrorResponse(response);
+  }
+  return handleMcpResponseByContentType(response, id, nextSessionId);
+}
+
 export async function mcpRequest({ url, headers, sessionId, id, method, params }) {
   const response = await mcpFetchWithRetry({
     url,
@@ -78,39 +131,7 @@ export async function mcpRequest({ url, headers, sessionId, id, method, params }
   });
 
   const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
-
-  if (response.status === 202) {
-    return { result: null, sessionId: nextSessionId };
-  }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`MCP request failed (${response.status}): ${text || response.statusText}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    const payload = await response.json();
-    const message = Array.isArray(payload)
-      ? payload.find((item) => String(item?.id) === String(id)) || payload[0]
-      : payload;
-    if (message?.error) {
-      throw new Error(message.error.message || 'MCP error');
-    }
-    return { result: message?.result, sessionId: nextSessionId };
-  }
-
-  if (contentType.includes('text/event-stream')) {
-    const text = await response.text();
-    const messages = parseSseMessages(text);
-    const message = messages.find((item) => String(item?.id) === String(id)) || messages[0];
-    if (message?.error) {
-      throw new Error(message.error.message || 'MCP error');
-    }
-    return { result: message?.result, sessionId: nextSessionId };
-  }
-
-  throw new Error(`Unexpected MCP response content type: ${contentType}`);
+  return handleMcpResponse(response, id, nextSessionId);
 }
 
 export async function mcpNotify({ url, headers, sessionId, method, params }) {
