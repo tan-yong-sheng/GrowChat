@@ -1,5 +1,90 @@
 import { z, ZodError } from 'zod';
 
+const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+const BLOCKED_HOSTNAMES = new Set([
+  'localhost',
+  'metadata.google.internal',
+  'metadata.azure.com',
+  '169.254.169.254',
+]);
+
+// Each entry: { check(a, b) → boolean, reason }
+// Ordered from most specific to least specific so the first match wins.
+const IPV4_BLOCKED_RANGES = [
+  { check: (a) => a === 127, reason: 'Loopback addresses are not allowed' },
+  { check: (a) => a === 10, reason: 'Private network addresses are not allowed' },
+  {
+    check: (a, b) => a === 172 && b >= 16 && b <= 31,
+    reason: 'Private network addresses are not allowed',
+  },
+  { check: (a, b) => a === 192 && b === 168, reason: 'Private network addresses are not allowed' },
+  { check: (a, b) => a === 169 && b === 254, reason: 'Link-local addresses are not allowed' },
+  { check: (a) => a === 0, reason: 'Unspecified addresses are not allowed' },
+  {
+    check: (a, b) => a === 100 && b >= 64 && b <= 127,
+    reason: 'Carrier-grade NAT addresses are not allowed',
+  },
+  {
+    check: (a, b) => a === 198 && (b === 18 || b === 19),
+    reason: 'Benchmarking addresses are not allowed',
+  },
+  { check: (a) => a >= 224 && a <= 239, reason: 'Multicast addresses are not allowed' },
+  { check: (a) => a >= 240, reason: 'Reserved addresses are not allowed' },
+];
+
+const OBFUSCATED_IP_REASONS = [
+  { test: (h) => /^0x[0-9a-f]+$/i.test(h), reason: 'Obfuscated IP addresses are not allowed' },
+  { test: (h) => /^0[0-7]+$/.test(h), reason: 'Obfuscated IP addresses are not allowed' },
+  { test: (h) => /^\d{8,10}$/.test(h), reason: 'Obfuscated IP addresses are not allowed' },
+];
+
+const IPV6_BLOCKED_PREFIXES = [
+  { prefix: '::1', wrapped: true, reason: 'IPv6 loopback addresses are not allowed' },
+  { prefix: 'fe80', wrapped: false, reason: 'IPv6 link-local addresses are not allowed' },
+  { prefix: '::ffff:', wrapped: true, reason: 'IPv4-mapped IPv6 addresses are not allowed' },
+  { prefix: 'fc', wrapped: true, reason: 'IPv6 unique local addresses are not allowed' },
+  { prefix: 'fd', wrapped: true, reason: 'IPv6 unique local addresses are not allowed' },
+];
+
+function parseUrl(urlStr) {
+  try {
+    return new URL(urlStr);
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedProtocol(protocol) {
+  return /^https?:$/i.test(protocol);
+}
+
+function findBlockedIpv4Range(a, b) {
+  for (const range of IPV4_BLOCKED_RANGES) {
+    if (range.check(a, b)) return range.reason;
+  }
+  return null;
+}
+
+function isBlockedIpv6Hostname(hostname) {
+  for (const entry of IPV6_BLOCKED_PREFIXES) {
+    if (entry.wrapped) {
+      if (hostname === `[${entry.prefix}]`) return entry.reason;
+      if (hostname.startsWith(`[${entry.prefix}`)) return entry.reason;
+    } else if (hostname === entry.prefix || hostname.startsWith(entry.prefix)) {
+      return entry.reason;
+    }
+  }
+  return null;
+}
+
+function findObfuscatedIpReason(hostname) {
+  for (const entry of OBFUSCATED_IP_REASONS) {
+    if (entry.test(hostname)) return entry.reason;
+  }
+  return null;
+}
+
 /**
  * Check whether a URL is safe for server-side fetching (SSRF protection).
  * Blocks loopback, link-local, RFC1918, and cloud metadata IP ranges.
@@ -9,90 +94,32 @@ import { z, ZodError } from 'zod';
  * @returns {{ safe: boolean, reason?: string }}
  */
 export function isSafeOutboundUrl(urlStr) {
-  let parsed;
-  try {
-    parsed = new URL(urlStr);
-  } catch {
-    return { safe: false, reason: 'Invalid URL' };
-  }
+  const parsed = parseUrl(urlStr);
+  if (!parsed) return { safe: false, reason: 'Invalid URL' };
 
-  if (!/^https?:$/i.test(parsed.protocol)) {
+  if (!isAllowedProtocol(parsed.protocol)) {
     return { safe: false, reason: 'Only http: and https: URLs are allowed' };
   }
 
   const hostname = parsed.hostname.toLowerCase();
 
-  // Block common internal hostnames
-  const blockedHosts = [
-    'localhost',
-    'metadata.google.internal',
-    'metadata.azure.com',
-    '169.254.169.254', // AWS/GCP/Azure metadata
-  ];
-  if (blockedHosts.includes(hostname)) {
+  if (BLOCKED_HOSTNAMES.has(hostname)) {
     return { safe: false, reason: 'Connection to internal hostnames is not allowed' };
   }
 
-  // Block IP-based URLs that point to private/reserved ranges
-  const ipMatch = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  const ipMatch = hostname.match(IPV4_PATTERN);
   if (ipMatch) {
-    const [, a, b] = ipMatch.map(Number);
-    // 127.0.0.0/8 — Loopback
-    if (a === 127) return { safe: false, reason: 'Loopback addresses are not allowed' };
-    // 10.0.0.0/8 — RFC1918
-    if (a === 10) return { safe: false, reason: 'Private network addresses are not allowed' };
-    // 172.16.0.0/12 — RFC1918
-    if (a === 172 && b >= 16 && b <= 31)
-      return { safe: false, reason: 'Private network addresses are not allowed' };
-    // 192.168.0.0/16 — RFC1918
-    if (a === 192 && b === 168)
-      return { safe: false, reason: 'Private network addresses are not allowed' };
-    // 169.254.0.0/16 — Link-local / cloud metadata
-    if (a === 169 && b === 254)
-      return { safe: false, reason: 'Link-local addresses are not allowed' };
-    // 0.0.0.0/8 — Current network
-    if (a === 0) return { safe: false, reason: 'Unspecified addresses are not allowed' };
-    // 100.64.0.0/10 — Carrier-grade NAT (RFC6598)
-    if (a === 100 && b >= 64 && b <= 127)
-      return { safe: false, reason: 'Carrier-grade NAT addresses are not allowed' };
-    // 198.18.0.0/15 — Benchmarking (RFC2544)
-    if (a === 198 && (b === 18 || b === 19))
-      return { safe: false, reason: 'Benchmarking addresses are not allowed' };
-    // 224.0.0.0/4 — Multicast
-    if (a >= 224 && a <= 239) return { safe: false, reason: 'Multicast addresses are not allowed' };
-    // 240.0.0.0/4 — Reserved
-    if (a >= 240) return { safe: false, reason: 'Reserved addresses are not allowed' };
+    const a = Number(ipMatch[1]);
+    const b = Number(ipMatch[2]);
+    const reason = findBlockedIpv4Range(a, b);
+    if (reason) return { safe: false, reason };
   }
 
-  // Block IPv6 loopback and link-local (common forms)
-  if (hostname === '::1' || hostname === '[::1]') {
-    return { safe: false, reason: 'IPv6 loopback addresses are not allowed' };
-  }
-  if (hostname.startsWith('fe80') || hostname.startsWith('[fe80')) {
-    return { safe: false, reason: 'IPv6 link-local addresses are not allowed' };
-  }
-  // Block IPv4-mapped IPv6 literals (e.g. [::ffff:127.0.0.1]) before the ULA
-  // check, since the mapped IPv4 would otherwise bypass the IPv4 range checks.
-  if (hostname.startsWith('[::ffff:')) {
-    return { safe: false, reason: 'IPv4-mapped IPv6 addresses are not allowed' };
-  }
+  const ipv6Reason = isBlockedIpv6Hostname(hostname);
+  if (ipv6Reason) return { safe: false, reason: ipv6Reason };
 
-  // Block IPv6 unique local addresses (fc00::/7).
-  // Only match IPv6 literals (wrapped in brackets) so legitimate DNS hostnames
-  // like 'fd.example.com' or 'fca-service.prod' are not rejected.
-  if (hostname.startsWith('[fc') || hostname.startsWith('[fd')) {
-    return { safe: false, reason: 'IPv6 unique local addresses are not allowed' };
-  }
-
-  // Block hostnames that look like IP addresses with ports or other tricks
-  // e.g. 0x7f000001 (hex), 2130706433 (decimal), 017700000001 (octal)
-  if (
-    /^0x[0-9a-f]+$/i.test(hostname) ||
-    /^0[0-7]+$/.test(hostname) ||
-    /^\d{8,10}$/.test(hostname)
-  ) {
-    return { safe: false, reason: 'Obfuscated IP addresses are not allowed' };
-  }
+  const obfuscatedReason = findObfuscatedIpReason(hostname);
+  if (obfuscatedReason) return { safe: false, reason: obfuscatedReason };
 
   return { safe: true };
 }
