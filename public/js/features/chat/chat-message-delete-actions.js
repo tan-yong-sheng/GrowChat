@@ -1,5 +1,25 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 
+function collectDescendantIds(rootId, prevMessages) {
+  const byParent = new Map();
+  prevMessages.forEach((msg) => {
+    const parentKey = msg.parent_id ? String(msg.parent_id) : '__root__';
+    if (!byParent.has(parentKey)) byParent.set(parentKey, []);
+    byParent.get(parentKey).push(String(msg.id));
+  });
+
+  const idsToDelete = new Set();
+  const stack = [String(rootId)];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || idsToDelete.has(current)) continue;
+    idsToDelete.add(current);
+    const children = byParent.get(String(current)) || [];
+    children.forEach((child) => stack.push(String(child)));
+  }
+  return idsToDelete;
+}
+
 export function bindChatMessageDeleteActions({
   messagesList,
   chatId,
@@ -63,21 +83,7 @@ export function bindChatMessageDeleteActions({
         ? new Map(branchSelectionByChat.get(chatId))
         : null;
 
-      const byParent = new Map();
-      prevMessages.forEach((msg) => {
-        const parentKey = msg.parent_id ? String(msg.parent_id) : '__root__';
-        if (!byParent.has(parentKey)) byParent.set(parentKey, []);
-        byParent.get(parentKey).push(String(msg.id));
-      });
-      const idsToDelete = new Set();
-      const stack = [String(id)];
-      while (stack.length) {
-        const current = stack.pop();
-        if (!current || idsToDelete.has(current)) continue;
-        idsToDelete.add(current);
-        const children = byParent.get(String(current)) || [];
-        children.forEach((child) => stack.push(String(child)));
-      }
+      const idsToDelete = collectDescendantIds(id, prevMessages);
 
       const rollbackDelete = () => {
         if (!prevMessages.length) return;
