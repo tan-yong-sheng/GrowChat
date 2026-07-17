@@ -1,117 +1,133 @@
-export function resolveAdminRouteState(pathname) {
-  if (pathname === '/admin' || pathname === '/admin/') {
-    return {
-      mainTab: 'users',
-      subTab: 'overview',
-      canonicalPath: '/admin/users/overview',
-    };
-  }
-  if (pathname === '/admin/users' || pathname === '/admin/users/') {
-    return {
-      mainTab: 'users',
-      subTab: 'overview',
-      canonicalPath: '/admin/users/overview',
-    };
-  }
-  if (pathname === '/admin/users/overview' || pathname.startsWith('/admin/users/overview/')) {
-    return {
-      mainTab: 'users',
-      subTab: 'overview',
-      canonicalPath: '/admin/users/overview',
-    };
-  }
-  if (pathname === '/admin/settings' || pathname === '/admin/settings/') {
-    return {
+const ROUTE_TABLE = [
+  {
+    match: (p) => p === '/admin' || p === '/admin/',
+    state: { mainTab: 'users', subTab: 'overview', canonicalPath: '/admin/users/overview' },
+  },
+  {
+    match: (p) => p === '/admin/users' || p === '/admin/users/',
+    state: { mainTab: 'users', subTab: 'overview', canonicalPath: '/admin/users/overview' },
+  },
+  {
+    match: (p) => p === '/admin/users/overview' || p.startsWith('/admin/users/overview/'),
+    state: { mainTab: 'users', subTab: 'overview', canonicalPath: '/admin/users/overview' },
+  },
+  {
+    match: (p) => p === '/admin/settings' || p === '/admin/settings/',
+    state: {
       mainTab: 'settings',
       subTab: 'connections',
       canonicalPath: '/admin/settings/connections',
-    };
-  }
-  if (pathname === '/admin/system' || pathname === '/admin/system/') {
-    return {
+    },
+  },
+  {
+    match: (p) => p === '/admin/system' || p === '/admin/system/',
+    state: {
       mainTab: 'system',
       subTab: 'registration',
       canonicalPath: '/admin/system/registration',
-    };
-  }
-  if (pathname === '/admin/users/roles' || pathname.startsWith('/admin/users/roles/')) {
-    return { mainTab: 'users', subTab: 'roles', canonicalPath: pathname };
-  }
-  if (pathname === '/admin/users/groups' || pathname.startsWith('/admin/users/groups/')) {
-    return {
-      mainTab: 'users',
-      subTab: 'groups',
-      canonicalPath: '/admin/users/groups',
-    };
-  }
-  if (pathname === '/admin/users/policy' || pathname.startsWith('/admin/users/policy/')) {
-    return {
+    },
+  },
+  {
+    match: (p) => p === '/admin/users/roles' || p.startsWith('/admin/users/roles/'),
+    state: (p) => ({ mainTab: 'users', subTab: 'roles', canonicalPath: p }),
+  },
+  {
+    match: (p) => p === '/admin/users/groups' || p.startsWith('/admin/users/groups/'),
+    state: { mainTab: 'users', subTab: 'groups', canonicalPath: '/admin/users/groups' },
+  },
+  {
+    match: (p) => p === '/admin/users/policy' || p.startsWith('/admin/users/policy/'),
+    state: {
       mainTab: 'users',
       subTab: 'policies',
       canonicalPath: '/admin/users/policies',
-    };
-  }
-  if (pathname === '/admin/users/policies' || pathname.startsWith('/admin/users/policies/')) {
-    return { mainTab: 'users', subTab: 'policies', canonicalPath: pathname };
-  }
-  // System sub-routes
-  if (
-    pathname === '/admin/system/registration' ||
-    pathname.startsWith('/admin/system/registration/')
-  ) {
-    return {
+    },
+  },
+  {
+    match: (p) => p === '/admin/users/policies' || p.startsWith('/admin/users/policies/'),
+    state: (p) => ({ mainTab: 'users', subTab: 'policies', canonicalPath: p }),
+  },
+  {
+    match: (p) => p === '/admin/system/registration' || p.startsWith('/admin/system/registration/'),
+    state: {
       mainTab: 'system',
       subTab: 'registration',
       canonicalPath: '/admin/system/registration',
-    };
-  }
-  if (pathname === '/admin/system/email' || pathname.startsWith('/admin/system/email/')) {
-    return {
+    },
+  },
+  {
+    match: (p) => p === '/admin/system/email' || p.startsWith('/admin/system/email/'),
+    state: {
       mainTab: 'system',
       subTab: 'email',
       canonicalPath: '/admin/system/email',
-    };
-  }
-  if (pathname === '/admin/system/security' || pathname.startsWith('/admin/system/security/')) {
-    return {
+    },
+  },
+  {
+    match: (p) => p === '/admin/system/security' || p.startsWith('/admin/system/security/'),
+    state: {
       mainTab: 'system',
       subTab: 'security',
       canonicalPath: '/admin/system/security',
-    };
-  }
-  if (pathname === '/admin/system/activity' || pathname.startsWith('/admin/system/activity/')) {
-    return {
+    },
+  },
+  {
+    match: (p) => p === '/admin/system/activity' || p.startsWith('/admin/system/activity/'),
+    state: {
       mainTab: 'system',
       subTab: 'activity',
       canonicalPath: '/admin/system/activity',
-    };
+    },
+  },
+];
+
+function resolveSettingsSubTab(pathname) {
+  if (pathname.includes('/connections')) return 'connections';
+  if (pathname.includes('/integrations')) return 'integrations';
+  if (pathname.includes('/models')) return 'models';
+  return 'connections';
+}
+
+function resolveSystemSubTab(pathname) {
+  if (pathname.includes('/email')) return 'email';
+  if (pathname.includes('/security')) return 'security';
+  if (pathname.includes('/activity')) return 'activity';
+  return 'registration';
+}
+
+function resolveUsersSubTab(pathname) {
+  if (pathname.includes('/roles')) return 'roles';
+  if (pathname.includes('/policies')) return 'policies';
+  if (pathname.includes('/groups')) return 'groups';
+  return 'overview';
+}
+
+function resolveRouteState(pathname) {
+  for (const route of ROUTE_TABLE) {
+    if (route.match(pathname)) {
+      return typeof route.state === 'function' ? route.state(pathname) : route.state;
+    }
   }
-  // Settings sub-routes
   if (pathname.startsWith('/admin/settings')) {
-    let subTab = 'connections';
-    if (pathname.includes('/connections')) subTab = 'connections';
-    else if (pathname.includes('/integrations')) subTab = 'integrations';
-    else if (pathname.includes('/models')) subTab = 'models';
-    return { mainTab: 'settings', subTab, canonicalPath: pathname };
-  }
-  // System fallback
-  if (pathname.startsWith('/admin/system')) {
-    let subTab = 'registration';
-    if (pathname.includes('/email')) subTab = 'email';
-    else if (pathname.includes('/security')) subTab = 'security';
-    else if (pathname.includes('/activity')) subTab = 'activity';
     return {
-      mainTab: 'system',
-      subTab,
-      canonicalPath: `/admin/system/${subTab}`,
+      mainTab: 'settings',
+      subTab: resolveSettingsSubTab(pathname),
+      canonicalPath: pathname,
     };
   }
-  // Users fallback
-  let subTab = 'overview';
-  if (pathname.includes('/roles')) subTab = 'roles';
-  else if (pathname.includes('/policies')) subTab = 'policies';
-  else if (pathname.includes('/groups')) subTab = 'groups';
-  return { mainTab: 'users', subTab, canonicalPath: pathname };
+  if (pathname.startsWith('/admin/system')) {
+    const subTab = resolveSystemSubTab(pathname);
+    return { mainTab: 'system', subTab, canonicalPath: `/admin/system/${subTab}` };
+  }
+  return {
+    mainTab: 'users',
+    subTab: resolveUsersSubTab(pathname),
+    canonicalPath: pathname,
+  };
+}
+
+export function resolveAdminRouteState(pathname) {
+  return resolveRouteState(pathname);
 }
 
 export function getAdminTopNavPath(mainTab) {
