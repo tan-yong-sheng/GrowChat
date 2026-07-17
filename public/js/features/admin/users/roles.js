@@ -21,6 +21,26 @@ import {
 import { openRoleModal } from './roles-modal.js';
 import { renderRoleList } from './roles-render.js';
 
+function normalizeRolesState(state) {
+  if (!Array.isArray(state.roles)) {
+    state.roles = [];
+  }
+  if (!state.nextCustomIndex || !Number.isFinite(state.nextCustomIndex)) {
+    state.nextCustomIndex = getNextCustomIndex(state.roles);
+  }
+}
+
+function renderRolesError(container, state, data) {
+  if (!state.rolesError || state.roles.length) return;
+  container.innerHTML = renderErrorState(state.rolesError);
+  container.querySelector('[data-role-retry]')?.addEventListener('click', () => {
+    state.rolesLoaded = false;
+    state.rolesLoading = false;
+    state.rolesError = null;
+    renderRolesPage(container, data);
+  });
+}
+
 export function renderRolesPage(container, data = {}) {
   const state =
     container.__rolesState ||
@@ -35,12 +55,7 @@ export function renderRolesPage(container, data = {}) {
       rolesError: null,
     });
 
-  if (!Array.isArray(state.roles)) {
-    state.roles = [];
-  }
-  if (!state.nextCustomIndex || !Number.isFinite(state.nextCustomIndex)) {
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
-  }
+  normalizeRolesState(state);
 
   const closeModal = () => {
     if (typeof state.modalCleanup === 'function') {
@@ -66,13 +81,7 @@ export function renderRolesPage(container, data = {}) {
   }
 
   if (state.rolesError && !state.roles.length) {
-    container.innerHTML = renderErrorState(state.rolesError);
-    container.querySelector('[data-role-retry]')?.addEventListener('click', () => {
-      state.rolesLoaded = false;
-      state.rolesLoading = false;
-      state.rolesError = null;
-      renderRolesPage(container, data);
-    });
+    renderRolesError(container, state, data);
     return;
   }
 
