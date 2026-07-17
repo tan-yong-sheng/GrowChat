@@ -50,89 +50,48 @@ export function createChatRenderController({
   applyAssistantErrorMessage = STREAM_CALLBACK_DEFAULTS.applyAssistantErrorMessage,
   openCitation = () => {},
 } = {}) {
-  function drawMessages(messages) {
-    if (!messagesList || !welcomeScreenContainer || !messagesContainer) return;
-
-    const welcomeScreen = welcomeScreenContainer.firstElementChild;
-    const chatId = state.activeChatId;
-    const rawMessages = Array.isArray(messages) ? messages : [];
-    const branchSelectionMap = chatId ? branchSelectionByChat.get(chatId) || new Map() : new Map();
-    const preferredLeafId = chatId ? currentLeafByChatId.get(chatId) : null;
-    const isLoading = !!chatId && state.ui?.loadingChatId === chatId;
-
-    const { visible: projectedMessages, roundsByMessageId } = projectConversation(
-      rawMessages,
-      preferredLeafId,
-      branchSelectionMap
-    );
-
-    if (projectedMessages.length === 0) {
-      if (isLoading) {
-        if (welcomeScreen) welcomeScreen.classList.add('hidden');
-        messagesList.classList.remove('hidden');
-        messagesList.innerHTML = `
-          <div class="flex flex-col gap-5 py-6">
-            <div class="flex justify-end">
-              <div class="h-8 w-2/3 rounded-lg bg-gray-100 animate-pulse"></div>
-            </div>
-            <div class="flex gap-4">
-              <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-3 w-32 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-3/4 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
-              </div>
-            </div>
-            <div class="flex justify-end">
-              <div class="h-8 w-1/2 rounded-lg bg-gray-100 animate-pulse"></div>
-            </div>
-            <div class="flex gap-4">
-              <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-3 w-40 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-5/6 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
-              </div>
-            </div>
+  function renderLoadingSkeleton() {
+    return `
+      <div class="flex flex-col gap-5 py-6">
+        <div class="flex justify-end">
+          <div class="h-8 w-2/3 rounded-lg bg-gray-100 animate-pulse"></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
+          <div class="flex-1 space-y-2">
+            <div class="h-3 w-32 bg-gray-100 rounded animate-pulse"></div>
+            <div class="h-4 w-3/4 bg-gray-100 rounded animate-pulse"></div>
+            <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
           </div>
-        `;
-      } else {
-        if (welcomeScreen) welcomeScreen.classList.remove('hidden');
-        messagesList.classList.add('hidden');
-      }
-      return;
+        </div>
+        <div class="flex justify-end">
+          <div class="h-8 w-1/2 rounded-lg bg-gray-100 animate-pulse"></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
+          <div class="flex-1 space-y-2">
+            <div class="h-3 w-40 bg-gray-100 rounded animate-pulse"></div>
+            <div class="h-4 w-5/6 bg-gray-100 rounded animate-pulse"></div>
+            <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderEmptyState(welcomeScreen, isLoading) {
+    if (isLoading) {
+      if (welcomeScreen) welcomeScreen.classList.add('hidden');
+      messagesList.classList.remove('hidden');
+      messagesList.innerHTML = renderLoadingSkeleton();
+      return true;
     }
+    if (welcomeScreen) welcomeScreen.classList.remove('hidden');
+    messagesList.classList.add('hidden');
+    return true;
+  }
 
-    if (welcomeScreen) welcomeScreen.classList.add('hidden');
-    messagesList.classList.remove('hidden');
-
-    const isAtBottom =
-      messagesContainer.scrollHeight - messagesContainer.scrollTop <=
-      messagesContainer.clientHeight + 40;
-
-    const messagesHtml = buildChatMessageListHtml({
-      projectedMessages,
-      roundsByMessageId,
-      state,
-      branchSelectionByChat,
-      currentLeafByChatId,
-      streamingOverrideByChat,
-      messageBlocksById,
-      toolCallsByMessageId,
-      thinkingActiveByMessageId,
-      thinkingDurationByMessageId,
-      errorExpandedByMessageId,
-      thinkingCollapsedByKey,
-      toolExpandedByKey,
-      renderAttachmentPills,
-      renderAssistantMessageBody,
-      syncMessageBlocksForMessage,
-      syncToolCallsForMessage,
-    });
-
-    messagesList.innerHTML = messagesHtml;
-    hydrateAttachmentImages(messagesList);
-
+  function bindAfterRender(messages, projectedMessages, roundsByMessageId, chatId) {
     messagesList.querySelectorAll('.edit-message-textarea').forEach((ta) => {
       setupEditTextarea(ta);
     });
@@ -182,12 +141,83 @@ export function createChatRenderController({
       toolCallsByMessageId,
       messageBlocksById,
     });
+  }
 
-    if (isAtBottom) {
-      setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      }, 10);
+  function scrollToBottomIfNeeded() {
+    const isAtBottom =
+      messagesContainer.scrollHeight - messagesContainer.scrollTop <=
+      messagesContainer.clientHeight + 40;
+    if (!isAtBottom) return;
+    setTimeout(() => {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 10);
+  }
+
+  function areContainersReady() {
+    return messagesList && welcomeScreenContainer && messagesContainer;
+  }
+
+  function computeRenderContext(messages, chatId) {
+    const rawMessages = Array.isArray(messages) ? messages : [];
+    const branchSelectionMap = chatId ? branchSelectionByChat.get(chatId) || new Map() : new Map();
+    const preferredLeafId = chatId ? currentLeafByChatId.get(chatId) : null;
+    const isLoading = !!chatId && state.ui?.loadingChatId === chatId;
+    const { visible: projectedMessages, roundsByMessageId } = projectConversation(
+      rawMessages,
+      preferredLeafId,
+      branchSelectionMap
+    );
+    const welcomeScreen = welcomeScreenContainer.firstElementChild;
+    return { projectedMessages, roundsByMessageId, isLoading, welcomeScreen };
+  }
+
+  function renderMessageList(messages, projectedMessages, roundsByMessageId, chatId) {
+    const welcomeScreen = welcomeScreenContainer.firstElementChild;
+    if (welcomeScreen) welcomeScreen.classList.add('hidden');
+    messagesList.classList.remove('hidden');
+
+    const messagesHtml = buildChatMessageListHtml({
+      projectedMessages,
+      roundsByMessageId,
+      state,
+      branchSelectionByChat,
+      currentLeafByChatId,
+      streamingOverrideByChat,
+      messageBlocksById,
+      toolCallsByMessageId,
+      thinkingActiveByMessageId,
+      thinkingDurationByMessageId,
+      errorExpandedByMessageId,
+      thinkingCollapsedByKey,
+      toolExpandedByKey,
+      renderAttachmentPills,
+      renderAssistantMessageBody,
+      syncMessageBlocksForMessage,
+      syncToolCallsForMessage,
+    });
+
+    messagesList.innerHTML = messagesHtml;
+    hydrateAttachmentImages(messagesList);
+
+    bindAfterRender(messages, projectedMessages, roundsByMessageId, chatId);
+    scrollToBottomIfNeeded();
+  }
+
+  function drawMessages(messages) {
+    if (!areContainersReady()) return;
+
+    const chatId = state.activeChatId;
+    const { projectedMessages, roundsByMessageId, isLoading, welcomeScreen } = computeRenderContext(
+      messages,
+      chatId
+    );
+
+    if (projectedMessages.length === 0) {
+      renderEmptyState(welcomeScreen, isLoading);
+      return;
     }
+
+    renderMessageList(messages, projectedMessages, roundsByMessageId, chatId);
   }
 
   return {
