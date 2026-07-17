@@ -76,88 +76,126 @@ function buildGoogleTools(tools = [], normalize = normalizeToolParameters) {
   return functionDeclarations.length ? [{ functionDeclarations }] : undefined;
 }
 
-export function buildGooglePayload(messages, options = {}) {
+function getThoughtSignature(call) {
+  const signature =
+    call?.providerMetadata?.google?.thoughtSignature ??
+    call?.providerMetadata?.vertex?.thoughtSignature ??
+    call?.providerOptions?.google?.thoughtSignature ??
+    call?.providerOptions?.vertex?.thoughtSignature;
+  return signature != null ? String(signature) : undefined;
+}
+
+function appendAssistantToolCallParts(message, parts) {
+  for (const call of message.tool_calls) {
+    const fn = call?.function || {};
+    const name = String(fn.name || '').trim();
+    if (!name) continue;
+    const args = parseFnArguments(fn.arguments);
+    const thoughtSignature = getThoughtSignature(call);
+    parts.push({
+      functionCall: { name, args },
+      ...(thoughtSignature ? { thoughtSignature } : {}),
+    });
+  }
+}
+
+function hasAssistantToolCalls(role, message) {
+  return role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length;
+}
+
+function buildToolResponseContent(message, toolCallNameMap) {
+  const toolName = String(
+    message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool'
+  ).trim();
+  const outputText = contentToText(message.content);
+  return {
+    role: 'user',
+    parts: [
+      {
+        functionResponse: {
+          name: toolName,
+          response: { name: toolName, content: outputText },
+        },
+      },
+    ],
+  };
+}
+
+function buildContentPartsWithFallback(message) {
+  const parts = contentToGoogleParts(message.content);
+  if (parts.length) return parts;
+  const text = contentToText(message.content);
+  if (text) parts.push({ text });
+  return parts;
+}
+
+function buildUserOrAssistantContent(message, role) {
+  const parts = buildContentPartsWithFallback(message);
+  if (!parts.length) return null;
+  return { role: role === 'assistant' ? 'model' : 'user', parts };
+}
+
+function buildFallbackTextContent(message) {
+  const text = contentToText(message.content);
+  if (!text) return null;
+  return { role: 'user', parts: [{ text }] };
+}
+
+function handleAssistantWithTools(message, ctx) {
+  const parts = contentToGoogleParts(message.content);
+  appendAssistantToolCallParts(message, parts);
+  if (parts.length) ctx.contents.push({ role: 'model', parts });
+}
+
+function handleUserOrAssistant(message, ctx) {
+  const entry = buildUserOrAssistantContent(message, ctx.role);
+  if (entry) ctx.contents.push(entry);
+}
+
+function handleTool(message, ctx) {
+  ctx.contents.push(buildToolResponseContent(message, ctx.toolCallNameMap));
+}
+
+function handleFallbackText(message, ctx) {
+  const entry = buildFallbackTextContent(message);
+  if (entry) ctx.contents.push(entry);
+}
+
+function handleSystemMessage(message, ctx) {
+  addSystemContent(message, ctx.systemTexts);
+}
+
+function processMessages(messages, toolCallNameMap) {
   const contents = [];
   const systemTexts = [];
-  const toolCallNameMap = buildToolCallNameMap(messages);
-  const normalize = options.normalizeToolParameters || normalizeToolParameters;
-
-  const getThoughtSignature = (call) => {
-    const signature =
-      call?.providerMetadata?.google?.thoughtSignature ??
-      call?.providerMetadata?.vertex?.thoughtSignature ??
-      call?.providerOptions?.google?.thoughtSignature ??
-      call?.providerOptions?.vertex?.thoughtSignature;
-    return signature != null ? String(signature) : undefined;
-  };
-
+  const ctx = { contents, systemTexts, toolCallNameMap };
   for (const message of messages || []) {
     const role = normalizeMessageRole(message);
-    if (role === 'system') {
-      addSystemContent(message, systemTexts);
-      continue;
-    }
-    if (role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length) {
-      const parts = contentToGoogleParts(message.content);
-      for (const call of message.tool_calls) {
-        const fn = call?.function || {};
-        const name = String(fn.name || '').trim();
-        if (!name) continue;
-        const args = parseFnArguments(fn.arguments);
-        const thoughtSignature = getThoughtSignature(call);
-        parts.push({
-          functionCall: { name, args },
-          ...(thoughtSignature ? { thoughtSignature } : {}),
-        });
-      }
-      if (!parts.length) continue;
-      contents.push({ role: 'model', parts });
-      continue;
-    }
-    if (role === 'tool') {
-      const toolName = String(
-        message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool'
-      ).trim();
-      const outputText = contentToText(message.content);
-      contents.push({
-        role: 'user',
-        parts: [
-          {
-            functionResponse: {
-              name: toolName,
-              response: { name: toolName, content: outputText },
-            },
-          },
-        ],
-      });
-      continue;
-    }
-    if (role === 'user' || role === 'assistant') {
-      const parts = contentToGoogleParts(message.content);
-      if (!parts.length) {
-        const text = contentToText(message.content);
-        if (text) parts.push({ text });
-      }
-      if (!parts.length) continue;
-      contents.push({ role: role === 'assistant' ? 'model' : 'user', parts });
-      continue;
-    }
-    const text = contentToText(message.content);
-    if (text) {
-      contents.push({ role: 'user', parts: [{ text }] });
-    }
+    if (role === 'system') handleSystemMessage(message, ctx);
+    else if (hasAssistantToolCalls(role, message)) handleAssistantWithTools(message, ctx);
+    else if (role === 'tool') handleTool(message, ctx);
+    else if (role === 'user' || role === 'assistant') {
+      ctx.role = role;
+      handleUserOrAssistant(message, ctx);
+    } else handleFallbackText(message, ctx);
   }
+  return { contents, systemTexts };
+}
 
-  const systemText = systemTexts.join('\n\n').trim();
-  const payload = { contents };
+function appendSystemInstruction(payload, systemText) {
   if (systemText) {
     payload.systemInstruction = { parts: [{ text: systemText }] };
   }
+}
+
+function appendToolsToPayload(payload, options, normalize) {
+  if (normalizeToolChoice(options.toolChoice)?.type === 'none') return;
   const googleTools = buildGoogleTools(options.tools, normalize);
-  if (googleTools) {
-    payload.tools = googleTools;
-  }
-  const googleToolConfig = resolveToolChoiceConfig(options.toolChoice, {
+  if (googleTools) payload.tools = googleTools;
+}
+
+function appendToolConfigToPayload(payload, options) {
+  const config = resolveToolChoiceConfig(options.toolChoice, {
     auto: () => ({ functionCallingConfig: { mode: 'AUTO' } }),
     none: () => ({ functionCallingConfig: { mode: 'NONE' } }),
     required: () => ({ functionCallingConfig: { mode: 'ANY' } }),
@@ -168,11 +206,23 @@ export function buildGooglePayload(messages, options = {}) {
       },
     }),
   });
-  if (googleToolConfig) {
-    payload.toolConfig = googleToolConfig;
-  }
-  if (options.stream !== false) {
-    payload.generationConfig = {};
-  }
+  if (config) payload.toolConfig = config;
+}
+
+function appendGenerationConfig(payload, options) {
+  if (options.stream !== false) payload.generationConfig = {};
+}
+
+export function buildGooglePayload(messages, options = {}) {
+  const { contents, systemTexts } = processMessages(messages, buildToolCallNameMap(messages));
+  const payload = { contents };
+  appendSystemInstruction(payload, systemTexts.join('\n\n').trim());
+  appendToolsToPayload(
+    payload,
+    options,
+    options.normalizeToolParameters || normalizeToolParameters
+  );
+  appendToolConfigToPayload(payload, options);
+  appendGenerationConfig(payload, options);
   return payload;
 }
