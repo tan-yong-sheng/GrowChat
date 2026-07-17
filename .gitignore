@@ -2,6 +2,7 @@
 .fallow/
 !/.fallow/baseline.json
 fallow-out/
+.skylos/
 .agents/*
 .claude/*
 .codex/*
