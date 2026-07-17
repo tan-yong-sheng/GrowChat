@@ -312,30 +312,48 @@ export function createOverviewController(ctx) {
     });
   }
 
-  function updateView() {
-    const users = data.users || [];
-    const total = data.total || users.length;
-    const page = data.pagination?.page || 1;
-    const pageSize = data.pagination?.pageSize || 20;
+  function getPagination() {
+    const { page = 1, pageSize = 20 } = data.pagination || {};
+    return { page, pageSize };
+  }
+
+  function getPageRange(total, page, pageSize) {
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const pageStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
     const pageEnd = Math.min(page * pageSize, total);
+    return { totalPages, pageStart, pageEnd };
+  }
+
+  function isTableLoading() {
+    return data.loading && (data.loadingMode === 'table' || data.loadingMode === 'initial');
+  }
+
+  function computePrevDisabled(page) {
+    return data.loading || page <= 1;
+  }
+
+  function computeNextDisabled(page, totalPages) {
+    return data.loading || page >= totalPages;
+  }
+
+  function updateView() {
+    const users = data.users || [];
+    const total = data.total || users.length;
+    const { page, pageSize } = getPagination();
+    const { totalPages, pageStart, pageEnd } = getPageRange(total, page, pageSize);
+    const loading = isTableLoading();
 
     totalCount.textContent = String(total);
-    const isTableLoading =
-      data.loading && (data.loadingMode === 'table' || data.loadingMode === 'initial');
-    tbody.innerHTML = isTableLoading
-      ? renderLoadingRows(Math.min(pageSize, 10))
-      : renderUserRows(users);
+    tbody.innerHTML = loading ? renderLoadingRows(Math.min(pageSize, 10)) : renderUserRows(users);
     pageRange.textContent = `${pageStart}-${pageEnd} of ${total}`;
     pageLabel.textContent = `Page ${page} / ${totalPages}`;
-    prevButton.disabled = data.loading || page <= 1;
-    nextButton.disabled = data.loading || page >= totalPages;
+    prevButton.disabled = computePrevDisabled(page);
+    nextButton.disabled = computeNextDisabled(page, totalPages);
     pageSizeSelect.disabled = data.loading;
     pageSizeSelect.value = String(pageSize);
     searchInput.value = uiState.query;
 
-    if (!isTableLoading) {
+    if (!loading) {
       bindRowActions();
       applySearchFilter();
       syncPendingState();
