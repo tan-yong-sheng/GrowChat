@@ -105,18 +105,13 @@ function applyNamePlaceholder(refs, providerType) {
   }
 }
 
-function applyModalTitle(refs) {
-  const title = connectionsStateMapTitle(connectionsStateRef, refs);
-  setElementText(refs.title, title);
-}
-
 const MODAL_TITLES = {
   update: 'Edit Connection',
   default: 'Add Connection',
 };
 
-function connectionsStateMapTitle(state, refs) {
-  return state.modalMode === 'update' ? MODAL_TITLES.update : MODAL_TITLES.default;
+function resolveModalTitle(modalMode) {
+  return modalMode === 'update' ? MODAL_TITLES.update : MODAL_TITLES.default;
 }
 
 function applyProviderLabels(refs, providerType) {
@@ -137,8 +132,8 @@ function applyKeyLabels(refs, connection) {
   setElementText(refs.keyHint, keyHintText);
 }
 
-function applyModalButtons(refs, isReadOnlyConnection) {
-  const hideDelete = connectionsStateRef.modalMode !== 'update' || isReadOnlyConnection;
+function applyModalButtons(refs, isReadOnlyConnection, modalMode) {
+  const hideDelete = modalMode !== 'update' || isReadOnlyConnection;
   toggleElementClass(refs.deleteBtn, 'hidden', hideDelete);
   toggleElementClass(refs.testButton, 'hidden', isReadOnlyConnection);
   toggleElementClass(refs.testMessage, 'hidden', isReadOnlyConnection);
@@ -146,8 +141,6 @@ function applyModalButtons(refs, isReadOnlyConnection) {
 
 export function createConnectionsModalForm(deps) {
   const { container, connectionsState, setTestStatus } = deps;
-  // Reference captured for closure-based helpers (applyModalTitle, applyModalButtons)
-  const connectionsStateRef = connectionsState;
 
   const fillModalFields = (connection, scope = container) => {
     const refs = queryConnectionModalRefs(scope);
@@ -158,10 +151,10 @@ export function createConnectionsModalForm(deps) {
     applyUrlPlaceholder(refs, providerType, isReadOnlyConnection);
     applyNamePlaceholder(refs, providerType);
     applyReadOnlyState(refs, isReadOnlyConnection);
-    applyModalTitle(refs);
+    setElementText(refs.title, resolveModalTitle(connectionsState.modalMode));
     applyProviderLabels(refs, providerType);
     applyKeyLabels(refs, connection);
-    applyModalButtons(refs, isReadOnlyConnection);
+    applyModalButtons(refs, isReadOnlyConnection, connectionsState.modalMode);
 
     updateApiTypeDisplay(scope, providerType);
     setTestStatus('idle', '', scope);
