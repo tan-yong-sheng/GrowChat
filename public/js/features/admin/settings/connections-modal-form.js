@@ -226,15 +226,21 @@ export function createConnectionsModalForm(deps) {
     renderModalModels(connectionsState, modalRoot);
   };
 
-  const removeManualModalModel = (modelId, scope = container) => {
-    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
-    const connection = connectionsState.selectedConnection;
-    if (!connection?.id || connection?.readOnly) return;
+  function findRemoveableManualModel(connectionsState, modelId) {
+    if (!connectionsState.selectedConnection?.id || connectionsState.selectedConnection?.readOnly)
+      return null;
     const models = Array.isArray(connectionsState.modalModels) ? connectionsState.modalModels : [];
     const target = models.find((m) => m.id === modelId);
-    if (!target || !target.manual) return;
+    if (!target || !target.manual) return null;
+    return target;
+  }
+
+  const removeManualModalModel = (modelId, scope = container) => {
+    const target = findRemoveableManualModel(connectionsState, modelId);
+    if (!target) return;
+    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
     const deletedModelId = target.manualModelId || modelId;
-    connectionsState.modalModels = models.filter((m) => m.id !== modelId);
+    connectionsState.modalModels = connectionsState.modalModels.filter((m) => m.id !== modelId);
     if (connectionsState.modalModelsSelection instanceof Set) {
       connectionsState.modalModelsSelection.delete(modelId);
     }
