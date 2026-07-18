@@ -341,25 +341,21 @@ export function createConnectionsModalForm(deps) {
     renderModalModels(connectionsState, modalRoot);
   };
 
-  const loadModalModels = async (connection, scope = container) => {
-    const connectionId = String(connection?.id || '').trim();
-    if (!connectionId) {
-      connectionsState.modalModels = [];
-      connectionsState.modalModelsSelection = new Set();
-      connectionsState.modalModelsOriginal = new Set();
-      connectionsState.modalModelsQuery = '';
-      connectionsState.modalModelsConnectionId = null;
-      connectionsState.modalModelsError = null;
-      connectionsState.modalModelsLoading = false;
-      renderModalModels(connectionsState, scope);
-      return;
-    }
+  function parseModelFetchError(err) {
+    return err.details?.message || err.message || err.error || 'Failed to load models';
+  }
+
+  function inferConnectionModelMode(connection, seedSelection) {
+    const rawMode = connection?.manualModelsMode || connection?.manual_models_mode;
+    return (
+      normalizeConnectionModelSelectionMode(rawMode) || (seedSelection.size > 0 ? 'some' : 'all')
+    );
+  }
+
+  function initializeModalState(connectionsState, connection, connectionId, scope) {
     const seedModels = inflateManualConnectionModels(connection);
     const seedSelection = new Set(seedModels.map((model) => model.id));
-    const inferredMode =
-      normalizeConnectionModelSelectionMode(
-        connection?.manualModelsMode || connection?.manual_models_mode
-      ) || (seedSelection.size > 0 ? 'some' : 'all');
+    const inferredMode = inferConnectionModelMode(connection, seedSelection);
     connectionsState.modalModelsLoading = true;
     connectionsState.modalModelsError = null;
     connectionsState.modalModelsConnectionId = connectionId;
@@ -367,13 +363,37 @@ export function createConnectionsModalForm(deps) {
     connectionsState.modalModelsSelection = seedSelection;
     connectionsState.modalModelsOriginal = cloneModelSelection(seedSelection);
     renderModalModels(connectionsState, scope);
+    return { seedModels, seedSelection, inferredMode };
+  }
+
+  function clearModalModelsState(connectionsState, scope) {
+    connectionsState.modalModels = [];
+    connectionsState.modalModelsSelection = new Set();
+    connectionsState.modalModelsOriginal = new Set();
+    connectionsState.modalModelsQuery = '';
+    connectionsState.modalModelsConnectionId = null;
+    connectionsState.modalModelsError = null;
+    connectionsState.modalModelsLoading = false;
+    renderModalModels(connectionsState, scope);
+  }
+
+  const loadModalModels = async (connection, scope = container) => {
+    const connectionId = String(connection?.id || '').trim();
+    if (!connectionId) {
+      clearModalModelsState(connectionsState, scope);
+      return;
+    }
+    const { seedModels, seedSelection, inferredMode } = initializeModalState(
+      connectionsState,
+      connection,
+      connectionId,
+      scope
+    );
     try {
       const res = await apiFetch('/api/admin/models?limit=0&offset=0&include_disabled=1');
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.details?.message || err.message || err.error || 'Failed to load models'
-        );
+        throw new Error(parseModelFetchError(err));
       }
       const payload = await res.json();
       const allModels = Array.isArray(payload?.models) ? payload.models : [];
@@ -385,7 +405,7 @@ export function createConnectionsModalForm(deps) {
       connectionsState.modalModelsSelection = preview.selection;
       connectionsState.modalModelsOriginal = preview.original;
     } catch (err) {
-      connectionsState.modalModelsError = err.message || 'Failed to load models';
+      connectionsState.modalModelsError = parseModelFetchError(err);
     } finally {
       connectionsState.modalModelsLoading = false;
       renderModalModels(connectionsState, scope);
