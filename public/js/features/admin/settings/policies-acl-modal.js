@@ -65,28 +65,50 @@ export async function saveFamilyAccess({ familyKey, updates }) {
  * @param {object|null} opts.resourceWarning
  * @param {function|null} opts.onSaved   – Async callback(rules, resources)
  */
-export async function openAccessModal({
-  familyKey,
-  resource,
-  resources = null,
-  groups,
-  _selectedGroupId = '',
-  resourceWarning = null,
-  onSaved = null,
-}) {
-  const targetResources =
-    Array.isArray(resources) && resources.length ? resources : [resource].filter(Boolean);
-  const resourceLabel = getResourceLabel(targetResources[0]);
-  const bulkCount = targetResources.length;
+function buildAccessModalTitle(bulkCount, familyKey) {
+  if (bulkCount > 1) return `Bulk ${getFamilyBulkSummary(familyKey, bulkCount)} ACL`;
+  const label =
+    familyKey === 'models' ? 'Model' : familyKey === 'connections' ? 'Connection' : 'MCP Server';
+  return `${label} Access`;
+}
 
-  const body = `
-  <div class="space-y-4">
-    <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-      <div class="text-sm font-semibold text-gray-900">${escapeHtml(resourceLabel)}</div>
-      <div class="text-xs text-gray-500">${escapeHtml(getResourceNote(targetResources[0], familyKey))}</div>
-      ${
-        resourceWarning
-          ? `
+function buildSaveBtnStateConfig() {
+  return {
+    enabled: true,
+    saving: false,
+    label: 'Save',
+    enabledClass:
+      'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-primary-hover',
+    disabledClass:
+      'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+  };
+}
+
+async function handleAclSaveClick(saveBtn, errorEl, rulesByGroup, onSaved, targetResources, modal) {
+  if (!saveBtn) return;
+  setModalSaveButtonState(saveBtn, { ...buildSaveBtnStateConfig(), saving: true });
+  try {
+    const nextRules = Array.from(rulesByGroup.entries()).map(([groupId, effect]) => ({
+      principal_type: 'group',
+      principal_id: groupId,
+      effect,
+      action: 'use',
+    }));
+    if (typeof onSaved === 'function') {
+      await onSaved(nextRules, targetResources);
+    }
+    modal.close();
+  } catch (err) {
+    errorEl.textContent = err?.message || 'Failed to save access';
+    errorEl.classList.remove('hidden');
+  } finally {
+    setModalSaveButtonState(saveBtn, buildSaveBtnStateConfig());
+  }
+}
+
+function buildWarningHtml(resourceWarning) {
+  if (!resourceWarning) return '';
+  return `
       <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-label-sm text-amber-800">
         <div class="flex items-start gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 size-5 shrink-0 text-amber-500">
@@ -112,22 +134,64 @@ export async function openAccessModal({
             ${resourceWarning.extra ? `<div class="mt-1 text-label-sm text-amber-700">${escapeHtml(resourceWarning.extra)}</div>` : ''}
           </div>
         </div>
-      </div>
-      `
-          : ''
-      }
-      ${
-        bulkCount > 1
-          ? `
+      </div>`;
+}
+
+function buildBulkEditHtml(bulkCount, familyKey, targetResources) {
+  if (bulkCount <= 1) return '';
+  return `
       <div class="mt-2 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
         Bulk editing ${escapeHtml(String(bulkCount))} ${escapeHtml(getFamilyBulkSummary(familyKey, bulkCount).toLowerCase())}. Existing rules will be replaced on every selected resource.
       </div>
       <div class="mt-3 text-label-sm text-gray-500">
         ${escapeHtml(summarizeSelectedResources(targetResources))}
-      </div>
-      `
-          : ''
-      }
+      </div>`;
+}
+
+function isGroupPrincipalType(rule) {
+  return String(rule?.principal_type || '').toLowerCase() === 'group';
+}
+
+function normalizeAclEffect(rule) {
+  return String(rule.effect || 'allow')
+    .trim()
+    .toLowerCase() === 'deny'
+    ? 'deny'
+    : 'allow';
+}
+
+function buildRulesByGroupMap(rules) {
+  const rulesByGroup = new Map();
+  for (const rule of rules) {
+    if (!isGroupPrincipalType(rule)) continue;
+    const groupId = String(rule.principal_id || '').trim();
+    if (!groupId) continue;
+    rulesByGroup.set(groupId, normalizeAclEffect(rule));
+  }
+  return rulesByGroup;
+}
+
+export async function openAccessModal({
+  familyKey,
+  resource,
+  resources = null,
+  groups,
+  _selectedGroupId = '',
+  resourceWarning = null,
+  onSaved = null,
+}) {
+  const targetResources =
+    Array.isArray(resources) && resources.length ? resources : [resource].filter(Boolean);
+  const resourceLabel = getResourceLabel(targetResources[0]);
+  const bulkCount = targetResources.length;
+
+  const body = `
+  <div class="space-y-4">
+    <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+      <div class="text-sm font-semibold text-gray-900">${escapeHtml(resourceLabel)}</div>
+      <div class="text-xs text-gray-500">${escapeHtml(getResourceNote(targetResources[0], familyKey))}</div>
+      ${buildWarningHtml(resourceWarning)}
+      ${buildBulkEditHtml(bulkCount, familyKey, targetResources)}
     </div>
     <div class="space-y-3">
       <div class="flex items-center justify-between">
@@ -142,10 +206,7 @@ export async function openAccessModal({
 
   const modal = createModal({
     preset: 'access',
-    title:
-      bulkCount > 1
-        ? `Bulk ${getFamilyBulkSummary(familyKey, bulkCount)} ACL`
-        : `${familyKey === 'models' ? 'Model' : familyKey === 'connections' ? 'Connection' : 'MCP Server'} Access`,
+    title: buildAccessModalTitle(bulkCount, familyKey),
     subtitle: 'Central ACL editor',
     body,
     footer: `
@@ -164,20 +225,7 @@ export async function openAccessModal({
   const initialRules = cloneAclRules(targetResources[0]?.rules || [], normalizeAclRule);
   rules = cloneAclRules(initialRules, normalizeAclRule);
 
-  const rulesByGroup = new Map();
-  for (const rule of rules) {
-    if (String(rule?.principal_type || '').toLowerCase() !== 'group') continue;
-    const groupId = String(rule.principal_id || '').trim();
-    if (!groupId) continue;
-    rulesByGroup.set(
-      groupId,
-      String(rule.effect || 'allow')
-        .trim()
-        .toLowerCase() === 'deny'
-        ? 'deny'
-        : 'allow'
-    );
-  }
+  const rulesByGroup = buildRulesByGroupMap(rules);
 
   const renderList = () => {
     if (!listEl) return;
@@ -196,43 +244,9 @@ export async function openAccessModal({
     });
   };
 
-  saveBtn?.addEventListener('click', async () => {
-    if (!saveBtn) return;
-    setModalSaveButtonState(saveBtn, {
-      enabled: true,
-      saving: true,
-      label: 'Save',
-      enabledClass:
-        'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-primary-hover',
-      disabledClass:
-        'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
-    });
-    try {
-      const nextRules = Array.from(rulesByGroup.entries()).map(([groupId, effect]) => ({
-        principal_type: 'group',
-        principal_id: groupId,
-        effect,
-        action: 'use',
-      }));
-      if (typeof onSaved === 'function') {
-        await onSaved(nextRules, targetResources);
-      }
-      modal.close();
-    } catch (err) {
-      errorEl.textContent = err?.message || 'Failed to save access';
-      errorEl.classList.remove('hidden');
-    } finally {
-      setModalSaveButtonState(saveBtn, {
-        enabled: true,
-        saving: false,
-        label: 'Save',
-        enabledClass:
-          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-primary-hover',
-        disabledClass:
-          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
-      });
-    }
-  });
+  saveBtn?.addEventListener('click', () =>
+    handleAclSaveClick(saveBtn, errorEl, rulesByGroup, onSaved, targetResources, modal)
+  );
 
   renderList();
 }
