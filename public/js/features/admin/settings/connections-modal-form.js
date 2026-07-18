@@ -210,6 +210,49 @@ export function createConnectionsModalForm(deps) {
     return state.deletedManualModelIds.filter((id) => id !== safe && id !== fullId);
   }
 
+  function parseConnectionTestError(responsePayload) {
+    return (
+      responsePayload.details?.message ||
+      responsePayload.message ||
+      responsePayload.error ||
+      'Connection failed'
+    );
+  }
+
+  function getRefreshModelStatusMessage(responsePayload) {
+    const count = Array.isArray(responsePayload.models) ? responsePayload.models.length : 0;
+    return count > 0 ? `Connection successful. ${count} models loaded.` : 'Connection successful.';
+  }
+
+  function resetModalModelsState(connectionsState) {
+    connectionsState.modalModels = [];
+    connectionsState.modalModelsSelection = new Set();
+    connectionsState.modalModelsOriginal = new Set();
+  }
+
+  function mergeRefreshedManualModels(connectionsState, responsePayload) {
+    const existingManualModels = connectionsState.selectedConnection
+      ? inflateManualConnectionModels(connectionsState.selectedConnection).filter(
+          (model) =>
+            !Array.isArray(connectionsState.deletedManualModelIds) ||
+            !connectionsState.deletedManualModelIds.includes(model.manualModelId)
+        )
+      : [];
+    if (existingManualModels.length > 0) {
+      const merged = new Map(
+        (connectionsState.modalModels || []).map((model) => [model.id, model])
+      );
+      existingManualModels.forEach((model) => {
+        if (!merged.has(model.id)) {
+          merged.set(model.id, model);
+          connectionsState.modalModelsSelection.add(model.id);
+          connectionsState.modalModelsOriginal.add(model.id);
+        }
+      });
+      connectionsState.modalModels = Array.from(merged.values());
+    }
+  }
+
   const addManualModalModel = (scope = container) => {
     const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
     const connection = getModalConnection(scope, connectionsState);
@@ -367,12 +410,7 @@ export function createConnectionsModalForm(deps) {
       });
       const responsePayload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(
-          responsePayload.details?.message ||
-            responsePayload.message ||
-            responsePayload.error ||
-            'Connection failed'
-        );
+        throw new Error(parseConnectionTestError(responsePayload));
       }
       if (Array.isArray(responsePayload.models)) {
         const preview = previewConnectionModalModels(
@@ -385,43 +423,14 @@ export function createConnectionsModalForm(deps) {
         connectionsState.modalModelsSelection = preview.selection;
         connectionsState.modalModelsOriginal = preview.original;
         renderModalModels(connectionsState, modalRoot);
-        const existingManualModels = connectionsState.selectedConnection
-          ? inflateManualConnectionModels(connectionsState.selectedConnection).filter(
-              (model) =>
-                !Array.isArray(connectionsState.deletedManualModelIds) ||
-                !connectionsState.deletedManualModelIds.includes(model.manualModelId)
-            )
-          : [];
-        if (existingManualModels.length > 0) {
-          const merged = new Map(
-            (connectionsState.modalModels || []).map((model) => [model.id, model])
-          );
-          existingManualModels.forEach((model) => {
-            if (!merged.has(model.id)) {
-              merged.set(model.id, model);
-              connectionsState.modalModelsSelection.add(model.id);
-              connectionsState.modalModelsOriginal.add(model.id);
-            }
-          });
-          connectionsState.modalModels = Array.from(merged.values());
-          renderModalModels(connectionsState, modalRoot);
-        }
+        mergeRefreshedManualModels(connectionsState, responsePayload);
       } else {
-        connectionsState.modalModels = [];
-        connectionsState.modalModelsSelection = new Set();
-        connectionsState.modalModelsOriginal = new Set();
+        resetModalModelsState(connectionsState);
       }
-      const count = Array.isArray(responsePayload.models) ? responsePayload.models.length : 0;
-      setTestStatus(
-        'success',
-        count > 0 ? `Connection successful. ${count} models loaded.` : 'Connection successful.',
-        modalRoot
-      );
+      setTestStatus('success', getRefreshModelStatusMessage(responsePayload), modalRoot);
       renderModalModels(connectionsState, modalRoot);
     } catch (err) {
-      connectionsState.modalModels = [];
-      connectionsState.modalModelsSelection = new Set();
-      connectionsState.modalModelsOriginal = new Set();
+      resetModalModelsState(connectionsState);
       connectionsState.modalModelsError = err.message || 'Failed to load models';
       renderModalModels(connectionsState, modalRoot);
       setTestStatus('error', err.message || 'Connection failed', modalRoot);
