@@ -180,83 +180,30 @@ export function createConnectionsEventHandlers(deps) {
     container.querySelector('#save-modal')?.addEventListener('click', async (event) => {
       event.preventDefault();
       const modalRoot = container.querySelector('#edit-connection-modal') || container;
-      const name = modalRoot.querySelector('#modal-conn-name').value;
-      const url = modalRoot.querySelector('#modal-conn-url').value;
-      const keyValue = modalRoot.querySelector('#modal-conn-key').value;
-      const headers = modalRoot.querySelector('#modal-conn-headers').value;
-      const providerType = modalRoot.querySelector('#modal-conn-provider')?.value || 'openai';
-      const providerFamily = normalizeProviderFamily(providerType);
-
-      if (!name.trim()) {
-        showFeedback('Name is required', 'error');
-        return;
-      }
-      if (isCompatibleProviderType(providerType) && !url.trim()) {
-        showFeedback('URL is required for compatible providers', 'error');
-        return;
-      }
+      const { name, url, keyValue, headers, providerType, providerFamily } =
+        collectModalFormValues(modalRoot);
+      if (!validateModalForm(name, url, providerType, showFeedback)) return;
 
       connectionsState.modalSaving = true;
       updateModalSaveButton(modalRoot);
       try {
-        const resolvedUrl = resolveModalUrl(providerType, url);
-        const newConnection = {
-          id: connectionsState.selectedConnection?.id || `conn_${Date.now()}`,
-          name: name.trim(),
-          url: resolvedUrl,
-          key: keyValue,
-          headers,
-          providerType,
-          providerFamily,
-          apiType: connectionApiTypeDetails(providerType).value,
-          source: 'manual',
-          enabled: connectionsState.selectedConnection?.enabled !== false,
-          manualModels: (() => {
-            const models = buildSelectedConnectionModels(
-              connectionsState.modalModels || [],
-              connectionsState.modalModelsSelection || new Set(),
-              connectionsState.selectedConnection
-            );
-            const deleted = connectionsState.deletedManualModelIds || [];
-            if (!deleted.length) return models;
-            return models.filter((m) => !deleted.includes(m.modelId));
-          })(),
-          manualModelsMode: resolveConnectionModalSelectionMode(
-            connectionsState.modalModels || [],
-            connectionsState.modalModelsSelection || new Set()
-          ),
-        };
-        const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
-          id: m.id || m.modelId,
-          enabled: (connectionsState.modalModelsSelection || new Set()).has(m.id || m.modelId),
-        }));
-        const accessUpdates = [];
-        const manualConnections = connectionsState.openai.connections
-          .filter((c) => !c.readOnly)
-          .map((conn) => ({
-            ...conn,
-            manualModels: normalizeConnectionManualModels(conn.manualModels),
-          }));
-        if (connectionsState.modalMode === 'update') {
-          const idx = manualConnections.findIndex((c) => c.id === newConnection.id);
-          if (idx !== -1) manualConnections[idx] = newConnection;
-        } else {
-          manualConnections.push(newConnection);
-          connectionsState.openai.connections.push(newConnection);
-        }
+        const modalValues = { name, url, keyValue, headers, providerType, providerFamily };
+        const newConnection = buildNewConnectionValues(modalValues, connectionsState);
+        const { modelUpdates, manualConnections } = buildSaveConnectionPayload(
+          newConnection,
+          connectionsState
+        );
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
           body: JSON.stringify({
             enabled: connectionsState.openai.enabled,
             connections: manualConnections,
             model_updates: modelUpdates,
-            access_updates: accessUpdates,
+            access_updates: [],
           }),
         });
         if (!res.ok) await parseApiError(res, 'Failed to save connection');
-        broadcastModelsInvalidation();
-        broadcastConnectionsInvalidation();
-        if (data) data.modelsSettingsInvalidate = Date.now();
+        handleSaveApiResponse(res, data);
         // connectionsState.loaded = false; // removed: optimistic save
         connectionsState.deletedManualModelIds = [];
         closeModal();
@@ -323,6 +270,92 @@ export function createConnectionsEventHandlers(deps) {
         );
       }
     });
+
+    function buildNewConnectionValues(modalValues, connectionsState) {
+      const resolvedUrl = resolveModalUrl(modalValues.providerType, modalValues.url);
+      return {
+        id: connectionsState.selectedConnection?.id || `conn_${Date.now()}`,
+        name: modalValues.name.trim(),
+        url: resolvedUrl,
+        key: modalValues.keyValue,
+        headers: modalValues.headers,
+        providerType: modalValues.providerType,
+        providerFamily: modalValues.providerFamily,
+        apiType: connectionApiTypeDetails(modalValues.providerType).value,
+        source: 'manual',
+        enabled: connectionsState.selectedConnection?.enabled !== false,
+        manualModels: buildConnectionManualModels(connectionsState),
+        manualModelsMode: buildConnectionManualModelsMode(connectionsState),
+      };
+    }
+
+    function handleSaveApiResponse(res, data) {
+      if (!res.ok) throw res;
+      broadcastModelsInvalidation();
+      broadcastConnectionsInvalidation();
+      if (data) data.modelsSettingsInvalidate = Date.now();
+    }
+
+    function buildConnectionManualModels(connectionsState) {
+      const models = buildSelectedConnectionModels(
+        connectionsState.modalModels || [],
+        connectionsState.modalModelsSelection || new Set(),
+        connectionsState.selectedConnection
+      );
+      const deleted = connectionsState.deletedManualModelIds || [];
+      if (!deleted.length) return models;
+      return models.filter((m) => !deleted.includes(m.modelId));
+    }
+
+    function buildConnectionManualModelsMode(connectionsState) {
+      return resolveConnectionModalSelectionMode(
+        connectionsState.modalModels || [],
+        connectionsState.modalModelsSelection || new Set()
+      );
+    }
+
+    function validateModalForm(name, url, providerType, showFeedback) {
+      if (!name.trim()) {
+        showFeedback('Name is required', 'error');
+        return false;
+      }
+      if (isCompatibleProviderType(providerType) && !url.trim()) {
+        showFeedback('URL is required for compatible providers', 'error');
+        return false;
+      }
+      return true;
+    }
+
+    function buildSaveConnectionPayload(newConnection, connectionsState) {
+      const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
+        id: m.id || m.modelId,
+        enabled: (connectionsState.modalModelsSelection || new Set()).has(m.id || m.modelId),
+      }));
+      const manualConnections = connectionsState.openai.connections
+        .filter((c) => !c.readOnly)
+        .map((conn) => ({
+          ...conn,
+          manualModels: normalizeConnectionManualModels(conn.manualModels),
+        }));
+      if (connectionsState.modalMode === 'update') {
+        const idx = manualConnections.findIndex((c) => c.id === newConnection.id);
+        if (idx !== -1) manualConnections[idx] = newConnection;
+      } else {
+        manualConnections.push(newConnection);
+        connectionsState.openai.connections.push(newConnection);
+      }
+      return { modelUpdates, manualConnections };
+    }
+
+    function collectModalFormValues(modalRoot) {
+      const name = modalRoot.querySelector('#modal-conn-name').value;
+      const url = modalRoot.querySelector('#modal-conn-url').value;
+      const keyValue = modalRoot.querySelector('#modal-conn-key').value;
+      const headers = modalRoot.querySelector('#modal-conn-headers').value;
+      const providerType = modalRoot.querySelector('#modal-conn-provider')?.value || 'openai';
+      const providerFamily = normalizeProviderFamily(providerType);
+      return { name, url, keyValue, headers, providerType, providerFamily };
+    }
 
     function applyProviderChangeUI(modalRoot, providerType) {
       const hint = modalRoot.querySelector('#modal-conn-provider-hint');
