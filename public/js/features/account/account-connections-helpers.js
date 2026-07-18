@@ -45,41 +45,84 @@ export function providerUrlPlaceholder(providerType) {
   }
 }
 
-export function normalizePersonalConnection(connection = {}) {
-  const headers =
-    connection.headers &&
+function normalizeConnectionId(connection) {
+  return String(connection.id || '').trim();
+}
+
+function normalizeConnectionName(connection) {
+  return String(connection.name || connection.id || '').trim();
+}
+
+function normalizeProviderTypeField(connection) {
+  return normalizeProviderType(
+    connection.provider_type || connection.providerType || 'openai-compatible'
+  );
+}
+
+function normalizeProviderFamilyField(connection) {
+  return (
+    String(connection.provider_family || connection.providerFamily || 'openai')
+      .trim()
+      .toLowerCase() || 'openai'
+  );
+}
+
+function normalizeBaseUrl(connection) {
+  return String(connection.base_url || connection.baseUrl || '').trim();
+}
+
+function normalizeAuthType(connection) {
+  return String(connection.auth_type || connection.authType || '')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeHasKey(connection) {
+  return connection.has_key !== undefined
+    ? Boolean(connection.has_key)
+    : Boolean(String(connection.key || '').trim());
+}
+
+function normalizeManualModelsMode(connection) {
+  return (
+    normalizeConnectionModelSelectionMode(
+      connection.manual_models_mode || connection.manualModelsMode
+    ) || 'all'
+  );
+}
+
+function normalizeHeaders(connection) {
+  return connection.headers &&
     typeof connection.headers === 'object' &&
     !Array.isArray(connection.headers)
-      ? connection.headers
-      : {};
+    ? connection.headers
+    : {};
+}
+
+function normalizeManualModels(connection) {
+  return Array.isArray(connection.manual_models || connection.manualModels)
+    ? [...(connection.manual_models || connection.manualModels)]
+    : [];
+}
+
+function normalizeNote(connection) {
+  return connection.note || connection.base_url || connection.baseUrl || '';
+}
+
+export function normalizePersonalConnection(connection = {}) {
   return {
-    id: String(connection.id || '').trim(),
-    name: String(connection.name || connection.id || '').trim(),
-    provider_type: normalizeProviderType(
-      connection.provider_type || connection.providerType || 'openai-compatible'
-    ),
-    provider_family:
-      String(connection.provider_family || connection.providerFamily || 'openai')
-        .trim()
-        .toLowerCase() || 'openai',
-    base_url: String(connection.base_url || connection.baseUrl || '').trim(),
-    auth_type: String(connection.auth_type || connection.authType || '')
-      .trim()
-      .toLowerCase(),
+    id: normalizeConnectionId(connection),
+    name: normalizeConnectionName(connection),
+    provider_type: normalizeProviderTypeField(connection),
+    provider_family: normalizeProviderFamilyField(connection),
+    base_url: normalizeBaseUrl(connection),
+    auth_type: normalizeAuthType(connection),
     enabled: connection.enabled !== false,
-    has_key:
-      connection.has_key !== undefined
-        ? Boolean(connection.has_key)
-        : Boolean(String(connection.key || '').trim()),
-    manualModelsMode:
-      normalizeConnectionModelSelectionMode(
-        connection.manual_models_mode || connection.manualModelsMode
-      ) || 'all',
-    headers,
-    manual_models: Array.isArray(connection.manual_models || connection.manualModels)
-      ? [...(connection.manual_models || connection.manualModels)]
-      : [],
-    note: connection.note || connection.base_url || connection.baseUrl || '',
+    has_key: normalizeHasKey(connection),
+    manualModelsMode: normalizeManualModelsMode(connection),
+    headers: normalizeHeaders(connection),
+    manual_models: normalizeManualModels(connection),
+    note: normalizeNote(connection),
   };
 }
 
