@@ -13,7 +13,6 @@ import {
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
-// fallow-ignore-next-line code-duplication
 // See CHAT_MESSAGE_PARAM_NAMES in chat-message-params.js for the canonical list
 export function bindChatMessageActions({
   messagesList,

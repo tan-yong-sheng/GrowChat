@@ -1,7 +1,6 @@
 /**
  * Model UI sync function for the models settings view.
  */
-// fallow-ignore-file security-sink
 
 import {
   computeProviderPaginationMeta,

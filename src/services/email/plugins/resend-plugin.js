@@ -28,7 +28,6 @@ export class ResendPlugin extends BaseEmailPlugin {
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-      // fallow-ignore-next-line security-sink
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {

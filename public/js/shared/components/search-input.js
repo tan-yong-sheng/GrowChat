@@ -29,7 +29,6 @@ export function renderSearchInput(inputEl) {
     }
 
     // Tokens are hard-coded and labels/descriptions are escaped before interpolation.
-    // fallow-ignore-next-line security-sink
     dropdown.innerHTML = tokens
       .map(
         (t, i) => `

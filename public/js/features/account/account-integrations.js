@@ -117,7 +117,6 @@ export function renderAccountIntegrationsSection(
     refreshPreferencesUi();
   }
 
-  // fallow-ignore-next-line code-duplication
   const persistPreferences = async ({ rollback = null } = {}) => {
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});

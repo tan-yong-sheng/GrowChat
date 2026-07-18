@@ -35,7 +35,6 @@ function renderAuditLogsTab(ctx, subContentEl) {
       subContentEl.appendChild(el);
     })
     .catch((err) => {
-      // fallow-ignore-next-line security-sink
       subContentEl.innerHTML = `<div class="p-8 text-center text-red-500">Failed to load audit logs: ${escapeHtml(String(err?.message || ''))}</div>`;
     });
 }
@@ -46,7 +45,6 @@ export function renderSettingsSubContent(ctx, subContentEl) {
     renderer(subContentEl, ctx.data, ctx.settingsModules);
     return;
   }
-  // fallow-ignore-next-line security-sink
   subContentEl.innerHTML = renderUnderDevPlaceholder(placeholderTitle('Settings', ctx.subTab));
 }
 
@@ -60,7 +58,6 @@ export function renderSystemSubContent(ctx, subContentEl) {
     renderer(subContentEl, ctx.data, ctx.systemModules);
     return;
   }
-  // fallow-ignore-next-line security-sink
   subContentEl.innerHTML = renderUnderDevPlaceholder(placeholderTitle('System', ctx.subTab));
 }
 
@@ -130,7 +127,6 @@ function buildGroupsOverviewCallbacks(ctx, callbacks) {
 function resolveOverviewRenderer(ctx) {
   if (ctx.data.error) {
     return (subContentEl) => {
-      // fallow-ignore-next-line security-sink
       subContentEl.innerHTML = renderErrorState(ctx.data.error);
     };
   }
@@ -144,7 +140,6 @@ function resolveOverviewRenderer(ctx) {
   }
   if (ctx.data.loading && ctx.data.loadingMode === 'initial') {
     return (subContentEl) => {
-      // fallow-ignore-next-line security-sink
       subContentEl.innerHTML = renderLoadingState();
     };
   }

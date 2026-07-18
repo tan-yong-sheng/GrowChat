@@ -148,7 +148,6 @@ export class SseLineParser {
     return parsedText || '';
   }
 
-  // fallow-ignore-next-line code-duplication
   push(rawText) {
     this._buf += rawText;
     let text = '';

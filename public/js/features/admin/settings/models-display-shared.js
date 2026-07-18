@@ -3,7 +3,6 @@
  * Extracted from the duplicated provider/pagination computation block
  * (CLONE GROUP: 22 lines, 186 tokens).
  */
-// fallow-ignore-file security-sink
 
 import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
 import { filterModelsBySearchAndProvider } from '../../../shared/utils/model-filters.js';

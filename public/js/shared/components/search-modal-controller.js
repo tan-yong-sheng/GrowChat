@@ -117,7 +117,6 @@ export function createSearchModalController(container, createChatFn, loadMessage
 
       // Preview renders chat messages fetched from the authenticated API; role is escaped
       // and message content is passed through the existing markdown renderer.
-      // fallow-ignore-next-line security-sink
       messagesBox.innerHTML = data.messages
         .map(
           (m) => `
@@ -148,13 +147,11 @@ export function createSearchModalController(container, createChatFn, loadMessage
     const { results, query } = state.search;
     if (results.length === 0 && !state.search.loading) {
       // renderSearchEmptyStateMarkup escapes the query before interpolating it.
-      // fallow-ignore-next-line security-sink
       searchList.innerHTML = renderSearchEmptyStateMarkup(query);
       return;
     }
 
     // renderSearchResultsMarkup escapes chat titles, date labels, and the query highlight.
-    // fallow-ignore-next-line security-sink
     searchList.innerHTML = renderSearchResultsMarkup(results, query);
 
     searchList.querySelectorAll('[data-search-chat]').forEach((btn) => {

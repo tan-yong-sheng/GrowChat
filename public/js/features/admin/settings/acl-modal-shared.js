@@ -2,7 +2,6 @@
  * Shared helpers for admin ACL group-access modals (models, connections, integrations).
  * Extracts duplicated pattern code to reduce jscpd clone clusters.
  */
-// fallow-ignore-file security-sink
 
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
