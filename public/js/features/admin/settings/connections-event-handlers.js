@@ -105,11 +105,7 @@ export function createConnectionsEventHandlers(deps) {
               const revertedEnabled = connection.enabled !== false;
               updateConnectionToggle(toggle, revertedEnabled);
               if (row) {
-                row.classList.toggle('opacity-70', !revertedEnabled);
-                const badge = row.querySelector('[data-connection-disabled-badge]');
-                if (badge) badge.classList.toggle('hidden', revertedEnabled);
-                const aclBtn = row.querySelector('.connection-acl-btn');
-                if (aclBtn) aclBtn.classList.toggle('hidden', !revertedEnabled || !canManageAcls);
+                updateRowForToggle(row, revertedEnabled, canManageAcls);
               }
               showFeedback(err?.message || 'Failed to save connection', 'error');
             }
@@ -328,22 +324,25 @@ export function createConnectionsEventHandlers(deps) {
       }
     });
 
-    container.querySelector('#modal-conn-provider')?.addEventListener('change', (e) => {
-      const modalRoot = container.querySelector('#edit-connection-modal') || container;
+    function applyProviderChangeUI(modalRoot, providerType) {
       const hint = modalRoot.querySelector('#modal-conn-provider-hint');
-      if (hint) hint.textContent = providerDisplayLabel(e.target.value);
+      if (hint) hint.textContent = providerDisplayLabel(providerType);
       const urlLabel = modalRoot.querySelector('#modal-conn-url-label');
-      if (urlLabel) urlLabel.textContent = resolveUrlLabel(e.target.value);
+      if (urlLabel) urlLabel.textContent = resolveUrlLabel(providerType);
       const urlInput = modalRoot.querySelector('#modal-conn-url');
       if (urlInput) {
-        const defaultUrl = providerUrlPlaceholder(e.target.value);
-        urlInput.placeholder = defaultUrl;
+        urlInput.placeholder = providerUrlPlaceholder(providerType);
         const nameInput = modalRoot.querySelector('#modal-conn-name');
-        if (nameInput) nameInput.placeholder = `e.g. ${providerDisplayLabel(e.target.value)}`;
+        if (nameInput) nameInput.placeholder = `e.g. ${providerDisplayLabel(providerType)}`;
       }
       const keyLabel = modalRoot.querySelector('#modal-conn-key-label');
       if (keyLabel) keyLabel.textContent = resolveKeyLabel();
-      updateApiTypeDisplay(modalRoot, e.target.value);
+      updateApiTypeDisplay(modalRoot, providerType);
+    }
+
+    container.querySelector('#modal-conn-provider')?.addEventListener('change', (e) => {
+      const modalRoot = container.querySelector('#edit-connection-modal') || container;
+      applyProviderChangeUI(modalRoot, e.target.value);
     });
 
     container.querySelector('#delete-connection')?.addEventListener('click', async () => {
