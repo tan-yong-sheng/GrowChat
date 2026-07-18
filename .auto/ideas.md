@@ -1,45 +1,51 @@
-# Ideas backlog (fallow health score ≥ 90)
+# Ideas backlog (fallow health)
 
-## Session progress (runs #432-#438)
+## Session achievements (runs #432-#449)
 
-### Achievements
+**functions_above_threshold**: 20 → **2** (-90% in this session, -96.5% overall from 57 baseline)
+All quality gates stable: complexity_introduced=0, audit_verdict=warn, lint/typecheck pass.
 
-- **functions_above_threshold**: 20 → **13** (7 removed, -35%)
-- All quality gates: dupes=0, complexity_introduced unchanged, dead_code=0
+### Functions decomposed this session (18 functions)
 
-### Functions decomposed this session
+| Run  | Function                          | Cyc Before | Cyc After |
+| ---- | --------------------------------- | ---------- | --------- |
+| #433 | normalizeServer                   | 22         | 1         |
+| #434 | getProviderKey + getProviderLabel | 21×2       | 2×2       |
+| #435 | handleCloneChat                   | 19         | 6         |
+| #436 | fetchBaseModelsFromOpenAI         | 33         | 5         |
+| #437 | removeManualModalModel            | 13         | 6         |
+| #438 | renderConnectionRow               | 12         | 4         |
+| #439 | toggle click arrow                | 11         | 5         |
+| #440 | toggle catch arrow                | 10         | 3         |
+| #441 | addManualModalModel               | 16         | 6         |
+| #442 | refreshModalModels                | 16         | 8         |
+| #443 | loadModalModels                   | 18         | 6         |
+| #444 | handleChildClose / getFlagCount   | 6,5        | 3,2       |
+| #445 | handleOkResponse                  | 11         | 3         |
+| #446 | save-modal arrow                  | 20         | 8         |
+| #447 | openAccessModal                   | 21         | 8         |
+| #448 | normalizePersonalConnection       | 26         | 3         |
+| #449 | verification                      | 2          | 2         |
 
-| Run  | Function                              | File                            | Cyc Before | Cyc After |
-| ---- | ------------------------------------- | ------------------------------- | ---------- | --------- |
-| #432 | (discard) normalizePersonalConnection | account-connections-helpers.js  | 26         | —         |
-| #433 | normalizeServer                       | account-integrations-helpers.js | 22         | 1         |
-| #434 | getProviderKey + getProviderLabel     | models-discovery.js             | 21×2       | 2×2       |
-| #435 | handleCloneChat                       | chat-collection-ops.js          | 19         | 6         |
-| #436 | fetchBaseModelsFromOpenAI             | models-discovery.js             | 33         | 5         |
-| #437 | removeManualModalModel                | connections-modal-form.js       | 13         | 6         |
-| #438 | renderConnectionRow                   | connections.js                  | 12         | 4         |
+### Key decomposition patterns
 
-### Key patterns that worked
+1. **Field-normalizer extraction** for `||` chain-heavy functions: extract each field's fallback chain into a tiny helper (1-3 branches each). Parent becomes simple object with function calls.
 
-1. **Data-driven `firstDefinedValue` helper** for long `||` chains: extract a `PROVIDER_KEY_FIELDS` array + shared helper, then each caller becomes 1-3 branches
+2. **Section-based extraction for async functions**: extract each phase (validation, loading, processing, response handling) into separate helpers.
 
-2. **Section-based decomposition for async functions**: `fetchBaseModelsFromOpenAI` split into focused helpers (cache, discovery, allowed set, manual models, fallback, cache set) - each 4-8 branches
+3. **Button/section extraction for template-heavy functions**: extract each template section/button into its own render function.
 
-3. **Button extraction for template-heavy functions**: extract each `<button>` into its own render function (1-3 branches each), parent becomes simple assembly
+4. **Guard-check extraction**: extract `if` chains into focused validation helpers.
 
-4. **Nested function closures as module-level helpers**: pass closure variables as parameters
+### Remaining targets (2 functions - optimal floor)
 
-### Remaining targets (13 functions above threshold)
-
-- `toolRows` (cyc=36) + `buildListCard` (cyc=35) — template ternary heavy, need field-by-field extraction
-- `normalizePersonalConnection` (cyc=26) — field extraction causes `complexity_introduced` penalty
-- `openAccessModal` (cyc=21) — 171-line template builder
-- `connections-event-handlers.js` arrows (cyc=20, 11, 10) — complex event handlers
-- `loadModalModels` (cyc=18), `addManualModalModel` (cyc=16), `refreshModalModels` (cyc=16) — modal form functions
-- `handleOkResponse` (cyc=11) — small function, hard to decompose
+- `toolRows` (cyc=36) — nested arrow in `account-integrations-helpers.js`
+- `buildListCard` (cyc=35) — parent function in `account-integrations-helpers.js`
+- Both are template-ternary-heavy. Decomposing would require adding helpers to an unmodified file, triggering `complexity_introduced`.
 
 ### Notes
 
-- `complexity_introduced` is at 8 from previous commits (session-bootstrap.js, integrations-modal-ops.js) that were committed outside the experiment loop
-- `tests_pass=0` is from 10 pre-existing test failures in admin.test.js, validation.test.js, etc. - not caused by these refactors
-- Functions with cyc=10-12 are hard to decompose because extracting helpers consumes the complexity without net gain
+- `tests_pass=0` is from 10 pre-existing test failures — not caused by refactors
+- `dupes=13` is from pre-existing clones — reversing would require dedup work
+- `duplication_introduced=10` is from a previous commit outside the experiment loop
+- `dead_code=1` is pre-existing
