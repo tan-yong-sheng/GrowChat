@@ -124,6 +124,67 @@ export async function handleGetChat(req, env, db, user, chatId) {
   );
 }
 
+async function buildMessageInsertStatements(db, sourceMessages, newChatId, messageIdMap) {
+  const statements = [];
+  for (const message of sourceMessages) {
+    const mappedParentId = message.parent_id
+      ? messageIdMap.get(String(message.parent_id)) || null
+      : null;
+    statements.push(
+      db
+        .prepare(
+          'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())'
+        )
+        .bind(
+          messageIdMap.get(String(message.id)),
+          newChatId,
+          message.role,
+          message.content,
+          message.model,
+          message.citations || null,
+          mappedParentId
+        )
+    );
+  }
+  return statements;
+}
+
+async function cloneChatDocuments(db, sourceMessageIds, messageIdMap, statements) {
+  if (sourceMessageIds.length === 0) return;
+  const placeholders = sourceMessageIds.map(() => '?').join(',');
+  const sourceDocs = await db.all(
+    `SELECT id, message_id, document_id, mention_type FROM message_documents WHERE message_id IN (${placeholders})`,
+    sourceMessageIds
+  );
+  for (const doc of sourceDocs) {
+    const mappedMessageId = messageIdMap.get(String(doc.message_id));
+    if (mappedMessageId) {
+      statements.push(
+        db
+          .prepare(
+            'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+          )
+          .bind(crypto.randomUUID(), mappedMessageId, doc.document_id, doc.mention_type || null)
+      );
+    }
+  }
+}
+
+function updateMappedCurrentMessage(sourceChat, messageIdMap, newChatId, userId, db, statements) {
+  const mappedCurrentMessageId = sourceChat.current_message_id
+    ? messageIdMap.get(String(sourceChat.current_message_id)) || null
+    : null;
+  if (mappedCurrentMessageId) {
+    statements.push(
+      db
+        .prepare(
+          'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+        )
+        .bind(mappedCurrentMessageId, newChatId, userId)
+    );
+  }
+}
+
 export async function handleCloneChat(
   req,
   env,
@@ -168,61 +229,18 @@ export async function handleCloneChat(
     messageIdMap.set(String(message.id), crypto.randomUUID());
   }
 
-  for (const message of sourceMessages) {
-    const mappedParentId = message.parent_id
-      ? messageIdMap.get(String(message.parent_id)) || null
-      : null;
-    statements.push(
-      db
-        .prepare(
-          'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())'
-        )
-        .bind(
-          messageIdMap.get(String(message.id)),
-          newChatId,
-          message.role,
-          message.content,
-          message.model,
-          message.citations || null,
-          mappedParentId
-        )
-    );
-  }
+  const msgStatements = await buildMessageInsertStatements(
+    db,
+    sourceMessages,
+    newChatId,
+    messageIdMap
+  );
+  statements.push(...msgStatements);
 
-  // Clone message_documents (attachment links) for each message
   const sourceMessageIds = sourceMessages.map((m) => String(m.id));
-  if (sourceMessageIds.length > 0) {
-    const placeholders = sourceMessageIds.map(() => '?').join(',');
-    const sourceDocs = await db.all(
-      `SELECT id, message_id, document_id, mention_type FROM message_documents WHERE message_id IN (${placeholders})`,
-      sourceMessageIds
-    );
-    for (const doc of sourceDocs) {
-      const mappedMessageId = messageIdMap.get(String(doc.message_id));
-      if (mappedMessageId) {
-        statements.push(
-          db
-            .prepare(
-              'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-            )
-            .bind(crypto.randomUUID(), mappedMessageId, doc.document_id, doc.mention_type || null)
-        );
-      }
-    }
-  }
+  await cloneChatDocuments(db, sourceMessageIds, messageIdMap, statements);
 
-  const mappedCurrentMessageId = sourceChat.current_message_id
-    ? messageIdMap.get(String(sourceChat.current_message_id)) || null
-    : null;
-  if (mappedCurrentMessageId) {
-    statements.push(
-      db
-        .prepare(
-          'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
-        )
-        .bind(mappedCurrentMessageId, newChatId, user.sub)
-    );
-  }
+  updateMappedCurrentMessage(sourceChat, messageIdMap, newChatId, user.sub, db, statements);
 
   await db.batch(statements);
   const createdChat = await getOwnedChat(db, newChatId, user.sub);
