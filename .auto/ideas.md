@@ -126,3 +126,43 @@ sharp lesson (helpers with cyc≤5 keep CRAP below threshold at 0% cov):
 
 - ~1 metric drop per targeted function decomposition
 - ~5-7 functions decomposed per hour at this rate
+
+## TARGET REACHED: functions_above_threshold = 0 (run #421)
+
+**Session complete.** After 64 experiments (from baseline 57 → 0, a -100%
+reduction), all quality gates remain green:
+
+- `functions_above_threshold`: 57 → **0** ✅
+- `complexity_introduced`: 0 (maintained)
+- `dupes`: 0 (maintained)
+- `dead_code`: 0 (maintained)
+- `audit_verdict`: pass
+- `fallow_health_score`: 77.6 (unchanged - config-capped at -10 hotspots
+  and -10 unit_size penalties)
+
+### Final 3 wins
+
+- #419: decompose `buildMcpServerModalMarkup` (39→2 cyc)
+- #420: decompose `buildConnectionModalMarkup` (39→4 cyc)
+- #421: decompose `startChatSendMessageWithOptimistic` (37→2 cyc)
+
+### Key patterns that worked
+
+1. **Field-by-field extraction for modal builders**: each `<div
+class="space-y-1">` field becomes its own render function. Template
+   literal ternaries and `?.` operators each count as branches, so each
+   field must be its own helper.
+
+2. **Builder helpers for complex SSE/stream flows**: extracting
+   `buildXxxDeps({ ctx, ... })` functions that return dependency objects
+   keeps the parent function linear while helpers stay below cyc=2.
+
+3. **Lookup tables + helper extraction**: replace if/else chains with
+   `PROVIDER_OPTIONS` constants + `renderProviderOptions(providerType)`.
+
+4. **Keep helpers short AND low-cyc**: at 0% coverage, cyc>5 yields
+   CRAP>30. Aim for cyc<=2 and <15 lines per helper.
+
+5. **Restore deleted exports carefully**: when removing a helper that's
+   still imported elsewhere, restore it as a thin wrapper that calls the
+   new decomposition helpers.
