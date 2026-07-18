@@ -53,21 +53,30 @@ export function createChatStreamController({
       }
     };
 
+    const isRunningStatus = (status) => status === 'streaming' || status === 'tool_running';
+
+    const isRunningResponse = (msg) => {
+      const status = String(msg?.status || '');
+      return msg?.role === 'assistant' && isRunningStatus(status);
+    };
+
+    const handleStreamStopIfNeeded = (isRunning) => {
+      if (!isRunning) {
+        if (typeof onStop === 'function') onStop();
+        stopStreamPolling(chatId);
+      }
+    };
+
     const handleOkResponse = async (res) => {
       failures = 0;
       const data = await res.json();
       const msg = data?.message;
       if (!msg) return;
-      const status = String(msg?.status || '');
-      const isRunning =
-        msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+      const isRunning = isRunningResponse(msg);
       if (typeof onMessage === 'function') {
         onMessage(msg, { isRunning, failures, startedAt });
       }
-      if (!isRunning) {
-        if (typeof onStop === 'function') onStop();
-        stopStreamPolling(chatId);
-      }
+      handleStreamStopIfNeeded(isRunning);
     };
 
     const handleErrorResponse = (res) => {
