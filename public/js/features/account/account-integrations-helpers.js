@@ -54,30 +54,60 @@ export function normalizeToolList(tools = []) {
   return (Array.isArray(tools) ? tools : []).map(normalizeTool).filter(Boolean);
 }
 
+function normalizeServerHeaders(server) {
+  return server.headers && typeof server.headers === 'object' && !Array.isArray(server.headers)
+    ? server.headers
+    : server.headers || '';
+}
+
+function normalizeServerId(server) {
+  return String(server.id || '').trim();
+}
+
+function normalizeServerName(server) {
+  return String(server.name || server.id || '').trim();
+}
+
+function normalizeServerUrl(server) {
+  return String(server.url || '').trim();
+}
+
+function normalizeServerAuthField(server, field) {
+  return String(server[field] || '').trim();
+}
+
+function normalizeServerOAuthField(server, field) {
+  return String(server[field] || '').trim();
+}
+
+function normalizeServerNote(server) {
+  return String(server.note || server.url || '').trim();
+}
+
+function normalizeServerTools(server) {
+  return normalizeToolList(server.tools);
+}
+
 export function normalizeServer(server = {}) {
-  const headers =
-    server.headers && typeof server.headers === 'object' && !Array.isArray(server.headers)
-      ? server.headers
-      : server.headers || '';
   return {
-    id: String(server.id || '').trim(),
-    name: String(server.name || server.id || '').trim(),
-    url: String(server.url || '').trim(),
-    headers,
+    id: normalizeServerId(server),
+    name: normalizeServerName(server),
+    url: normalizeServerUrl(server),
+    headers: normalizeServerHeaders(server),
     enabled: server.enabled !== false,
     auth_type: String(server.auth_type || 'none').toLowerCase(),
-    auth_bearer_token: String(server.auth_bearer_token || '').trim(),
-    auth_basic_username: String(server.auth_basic_username || '').trim(),
-    auth_basic_password: String(server.auth_basic_password || '').trim(),
-    oauth_client_name: String(server.oauth_client_name || '').trim(),
-    oauth_scope: String(server.oauth_scope || '').trim(),
-    oauth_client_id: String(server.oauth_client_id || '').trim(),
-    oauth_client_secret: String(server.oauth_client_secret || '').trim(),
-    oauth_token_auth_method: String(server.oauth_token_auth_method || '').trim(),
-    note: String(server.note || server.url || '').trim(),
+    auth_bearer_token: normalizeServerAuthField(server, 'auth_bearer_token'),
+    auth_basic_username: normalizeServerAuthField(server, 'auth_basic_username'),
+    auth_basic_password: normalizeServerAuthField(server, 'auth_basic_password'),
+    oauth_client_name: normalizeServerOAuthField(server, 'oauth_client_name'),
+    oauth_scope: normalizeServerOAuthField(server, 'oauth_scope'),
+    oauth_client_id: normalizeServerOAuthField(server, 'oauth_client_id'),
+    oauth_client_secret: normalizeServerOAuthField(server, 'oauth_client_secret'),
+    oauth_token_auth_method: normalizeServerOAuthField(server, 'oauth_token_auth_method'),
+    note: normalizeServerNote(server),
     oauth_connected: Boolean(server.oauth_connected),
     oauth_connected_at: server.oauth_connected_at || null,
-    tools: normalizeToolList(server.tools),
+    tools: normalizeServerTools(server),
     toolsExpanded: Boolean(server.toolsExpanded),
     toolsError: String(server.toolsError || '').trim(),
     visible_for_user: server.visible_for_user !== false,
