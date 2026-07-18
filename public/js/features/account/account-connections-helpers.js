@@ -45,41 +45,81 @@ export function providerUrlPlaceholder(providerType) {
   }
 }
 
-export function normalizePersonalConnection(connection = {}) {
-  const headers =
-    connection.headers &&
-    typeof connection.headers === 'object' &&
-    !Array.isArray(connection.headers)
-      ? connection.headers
-      : {};
-  return {
-    id: String(connection.id || '').trim(),
-    name: String(connection.name || connection.id || '').trim(),
-    provider_type: normalizeProviderType(
-      connection.provider_type || connection.providerType || 'openai-compatible'
-    ),
-    provider_family:
-      String(connection.provider_family || connection.providerFamily || 'openai')
-        .trim()
-        .toLowerCase() || 'openai',
-    base_url: String(connection.base_url || connection.baseUrl || '').trim(),
-    auth_type: String(connection.auth_type || connection.authType || '')
+function normalizePersonalConnectionId(connection) {
+  return String(connection.id || '').trim();
+}
+
+function normalizePersonalConnectionName(connection) {
+  return String(connection.name || connection.id || '').trim();
+}
+
+function normalizePersonalProviderType(connection) {
+  return normalizeProviderType(
+    connection.provider_type || connection.providerType || 'openai-compatible'
+  );
+}
+
+function normalizePersonalProviderFamily(connection) {
+  return (
+    String(connection.provider_family || connection.providerFamily || 'openai')
       .trim()
-      .toLowerCase(),
+      .toLowerCase() || 'openai'
+  );
+}
+
+function normalizePersonalBaseUrl(connection) {
+  return String(connection.base_url || connection.baseUrl || '').trim();
+}
+
+function normalizePersonalAuthType(connection) {
+  return String(connection.auth_type || connection.authType || '')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizePersonalHasKey(connection) {
+  if (connection.has_key !== undefined) return Boolean(connection.has_key);
+  return Boolean(String(connection.key || '').trim());
+}
+
+function normalizePersonalManualModelsMode(connection) {
+  return (
+    normalizeConnectionModelSelectionMode(
+      connection.manual_models_mode || connection.manualModelsMode
+    ) || 'all'
+  );
+}
+
+function normalizePersonalManualModels(connection) {
+  const raw = connection.manual_models || connection.manualModels;
+  if (Array.isArray(raw)) return [...raw];
+  return [];
+}
+
+function normalizePersonalNote(connection) {
+  return connection.note || connection.base_url || connection.baseUrl || '';
+}
+
+function normalizePersonalHeaders(connection) {
+  const h = connection.headers;
+  if (h && typeof h === 'object' && !Array.isArray(h)) return h;
+  return {};
+}
+
+export function normalizePersonalConnection(connection = {}) {
+  return {
+    id: normalizePersonalConnectionId(connection),
+    name: normalizePersonalConnectionName(connection),
+    provider_type: normalizePersonalProviderType(connection),
+    provider_family: normalizePersonalProviderFamily(connection),
+    base_url: normalizePersonalBaseUrl(connection),
+    auth_type: normalizePersonalAuthType(connection),
     enabled: connection.enabled !== false,
-    has_key:
-      connection.has_key !== undefined
-        ? Boolean(connection.has_key)
-        : Boolean(String(connection.key || '').trim()),
-    manualModelsMode:
-      normalizeConnectionModelSelectionMode(
-        connection.manual_models_mode || connection.manualModelsMode
-      ) || 'all',
-    headers,
-    manual_models: Array.isArray(connection.manual_models || connection.manualModels)
-      ? [...(connection.manual_models || connection.manualModels)]
-      : [],
-    note: connection.note || connection.base_url || connection.baseUrl || '',
+    has_key: normalizePersonalHasKey(connection),
+    manualModelsMode: normalizePersonalManualModelsMode(connection),
+    headers: normalizePersonalHeaders(connection),
+    manual_models: normalizePersonalManualModels(connection),
+    note: normalizePersonalNote(connection),
   };
 }
 
