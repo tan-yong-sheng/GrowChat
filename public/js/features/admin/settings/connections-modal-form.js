@@ -160,20 +160,67 @@ export function createConnectionsModalForm(deps) {
     setTestStatus('idle', '', scope);
   };
 
-  const addManualModalModel = (scope = container) => {
-    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
+  function getModalConnection(scope, connectionsState) {
     const connection = connectionsState.selectedConnection;
-    if (!connection?.id || connection?.readOnly) return;
-    const input = modalRoot.querySelector('#modal-manual-model-id');
-    if (!input) return;
+    if (!connection?.id || connection?.readOnly) return null;
+    return connection;
+  }
+
+  function getModelInputValue(scope) {
+    const input = scope.querySelector('#modal-manual-model-id');
+    if (!input) return null;
     const raw = String(input.value || '').trim();
     const safe = raw.replace(/^models\//i, '');
-    if (!safe) {
+    if (!safe) return null;
+    return { input, safe };
+  }
+
+  function resolveModelFullId(connection, safe) {
+    const providerId = getConnectionProviderId(connection);
+    const fullId = formatConnectionModelId(providerId, safe);
+    if (!fullId) return null;
+    return fullId;
+  }
+
+  function upsertModalModel(nextModels, manualRecord, fullId, safe) {
+    const existingIndex = nextModels.findIndex((model) => model.id === fullId);
+    if (existingIndex === -1) {
+      nextModels.push(manualRecord);
+    } else {
+      nextModels[existingIndex] = {
+        ...nextModels[existingIndex],
+        ...manualRecord,
+        manual: true,
+        manualModelId: safe,
+      };
+    }
+    return nextModels;
+  }
+
+  function addModelToManualModels(connection, safe) {
+    const nextManualModels = normalizeConnectionManualModels(connection.manualModels);
+    if (!nextManualModels.some((model) => model.modelId === safe)) {
+      nextManualModels.push({ modelId: safe, name: safe });
+    }
+    return nextManualModels;
+  }
+
+  function clearDeletedModelTombstones(state, safe, fullId) {
+    if (!Array.isArray(state.deletedManualModelIds)) return [];
+    return state.deletedManualModelIds.filter((id) => id !== safe && id !== fullId);
+  }
+
+  const addManualModalModel = (scope = container) => {
+    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
+    const connection = getModalConnection(scope, connectionsState);
+    if (!connection) return;
+    const modelInput = getModelInputValue(scope);
+    if (!modelInput) {
       setTestStatus('error', 'Model name is required', modalRoot);
       return;
     }
-    const providerId = getConnectionProviderId(connection);
-    const fullId = formatConnectionModelId(providerId, safe);
+    const { input, safe } = modelInput;
+    const fullId = resolveModelFullId(connection, safe);
     if (!fullId) {
       setTestStatus('error', 'Model name is required', modalRoot);
       return;
@@ -187,21 +234,8 @@ export function createConnectionsModalForm(deps) {
       manual: true,
       manualModelId: safe,
     });
-    const existingIndex = nextModels.findIndex((model) => model.id === fullId);
-    if (existingIndex === -1) {
-      nextModels.push(manualRecord);
-    } else {
-      nextModels[existingIndex] = {
-        ...nextModels[existingIndex],
-        ...manualRecord,
-        manual: true,
-        manualModelId: safe,
-      };
-    }
-    const nextManualModels = normalizeConnectionManualModels(connection.manualModels);
-    if (!nextManualModels.some((model) => model.modelId === safe)) {
-      nextManualModels.push({ modelId: safe, name: safe });
-    }
+    upsertModalModel(nextModels, manualRecord, fullId, safe);
+    addModelToManualModels(connection, safe);
     connectionsState.modalModelsError = null;
     connectionsState.modalModelsLoading = false;
     // Note: we intentionally do NOT mutate connection.manualModels here. The
@@ -217,11 +251,11 @@ export function createConnectionsModalForm(deps) {
     connectionsState.modalModelsOriginal.add(fullId);
     // Clear any tombstone from a previous remove of the same model so the
     // re-add isn't silently filtered out by buildSelectedConnectionModels().
-    if (Array.isArray(connectionsState.deletedManualModelIds)) {
-      connectionsState.deletedManualModelIds = connectionsState.deletedManualModelIds.filter(
-        (id) => id !== safe && id !== fullId
-      );
-    }
+    connectionsState.deletedManualModelIds = clearDeletedModelTombstones(
+      connectionsState,
+      safe,
+      fullId
+    );
     input.value = '';
     renderModalModels(connectionsState, modalRoot);
   };
