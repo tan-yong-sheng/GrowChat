@@ -363,7 +363,11 @@ function applyChatsState(
     resetConversationState = false,
   } = {}
 ) {
-  const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
+  const nextChatsData = injectTempChat({
+    chats: chatsData.chats || [],
+    routeChatId,
+    modelId: initialModelId,
+  });
   const resetState = buildResetConversationState(
     resetConversationState,
     initialModelId,
@@ -374,7 +378,7 @@ function applyChatsState(
     user,
     chats: nextChatsData,
     chatsPagination: buildChatsPagination(chatsData),
-    activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
+    activeChatId: resolveActiveChatId({ routeChatId, chats: chatsData.chats, isHomeRoute }),
     ...(resetState || {}),
   });
 }

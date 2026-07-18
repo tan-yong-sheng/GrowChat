@@ -19,7 +19,7 @@ export function buildTempChatStub(id, modelId = null) {
   };
 }
 
-export function injectTempChat(chats, routeChatId, modelId = null) {
+export function injectTempChat({ chats, routeChatId, modelId = null }) {
   if (!routeChatId || !isTempChatId(routeChatId)) return chats;
   const exists = (chats || []).some((chat) => String(chat?.id) === String(routeChatId));
   if (exists) return chats;
@@ -27,7 +27,7 @@ export function injectTempChat(chats, routeChatId, modelId = null) {
   return [tempChat, ...(chats || [])];
 }
 
-export function resolveActiveChatId(routeChatId, chats, isHomeRoute) {
+export function resolveActiveChatId({ routeChatId, chats, isHomeRoute }) {
   if (routeChatId) return routeChatId;
   if (isHomeRoute) return null;
   return chats?.[0]?.id || null;
