@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 const SSE_PREFIX_LENGTH = 6;
 const HOURS_PER_DAY = 24;
 const MINUTES_PER_HOUR = 60;

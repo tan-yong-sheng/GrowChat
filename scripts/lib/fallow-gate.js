@@ -1,5 +1,3 @@
-// fallow-ignore-file code-duplication
-
 /**
  * Shared helper: collect stdout/stderr from a fallow child process.
  *

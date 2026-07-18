@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 // share the same message-iteration pattern but produce different payload shapes.
 // The content-to-parts conversion (GoogleParts vs AnthropicBlocks) and tool-call
 // assembly are structurally distinct per provider and cannot be safely shared.

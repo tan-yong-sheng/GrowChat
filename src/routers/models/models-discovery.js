@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 /**
  * Model Discovery and Formatting Helpers
  *
@@ -244,7 +243,9 @@ export function matchesModelQuery(model, query) {
 }
 
 function fieldMatchesQuery(value, loweredQuery) {
-  return String(value || '').toLowerCase().includes(loweredQuery);
+  return String(value || '')
+    .toLowerCase()
+    .includes(loweredQuery);
 }
 
 // fallow-ignore-next-line complexity

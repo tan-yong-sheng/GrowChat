@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
 import {

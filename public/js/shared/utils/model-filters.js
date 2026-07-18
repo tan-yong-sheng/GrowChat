@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 import { filterModelsBySearch, normalizeModelSearchQuery } from './model-search.js';
 
 const PROVIDER_NAME_FIELDS = [

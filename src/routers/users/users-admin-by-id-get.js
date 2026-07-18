@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';

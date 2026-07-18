@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 import {
   DEFAULT_REASONING_TAGS,
   getPotentialStartIndex,

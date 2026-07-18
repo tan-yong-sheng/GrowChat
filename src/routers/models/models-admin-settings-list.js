@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 import { error, json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
