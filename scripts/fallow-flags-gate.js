@@ -19,9 +19,17 @@ function exitWithChildError(code) {
   process.exit(code ?? 1);
 }
 
+function getFlagTotal(parsed) {
+  return parsed?.summary?.total;
+}
+
+function getFlagFindingsCount(parsed) {
+  return parsed?.findings?.length;
+}
+
 function getFlagCount() {
   const parsed = JSON.parse(output.stdout);
-  return parsed?.summary?.total ?? parsed?.findings?.length ?? 0;
+  return getFlagTotal(parsed) ?? getFlagFindingsCount(parsed) ?? 0;
 }
 
 function exitWithFlagsFound() {

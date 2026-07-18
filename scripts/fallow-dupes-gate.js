@@ -37,24 +37,25 @@ const child = spawn('fallow', ['dupes', '--format', 'json', '--quiet', ...fallow
 
 const output = collectOutput(child);
 
+function enforceDuplicationThreshold(output, threshold) {
+  const parsed = JSON.parse(output.stdout);
+  const pct = parsed.stats.duplication_percentage;
+  if (pct > threshold && threshold > 0) {
+    process.stderr.write(`\n❌ Duplication ${pct.toFixed(2)}% exceeds threshold ${threshold}%\n`);
+    process.exit(1);
+  }
+  process.stderr.write(`\n✓ Duplication ${pct.toFixed(2)}% within threshold ${threshold}%\n`);
+  process.stdout.write(output.stdout);
+  process.exit(0);
+}
+
 function handleChildClose(code) {
   if (code !== 0 && code !== null) {
     process.stderr.write(`fallow exited ${code}: ${output.stderr}`);
     process.exit(code);
   }
-
   try {
-    const parsed = JSON.parse(output.stdout);
-    const pct = parsed.stats.duplication_percentage;
-
-    if (pct > threshold && threshold > 0) {
-      process.stderr.write(`\n❌ Duplication ${pct.toFixed(2)}% exceeds threshold ${threshold}%\n`);
-      process.exit(1);
-    }
-
-    process.stderr.write(`\n✓ Duplication ${pct.toFixed(2)}% within threshold ${threshold}%\n`);
-    process.stdout.write(output.stdout);
-    process.exit(0);
+    enforceDuplicationThreshold(output, threshold);
   } catch {
     // fallow exited 0 but produced no JSON (unlikely); pass through
     process.stderr.write(`\n! Failed to parse fallow output\n`);
