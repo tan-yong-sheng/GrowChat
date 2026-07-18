@@ -67,6 +67,14 @@ export function createConnectionsEventHandlers(deps) {
     });
 
     const list = container.querySelector('#connections-list');
+    function updateRowForToggle(row, enabled, canManageAcls) {
+      row.classList.toggle('opacity-70', !enabled);
+      const badge = row.querySelector('[data-connection-disabled-badge]');
+      if (badge) badge.classList.toggle('hidden', enabled);
+      const aclBtn = row.querySelector('.connection-acl-btn');
+      if (aclBtn) aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
+    }
+
     list?.addEventListener('click', (e) => {
       const toggle = e.target.closest('.connection-toggle');
       if (toggle) {
@@ -80,11 +88,7 @@ export function createConnectionsEventHandlers(deps) {
           const row = toggle.closest('[data-connection-row]');
           updateConnectionToggle(toggle, enabled);
           if (row) {
-            row.classList.toggle('opacity-70', !enabled);
-            const badge = row.querySelector('[data-connection-disabled-badge]');
-            if (badge) badge.classList.toggle('hidden', enabled);
-            const aclBtn = row.querySelector('.connection-acl-btn');
-            if (aclBtn) aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
+            updateRowForToggle(row, enabled, canManageAcls);
           }
           (async () => {
             try {
