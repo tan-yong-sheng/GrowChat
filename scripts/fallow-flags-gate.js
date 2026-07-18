@@ -14,26 +14,38 @@ const child = spawn('fallow', ['flags', '--format', 'json', ...args], {
 
 const output = collectOutput(child);
 
-// fallow-ignore-next-line complexity
+function exitWithChildError(code) {
+  process.stderr.write(output.stderr);
+  process.exit(code ?? 1);
+}
+
+function getFlagCount() {
+  const parsed = JSON.parse(output.stdout);
+  return parsed?.summary?.total ?? parsed?.findings?.length ?? 0;
+}
+
+function exitWithFlagsFound() {
+  process.stdout.write(output.stdout);
+  process.exit(1);
+}
+
+function exitClean() {
+  process.stdout.write(output.stdout);
+  process.exit(0);
+}
+
 function handleChildClose(code) {
-  // eslint-disable-line complexity
   if (code !== 0) {
-    process.stderr.write(output.stderr);
-    process.exit(code ?? 1);
+    exitWithChildError(code);
   }
 
   try {
-    const parsed = JSON.parse(output.stdout);
-    const total = parsed?.summary?.total ?? parsed?.findings?.length ?? 0;
-    if (total > 0) {
-      process.stdout.write(output.stdout);
-      process.exit(1);
+    if (getFlagCount() > 0) {
+      exitWithFlagsFound();
     }
-    process.stdout.write(output.stdout);
-    process.exit(0);
+    exitClean();
   } catch {
-    process.stdout.write(output.stdout);
-    process.exit(0);
+    exitClean();
   }
 }
 

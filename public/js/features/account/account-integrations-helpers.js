@@ -54,7 +54,6 @@ export function normalizeToolList(tools = []) {
   return (Array.isArray(tools) ? tools : []).map(normalizeTool).filter(Boolean);
 }
 
-// fallow-ignore-next-line complexity
 export function normalizeServer(server = {}) {
   const headers =
     server.headers && typeof server.headers === 'object' && !Array.isArray(server.headers)
@@ -100,7 +99,6 @@ export function buildFormMarkup(server = null, modalMode = 'create', canManage =
   });
 }
 
-// fallow-ignore-next-line complexity
 export function buildListCard(
   server,
   canManageToolServers = true,
@@ -131,7 +129,6 @@ export function buildListCard(
     : serverEnabled
       ? 'Disable server'
       : 'Enable server';
-  // fallow-ignore-next-line complexity
   const toolRows = tools.map((tool) => {
     const { description, preview, hasMore, isExpanded } = prepareToolPreview(tool);
     const toolEnabled = tool.enabled !== false;

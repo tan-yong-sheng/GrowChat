@@ -1,7 +1,6 @@
 /**
  * Modal operation helpers for the integrations settings view.
  */
-// fallow-ignore-file complexity
 
 import { apiFetch } from '../../../shared/api.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';

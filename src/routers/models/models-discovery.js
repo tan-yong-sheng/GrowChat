@@ -36,7 +36,6 @@ import {
 
 const rootLogger = createRootLogger({});
 
-// fallow-ignore-next-line complexity
 export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger = rootLogger) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
   const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
@@ -248,7 +247,6 @@ function fieldMatchesQuery(value, loweredQuery) {
     .includes(loweredQuery);
 }
 
-// fallow-ignore-next-line complexity
 export function getProviderKey(model) {
   const raw =
     model?.connection_name ||
@@ -267,7 +265,6 @@ export function getProviderKey(model) {
   return normalized || 'unknown';
 }
 
-// fallow-ignore-next-line complexity
 export function getProviderLabel(model) {
   const raw =
     model?.connection_name ||

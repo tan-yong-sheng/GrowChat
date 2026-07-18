@@ -37,7 +37,6 @@ const child = spawn('fallow', ['dupes', '--format', 'json', '--quiet', ...fallow
 
 const output = collectOutput(child);
 
-// fallow-ignore-next-line complexity
 function handleChildClose(code) {
   if (code !== 0 && code !== null) {
     process.stderr.write(`fallow exited ${code}: ${output.stderr}`);

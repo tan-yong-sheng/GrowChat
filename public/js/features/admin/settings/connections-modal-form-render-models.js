@@ -2,8 +2,6 @@
  * Extracted: renderModalModels - renders the model list in the connection modal.
  * Moved from connections-modal-form.js to reduce its file size.
  */
-// fallow-ignore-file complexity
-// fallow-ignore-file security-sink
 
 import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';

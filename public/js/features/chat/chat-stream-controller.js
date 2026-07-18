@@ -53,7 +53,6 @@ export function createChatStreamController({
       }
     };
 
-    // fallow-ignore-next-line complexity
     const handleOkResponse = async (res) => {
       failures = 0;
       const data = await res.json();

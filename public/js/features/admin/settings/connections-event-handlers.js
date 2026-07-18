@@ -4,7 +4,6 @@
  * Factory function that creates the bindEvents function and
  * related event handlers, bound to the shared state.
  */
-// fallow-ignore-file complexity
 
 import { apiFetch, parseApiError } from '../../../shared/api.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';

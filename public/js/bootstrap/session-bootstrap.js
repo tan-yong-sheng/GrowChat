@@ -95,7 +95,6 @@ function handlePrefetchError(err, { requestGeneration, allowCache }) {
   return null;
 }
 
-// fallow-ignore-next-line complexity
 export function prefetchModels({ allowCache = true, cacheBust = null, force = false } = {}) {
   if (modelsPrefetchPromise && !force && !cacheBust) return modelsPrefetchPromise;
   if (!state.models?.length) {
@@ -246,7 +245,6 @@ async function initRBAC(user, preloaded = null) {
   }
 }
 
-// fallow-ignore-next-line complexity
 export async function ensureSession({ preferRefresh = false } = {}) {
   if (bootstrapped) return true;
 

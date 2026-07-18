@@ -45,7 +45,6 @@ export function providerUrlPlaceholder(providerType) {
   }
 }
 
-// fallow-ignore-next-line complexity
 export function normalizePersonalConnection(connection = {}) {
   const headers =
     connection.headers &&

@@ -124,7 +124,6 @@ export async function handleGetChat(req, env, db, user, chatId) {
   );
 }
 
-// fallow-ignore-next-line complexity
 export async function handleCloneChat(
   req,
   env,

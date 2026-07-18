@@ -1,5 +1,3 @@
-// fallow-ignore-file complexity
-// fallow-ignore-file security-sink
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { apiFetch, parseApiError } from '../../../shared/api.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';

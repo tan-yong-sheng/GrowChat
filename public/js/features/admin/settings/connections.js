@@ -91,7 +91,6 @@ export function renderConnectionsSettings(container, data) {
       const key = `${conn?.source || 'manual'}::${conn?.id || ''}::${conn?.url || ''}`;
       if (!deduped.has(key)) deduped.set(key, conn);
     });
-    // fallow-ignore-next-line complexity
     function renderConnectionRow(conn) {
       const safeId = escapeHtml(conn.id);
       const safeName = escapeHtml(conn.name || providerDisplayLabel(conn.providerType));
