@@ -247,18 +247,28 @@ function fieldMatchesQuery(value, loweredQuery) {
     .includes(loweredQuery);
 }
 
+const PROVIDER_KEY_FIELDS = [
+  'connection_name',
+  'connectionName',
+  'provider_id',
+  'providerId',
+  'provider_family',
+  'providerFamily',
+  'provider_type',
+  'providerType',
+  'provider',
+];
+
+function firstDefinedValue(obj, fields) {
+  for (const field of fields) {
+    const value = obj?.[field];
+    if (value) return value;
+  }
+  return '';
+}
+
 export function getProviderKey(model) {
-  const raw =
-    model?.connection_name ||
-    model?.connectionName ||
-    model?.provider_id ||
-    model?.providerId ||
-    model?.provider_family ||
-    model?.providerFamily ||
-    model?.provider_type ||
-    model?.providerType ||
-    model?.provider ||
-    '';
+  const raw = firstDefinedValue(model, PROVIDER_KEY_FIELDS);
   const normalized = String(raw || '')
     .trim()
     .toLowerCase();
@@ -266,18 +276,7 @@ export function getProviderKey(model) {
 }
 
 export function getProviderLabel(model) {
-  const raw =
-    model?.connection_name ||
-    model?.connectionName ||
-    model?.provider_id ||
-    model?.providerId ||
-    model?.provider_family ||
-    model?.providerFamily ||
-    model?.provider_type ||
-    model?.providerType ||
-    model?.provider ||
-    '';
-  const trimmed = String(raw || '').trim();
+  const trimmed = String(firstDefinedValue(model, PROVIDER_KEY_FIELDS) || '').trim();
   return trimmed || 'unknown';
 }
 
