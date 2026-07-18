@@ -36,75 +36,85 @@ import {
 
 const rootLogger = createRootLogger({});
 
-export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger = rootLogger) {
-  const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
-  const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
-  const discovered = [];
-  const discoveredIds = new Set();
-  const uniqueConnections = dedupeConnectionConfigs(connections);
-
+function fetchDiscoveryCache(env, uniqueConnections, allowSet) {
   const now = Date.now();
   const connectionDiscoveryCache = getConnectionDiscoveryCache(env);
   pruneExpiredConnectionDiscoveryCache(connectionDiscoveryCache, now);
   const cacheKey = createConnectionDiscoveryCacheKey(env, uniqueConnections, allowSet);
   const cached = connectionDiscoveryCache.get(cacheKey);
   if (cached && cached.expiresAt > now && Array.isArray(cached.models)) {
-    return cached.models.map((model) => ({ ...model }));
+    return {
+      cached: cached.models.map((model) => ({ ...model })),
+      connectionDiscoveryCache,
+      cacheKey,
+    };
   }
+  return { connectionDiscoveryCache, cacheKey };
+}
 
+async function runDiscoveryOnConnection(conn, allowSet, discoveredIds, discovered) {
+  const context = buildConnectionModelContext(conn);
+  const { providerId } = context;
+  const discovery = await discoverConnectionModels(conn);
+  if (!discovery.items.length) {
+    const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
+    if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
+      rootLogger.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
+    }
+    return;
+  }
+  for (const item of discovery.items) {
+    addDiscoveredModel(
+      item,
+      providerId,
+      allowSet,
+      discoveredIds,
+      discovered,
+      conn,
+      discovery.url || conn.baseUrl,
+      context
+    );
+  }
+}
+
+function addDiscoveredModel(
+  item,
+  providerId,
+  allowSet,
+  discoveredIds,
+  discovered,
+  conn,
+  sourceUrl,
+  context
+) {
+  const rawId = normalizeConnectionModelId(providerId, extractConnectionModelId(item));
+  if (!rawId) return;
+  if (allowSet && !allowSet.has(rawId)) return;
+  const fullId = formatModelId(providerId, rawId);
+  if (discoveredIds.has(fullId)) return;
+  discoveredIds.add(fullId);
+  discovered.push(
+    buildDiscoveredModel(conn, providerId, rawId, `Model discovered from ${sourceUrl}`, context)
+  );
+}
+
+function addRemainingAllowedSetModels(allowSet, uniqueConnections, discoveredIds, discovered) {
+  if (!allowSet || uniqueConnections.length === 0) return;
   for (const conn of uniqueConnections) {
-    try {
-      const context = buildConnectionModelContext(conn);
-      const { providerId } = context;
-      const discovery = await discoverConnectionModels(conn);
-      if (!discovery.items.length) {
-        const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
-        if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
-          rootLogger.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
-        }
-        continue;
-      }
-
-      for (const item of discovery.items) {
-        const rawId = normalizeConnectionModelId(providerId, extractConnectionModelId(item));
-        if (!rawId) continue;
-        if (allowSet && !allowSet.has(rawId)) continue;
-        const fullId = formatModelId(providerId, rawId);
-        if (discoveredIds.has(fullId)) continue;
-        discoveredIds.add(fullId);
-        discovered.push(
-          buildDiscoveredModel(
-            conn,
-            providerId,
-            rawId,
-            `Model discovered from ${discovery.url || conn.baseUrl}`,
-            context
-          )
-        );
-      }
-    } catch (err) {
-      rootLogger.warn('Model discovery error', {
-        baseUrl: conn.baseUrl,
-        error: err?.message || err,
-      });
+    const context = buildConnectionModelContext(conn);
+    const { providerId } = context;
+    for (const rawId of allowSet) {
+      const fullId = formatModelId(providerId, rawId);
+      if (discoveredIds.has(fullId)) continue;
+      discoveredIds.add(fullId);
+      discovered.push(
+        buildDiscoveredModel(conn, providerId, rawId, 'Configured via OPENAI_MODELS', context)
+      );
     }
   }
+}
 
-  if (allowSet && uniqueConnections.length > 0) {
-    for (const conn of uniqueConnections) {
-      const context = buildConnectionModelContext(conn);
-      const { providerId } = context;
-      for (const rawId of allowSet) {
-        const fullId = formatModelId(providerId, rawId);
-        if (discoveredIds.has(fullId)) continue;
-        discoveredIds.add(fullId);
-        discovered.push(
-          buildDiscoveredModel(conn, providerId, rawId, 'Configured via OPENAI_MODELS', context)
-        );
-      }
-    }
-  }
-
+function addManualDiscoveryModels(uniqueConnections, discoveredIds, discovered) {
   for (const conn of uniqueConnections) {
     const context = buildConnectionModelContext(conn);
     const { providerId, manualModels } = context;
@@ -129,33 +139,66 @@ export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger =
       );
     }
   }
+}
 
-  if (discovered.length === 0 && env.DEFAULT_MODELS && uniqueConnections.length > 0) {
-    const defaults = splitModelList(env.DEFAULT_MODELS);
-    const fallbackModel = defaults[0];
-    if (fallbackModel) {
-      const conn = uniqueConnections[0];
-      const context = buildConnectionModelContext(conn);
-      const { providerId } = context;
-      discovered.push(
-        buildDiscoveredModel(
-          conn,
-          providerId,
-          fallbackModel,
-          'Configured via DEFAULT_MODELS environment variable',
-          context,
-          { name: fallbackModel }
-        )
-      );
-    }
-  }
+function addFallbackDefaultModel(env, uniqueConnections, discovered) {
+  if (discovered.length > 0 || !env.DEFAULT_MODELS || uniqueConnections.length === 0) return;
+  const defaults = splitModelList(env.DEFAULT_MODELS);
+  const fallbackModel = defaults[0];
+  if (!fallbackModel) return;
+  const conn = uniqueConnections[0];
+  const context = buildConnectionModelContext(conn);
+  const { providerId } = context;
+  discovered.push(
+    buildDiscoveredModel(
+      conn,
+      providerId,
+      fallbackModel,
+      'Configured via DEFAULT_MODELS environment variable',
+      context,
+      { name: fallbackModel }
+    )
+  );
+}
 
+function setDiscoveryCache(connectionDiscoveryCache, cacheKey, discovered) {
   connectionDiscoveryCache.set(cacheKey, {
     expiresAt: Date.now() + CONNECTION_DISCOVERY_CACHE_TTL_MS,
     models: discovered.map((model) => ({ ...model })),
   });
-
   return discovered;
+}
+
+export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger = rootLogger) {
+  const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
+  const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
+  const discovered = [];
+  const discoveredIds = new Set();
+  const uniqueConnections = dedupeConnectionConfigs(connections);
+
+  const { cached, connectionDiscoveryCache, cacheKey } = fetchDiscoveryCache(
+    env,
+    uniqueConnections,
+    allowSet
+  );
+  if (cached) return cached;
+
+  for (const conn of uniqueConnections) {
+    try {
+      await runDiscoveryOnConnection(conn, allowSet, discoveredIds, discovered);
+    } catch (err) {
+      rootLogger.warn('Model discovery error', {
+        baseUrl: conn.baseUrl,
+        error: err?.message || err,
+      });
+    }
+  }
+
+  addRemainingAllowedSetModels(allowSet, uniqueConnections, discoveredIds, discovered);
+  addManualDiscoveryModels(uniqueConnections, discoveredIds, discovered);
+  addFallbackDefaultModel(env, uniqueConnections, discovered);
+
+  return setDiscoveryCache(connectionDiscoveryCache, cacheKey, discovered);
 }
 
 export function toPublicModel(model) {
