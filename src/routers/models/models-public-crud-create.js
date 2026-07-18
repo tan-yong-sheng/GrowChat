@@ -64,8 +64,6 @@ function buildNewModel(body) {
     created_at: Math.floor(Date.now() / 1000),
   };
 }
-
-/* eslint-disable max-params, max-statements -- handler orchestrates multiple steps */
 export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;

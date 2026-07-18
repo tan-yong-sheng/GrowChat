@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable max-lines -- single-file orchestrator with many distinct phases */
+/* single-file orchestrator with many distinct phases */
 /**
  * E2E test orchestration with ownership-based cleanup.
  *

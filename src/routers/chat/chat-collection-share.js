@@ -4,8 +4,6 @@ import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { requireOwnedChat } from '../chat-core.js';
 import { requireOwnedAndChatAuth } from './chat-collection-helpers.js';
-
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleShareChat(req, env, db, user, chatId, originSessionId) {
   const {
     denied,

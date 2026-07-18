@@ -106,7 +106,7 @@ export function setupWireChatFeatures(ctx, deps) {
   const unbindToolServersInvalidationListener = () =>
     uiResources.unbindToolServersInvalidationListener();
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
-  let pinnedSectionCollapsed = false; // eslint-disable-line no-useless-assignment
+  let pinnedSectionCollapsed = false;
   try {
     pinnedSectionCollapsed = localStorage.getItem(PINNED_COLLAPSED_KEY) === '1';
   } catch {

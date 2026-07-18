@@ -25,100 +25,145 @@ import {
 import { normalizeConnectionModelSelectionMode } from '../../../shared/utils/connection-model-selection.js';
 import { renderModalModels } from './connections-modal-form-render-models.js';
 
+function queryConnectionModalRefs(scope) {
+  return {
+    nameInput: scope.querySelector('#modal-conn-name'),
+    urlInput: scope.querySelector('#modal-conn-url'),
+    keyInput: scope.querySelector('#modal-conn-key'),
+    headersInput: scope.querySelector('#modal-conn-headers'),
+    providerSelect: scope.querySelector('#modal-conn-provider'),
+    testButton: scope.querySelector('#test-connection'),
+    testMessage: scope.querySelector('#connection-test-message'),
+    title: scope.querySelector('#modal-title'),
+    providerHint: scope.querySelector('#modal-conn-provider-hint'),
+    urlLabel: scope.querySelector('#modal-conn-url-label'),
+    urlHint: scope.querySelector('#modal-conn-url-hint'),
+    keyLabel: scope.querySelector('#modal-conn-key-label'),
+    keyHint: scope.querySelector('#modal-conn-key-hint'),
+    deleteBtn: scope.querySelector('#delete-connection'),
+  };
+}
+
+function setElementValue(el, value) {
+  if (el) el.value = value;
+}
+
+function setElementText(el, text) {
+  if (el) el.textContent = text;
+}
+
+function setElementDisabled(el, disabled) {
+  if (el) el.disabled = disabled;
+}
+
+function toggleElementClass(el, className, force) {
+  if (el) el.classList.toggle(className, force);
+}
+
+function resolveEffectiveProviderType(refs, connection) {
+  const selected = refs.providerSelect?.value;
+  return selected || connection?.providerType || 'openai';
+}
+
+function applyFieldValues(refs, connection) {
+  setElementValue(refs.nameInput, connection?.name || '');
+  setElementValue(refs.urlInput, connection?.url || '');
+  setElementValue(refs.keyInput, '');
+  setElementValue(refs.headersInput, connection?.headers || '');
+  setElementValue(refs.providerSelect, connection?.providerType || 'openai');
+}
+
+function applyReadOnlyState(refs, isReadOnlyConnection) {
+  setElementDisabled(refs.nameInput, isReadOnlyConnection);
+  setElementDisabled(refs.urlInput, isReadOnlyConnection);
+  setElementDisabled(refs.keyInput, isReadOnlyConnection);
+  setElementDisabled(refs.headersInput, isReadOnlyConnection);
+  setElementDisabled(refs.providerSelect, isReadOnlyConnection);
+  toggleElementClass(refs.nameInput, 'text-gray-400', isReadOnlyConnection);
+  toggleElementClass(refs.urlInput, 'text-gray-400', isReadOnlyConnection);
+  toggleElementClass(refs.keyInput, 'text-gray-400', isReadOnlyConnection);
+  toggleElementClass(refs.headersInput, 'text-gray-400', isReadOnlyConnection);
+  toggleElementClass(refs.providerSelect, 'text-gray-400', isReadOnlyConnection);
+}
+
+function applyUrlPlaceholder(refs, providerType, isReadOnlyConnection) {
+  if (!refs.urlInput) return;
+  const defaultUrl = providerUrlPlaceholder(providerType);
+  refs.urlInput.placeholder = defaultUrl;
+  const needsDefault =
+    !isCompatibleProviderType(providerType) &&
+    !String(refs.urlInput.value || '').trim() &&
+    !isReadOnlyConnection;
+  if (needsDefault) {
+    refs.urlInput.value = defaultUrl;
+  }
+}
+
+function applyNamePlaceholder(refs, providerType) {
+  if (refs.nameInput) {
+    refs.nameInput.placeholder = `e.g. ${providerDisplayLabel(providerType)}`;
+  }
+}
+
+function applyModalTitle(refs) {
+  const title = connectionsStateMapTitle(connectionsStateRef, refs);
+  setElementText(refs.title, title);
+}
+
+const MODAL_TITLES = {
+  update: 'Edit Connection',
+  default: 'Add Connection',
+};
+
+function connectionsStateMapTitle(state, refs) {
+  return state.modalMode === 'update' ? MODAL_TITLES.update : MODAL_TITLES.default;
+}
+
+function applyProviderLabels(refs, providerType) {
+  setElementText(refs.providerHint, providerDisplayLabel(providerType));
+  setElementText(refs.urlLabel, resolveUrlLabel(providerType));
+  const urlHintText = isCompatibleProviderType(providerType)
+    ? 'Required for compatible providers.'
+    : 'Uses the built-in default if left blank.';
+  setElementText(refs.urlHint, urlHintText);
+}
+
+function applyKeyLabels(refs, connection) {
+  setElementText(refs.keyLabel, resolveKeyLabel());
+  const hasSavedKey = Boolean(connection?.hasKey || connection?.keyMasked);
+  const keyHintText = hasSavedKey
+    ? 'A key is already saved. Leave this blank to keep it.'
+    : 'Optional for providers that do not require a key.';
+  setElementText(refs.keyHint, keyHintText);
+}
+
+function applyModalButtons(refs, isReadOnlyConnection) {
+  const hideDelete = connectionsStateRef.modalMode !== 'update' || isReadOnlyConnection;
+  toggleElementClass(refs.deleteBtn, 'hidden', hideDelete);
+  toggleElementClass(refs.testButton, 'hidden', isReadOnlyConnection);
+  toggleElementClass(refs.testMessage, 'hidden', isReadOnlyConnection);
+}
+
 export function createConnectionsModalForm(deps) {
   const { container, connectionsState, setTestStatus } = deps;
+  // Reference captured for closure-based helpers (applyModalTitle, applyModalButtons)
+  const connectionsStateRef = connectionsState;
 
   const fillModalFields = (connection, scope = container) => {
-    const nameInput = scope.querySelector('#modal-conn-name');
-    const urlInput = scope.querySelector('#modal-conn-url');
-    const keyInput = scope.querySelector('#modal-conn-key');
-    const headersInput = scope.querySelector('#modal-conn-headers');
-    const providerSelect = scope.querySelector('#modal-conn-provider');
-    const testButton = scope.querySelector('#test-connection');
-    const testMessage = scope.querySelector('#connection-test-message');
+    const refs = queryConnectionModalRefs(scope);
     const isReadOnlyConnection = Boolean(connection?.readOnly);
+    const providerType = resolveEffectiveProviderType(refs, connection);
 
-    if (nameInput) nameInput.value = connection?.name || '';
-    if (urlInput) urlInput.value = connection?.url || '';
-    if (keyInput) keyInput.value = '';
-    if (headersInput) headersInput.value = connection?.headers || '';
-    if (providerSelect) providerSelect.value = connection?.providerType || 'openai';
+    applyFieldValues(refs, connection);
+    applyUrlPlaceholder(refs, providerType, isReadOnlyConnection);
+    applyNamePlaceholder(refs, providerType);
+    applyReadOnlyState(refs, isReadOnlyConnection);
+    applyModalTitle(refs);
+    applyProviderLabels(refs, providerType);
+    applyKeyLabels(refs, connection);
+    applyModalButtons(refs, isReadOnlyConnection);
 
-    if (urlInput) {
-      const providerType = providerSelect?.value || connection?.providerType || 'openai';
-      const defaultUrl = providerUrlPlaceholder(providerType);
-      urlInput.placeholder = defaultUrl;
-      if (
-        !isCompatibleProviderType(providerType) &&
-        !String(urlInput.value || '').trim() &&
-        !isReadOnlyConnection
-      ) {
-        urlInput.value = defaultUrl;
-      }
-    }
-    if (nameInput)
-      nameInput.placeholder = `e.g. ${providerDisplayLabel(providerSelect?.value || connection?.providerType || 'openai')}`;
-
-    if (nameInput) nameInput.disabled = isReadOnlyConnection;
-    if (urlInput) urlInput.disabled = isReadOnlyConnection;
-    if (keyInput) keyInput.disabled = isReadOnlyConnection;
-    if (headersInput) headersInput.disabled = isReadOnlyConnection;
-    if (providerSelect) providerSelect.disabled = isReadOnlyConnection;
-
-    if (nameInput) nameInput.classList.toggle('text-gray-400', isReadOnlyConnection);
-    if (urlInput) urlInput.classList.toggle('text-gray-400', isReadOnlyConnection);
-    if (keyInput) keyInput.classList.toggle('text-gray-400', isReadOnlyConnection);
-    if (headersInput) headersInput.classList.toggle('text-gray-400', isReadOnlyConnection);
-    if (providerSelect) providerSelect.classList.toggle('text-gray-400', isReadOnlyConnection);
-
-    const title = scope.querySelector('#modal-title');
-    if (title)
-      title.textContent =
-        connectionsState.modalMode === 'update' ? 'Edit Connection' : 'Add Connection';
-
-    const providerHint = scope.querySelector('#modal-conn-provider-hint');
-    if (providerHint)
-      providerHint.textContent = providerDisplayLabel(
-        providerSelect?.value || connection?.providerType || 'openai'
-      );
-
-    const urlLabel = scope.querySelector('#modal-conn-url-label');
-    if (urlLabel)
-      urlLabel.textContent = resolveUrlLabel(
-        providerSelect?.value || connection?.providerType || 'openai'
-      );
-
-    const urlHint = scope.querySelector('#modal-conn-url-hint');
-    if (urlHint) {
-      urlHint.textContent = isCompatibleProviderType(
-        providerSelect?.value || connection?.providerType || 'openai'
-      )
-        ? 'Required for compatible providers.'
-        : 'Uses the built-in default if left blank.';
-    }
-
-    const keyLabel = scope.querySelector('#modal-conn-key-label');
-    if (keyLabel) keyLabel.textContent = resolveKeyLabel();
-
-    const keyHint = scope.querySelector('#modal-conn-key-hint');
-    if (keyHint) {
-      keyHint.textContent =
-        connection?.hasKey || connection?.keyMasked
-          ? 'A key is already saved. Leave this blank to keep it.'
-          : 'Optional for providers that do not require a key.';
-    }
-
-    updateApiTypeDisplay(scope, providerSelect?.value || connection?.providerType || 'openai');
-
-    const deleteBtn = scope.querySelector('#delete-connection');
-    if (deleteBtn)
-      deleteBtn.classList.toggle(
-        'hidden',
-        connectionsState.modalMode !== 'update' || isReadOnlyConnection
-      );
-
-    if (testButton) testButton.classList.toggle('hidden', isReadOnlyConnection);
-    if (testMessage) testMessage.classList.toggle('hidden', isReadOnlyConnection);
+    updateApiTypeDisplay(scope, providerType);
     setTestStatus('idle', '', scope);
   };
 

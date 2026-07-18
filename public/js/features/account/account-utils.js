@@ -92,7 +92,6 @@ export async function loadAccountState() {
   return res.json();
 }
 
-/* eslint-disable complexity */
 export function renderOverview(state) {
   const user = state.user || {};
   const preferences = state.settings?.preferences || {};

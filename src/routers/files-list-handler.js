@@ -9,8 +9,6 @@ import { createLogger } from '../utils/logger.js';
 import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { listUserDocuments } from '../services/uploads.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, requestContext)
 export async function handleFileList(req, env, ctx, user, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });

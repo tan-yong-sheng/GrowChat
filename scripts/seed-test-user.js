@@ -48,7 +48,6 @@ async function seed() {
   console.error('Seeding test user...');
 
   // BASE_URL is a test-scaffold environment variable, not user input.
-  // fallow-ignore-next-line security-sink
   const res = await fetch(`${BASE_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

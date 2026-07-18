@@ -16,7 +16,6 @@ const logger = createRootLogger({});
  * @param {string} path - Request path
  * @returns {Promise<Response|null>}
  */
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, path, deps)
 export async function sessionManagementRouter(req, env, _ctx, user, path) {
   // Only handle /api/user/sessions paths
   if (!path.startsWith('/api/user/sessions')) return null;

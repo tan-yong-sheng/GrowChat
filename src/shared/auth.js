@@ -5,8 +5,6 @@
 // and not "magic" values — keeping them readable as-is.
 // ────────────────────────────────────────────────────────────────
 
-/* eslint-disable no-magic-numbers */
-
 const JWT_TTL_SECONDS = 60 * 15;
 
 function toBase64Url(bytes) {

@@ -1,7 +1,5 @@
 import { json } from '../../utils/response.js';
 import { requireOwnedAndChatAuth } from './chat-collection-helpers.js';
-
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleUnshareChat(req, env, db, user, chatId) {
   const {
     denied,

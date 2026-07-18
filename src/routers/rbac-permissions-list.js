@@ -4,8 +4,6 @@
  */
 import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleRbacPermissionsList(req, env, _ctx, user, path, { db, logger } = {}) {
   try {
     const permissions = await db.all(

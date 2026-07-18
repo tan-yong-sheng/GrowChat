@@ -18,7 +18,6 @@ import {
 /**
  * Handle PUT /api/admin/model-attachment-caps - Update attachment capabilities
  */
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleAdminAttachmentCapsSet(req, env, ctx, user, path, { db, logger } = {}) {
   const body = await parseJsonBody(req);
   if (body === null) return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);

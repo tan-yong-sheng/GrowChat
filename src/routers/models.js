@@ -23,7 +23,6 @@ export { applyUserModelVisibilityOverrides } from './models/models-discovery.js'
 /**
  * Models Router Handler
  */
-// eslint-disable-next-line max-params -- router dispatcher pattern needs (req, env, ctx, user, path, deps)
 export async function modelsRouter(req, env, ctx, user, path, requestContext = {}) {
   const deps = createRouterDeps(env, requestContext);
 

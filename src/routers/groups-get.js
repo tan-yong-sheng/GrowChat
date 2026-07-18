@@ -4,8 +4,6 @@
  */
 import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsGet(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
   try {
     const group = await db.first(

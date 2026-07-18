@@ -1,6 +1,4 @@
 import { reloadAndPublishChat, requireOwnedAndChatAuth } from './chat-collection-helpers.js';
-
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handlePinChat(req, env, db, user, chatId, originSessionId) {
   const {
     denied,

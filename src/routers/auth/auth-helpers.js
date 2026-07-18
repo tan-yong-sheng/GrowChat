@@ -105,8 +105,6 @@ export async function createAccessToken(secret, user, primaryRole) {
     APP_TTLS.accessTokenSeconds
   );
 }
-
-// eslint-disable-next-line max-params -- dispatcher receives req+db+env+users+user+secret
 export async function checkActiveAccountAndGenerateTokens(req, db, env, users, user, jwtSecret) {
   if (!isActiveAccount(user)) {
     return json(

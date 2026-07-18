@@ -30,8 +30,6 @@ function filterRulesForModel(modelId, rules, validGroupIds) {
     invalidTypeMessage: 'Invalid principal_type for model access',
   });
 }
-
-// eslint-disable-next-line max-params -- helper needs all context parameters
 async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
   try {
     const db = createDB(env.DB);
@@ -48,8 +46,6 @@ async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
     return error(req, 'Failed to load model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
-
-// eslint-disable-next-line max-params -- helper needs all context parameters
 async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
   let body;
   try {
@@ -107,8 +103,6 @@ async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
     );
   }
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handleAdminModelsAccessByModel(req, env, ctx, user, path, deps) {
   const authError = await requireModelAdmin(req, env, user, extractModelIdFromAccessPath(path));
   if (authError) return authError;

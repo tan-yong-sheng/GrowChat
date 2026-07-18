@@ -108,7 +108,7 @@ function buildConfigResponse(updates) {
 /**
  * Handle PUT /api/admin/config - Update admin configuration
  */
-// eslint-disable-next-line max-params -- dispatcher pattern: (req, env, ctx, user, path, deps)
+// dispatcher pattern: (req, env, ctx, user, path, deps)
 export async function handleAdminConfigSet(req, env, ctx, user, path, { db, logger } = {}) {
   const body = await parseBody(req);
   if (body === null) return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);

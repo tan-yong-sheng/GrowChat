@@ -29,8 +29,6 @@ function resolveFileContent(doc) {
     note: 'Binary file - text excerpt not available',
   };
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileContent(req, env, ctx, user, documentId, requestContext = {}) {
   const ctx2 = await prepareFileHandlerContext(req, env, requestContext, user);
   if (!ctx2.ok) return ctx2.response;

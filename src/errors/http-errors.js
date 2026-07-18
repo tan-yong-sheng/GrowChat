@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import { HTTP_STATUS } from '../shared/http-status.js';
 export class HttpError extends Error {
   constructor(

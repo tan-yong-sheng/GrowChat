@@ -9,8 +9,8 @@ import { getAuditLog } from '../../utils/authorize.js';
 /**
  * Handle GET /api/admin/audit-logs - Fetch audit log entries
  */
-/* eslint-disable complexity -- Multiple audit log filters */
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
+/* Multiple audit log filters */
+// Cloudflare Worker handler
 export async function handleAdminAuditLogs(req, env, _ctx, user, path, { db: _db, logger } = {}) {
   if (path !== '/api/admin/audit-logs') return null;
 

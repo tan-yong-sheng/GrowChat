@@ -59,8 +59,6 @@ function applyUpdates(model, body) {
   applyMaxTokensUpdate(model, body);
   applyTemperatureUpdate(model, body);
 }
-
-// eslint-disable-next-line max-params -- handler orchestrates multiple steps
 export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { logger }) {
   const modelId = extractModelIdFromPath(path);
 

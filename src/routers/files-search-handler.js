@@ -28,8 +28,6 @@ async function runSearchQuery(db, opts) {
     [opts.userId, `%${opts.q}%`, opts.limit, opts.offset]
   );
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, requestContext)
 async function searchDocuments(req, env, ctx, user, _requestContext) {
   const db = createDB(env.DB);
   const url = new URL(req.url);
@@ -54,8 +52,6 @@ async function searchDocuments(req, env, ctx, user, _requestContext) {
   }
   return json(req, { documents, query: q, limit, offset });
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, requestContext)
 export async function handleFileSearch(req, env, ctx, user, _requestContext = {}) {
   const searchLimit = await checkRateLimit(env, {
     action: 'file-search',

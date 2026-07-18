@@ -10,7 +10,7 @@ import {
   sanitizeUser,
 } from './auth-helpers.js';
 
-// eslint-disable-next-line max-params -- handler receives (req, env, db, users, jwtSecret) for router dispatch
+// handler receives (req, env, db, users, jwtSecret) for router dispatch
 export async function handleRefresh(req, env, db, users, jwtSecret) {
   let body;
   try {

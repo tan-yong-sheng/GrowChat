@@ -55,7 +55,6 @@ function getAccountNavItems(section) {
     },
   ];
 }
-/* eslint-disable max-statements */
 
 async function renderAccountSection({
   section,
@@ -126,7 +125,6 @@ async function renderAccountSection({
   if (footerHost) footerHost.innerHTML = '';
 }
 
-/* eslint-disable max-lines-per-function, max-statements */
 export async function renderAccountPage(container) {
   ensureMarkedReady();
   setSidebarRouteScope('account');
@@ -235,7 +233,6 @@ export async function renderAccountPage(container) {
   closeOverlay?.addEventListener('click', closeSettings);
 }
 
-/* eslint-disable max-lines-per-function, max-statements */
 export async function openAccountSettingsDrawer({ section = 'connections' } = {}) {
   ensureMarkedReady();
   const existing = document.getElementById('account-settings-drawer-modal');

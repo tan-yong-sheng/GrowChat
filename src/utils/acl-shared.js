@@ -31,7 +31,7 @@ export function isAclActionRelevant(action) {
  * @param {Function} [options.isPersonal] - Optional predicate returning true for personal resources
  * @returns {{allowed: boolean, access_label: string, access_variant: string}}
  */
-// eslint-disable-next-line complexity -- evaluateAclAccess has 12 paths
+// evaluateAclAccess has 12 paths
 export function evaluateAclAccess({
   resource,
   rules,

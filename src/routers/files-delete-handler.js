@@ -9,8 +9,6 @@ import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { createLogger } from '../utils/logger.js';
 import { deleteDocument } from '../services/uploads.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileDelete(req, env, ctx, user, documentId, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });

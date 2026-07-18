@@ -13,8 +13,6 @@ function parseRequestedIds(req) {
     .map((value) => decodeURIComponent(String(value || '').trim()))
     .filter(Boolean);
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handleAdminModelsAccessList(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;

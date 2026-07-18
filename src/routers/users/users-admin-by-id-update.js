@@ -21,7 +21,7 @@ class UpdateValidationError extends Error {
   }
 }
 
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, user, userId, logger)
+// admin dispatcher pattern (req, env, user, userId, logger)
 export async function handleUpdateUserById(req, env, user, userId, logger) {
   const authDecision = await authorize(env, user, {
     action: 'admin.user.write',

@@ -79,8 +79,8 @@ function buildUpdateStatements(db, updates, accessMap, validGroupIds) {
   return { statements, normalizedUpdates };
 }
 
-/* eslint-disable max-params -- router dispatcher needs (req, env, ctx, user, path, deps) */
-/* eslint-disable max-statements -- handler orchestrates multiple steps */
+/* router dispatcher needs (req, env, ctx, user, path, deps) */
+/* handler orchestrates multiple steps */
 export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;

@@ -62,8 +62,6 @@ async function createGroupInDb(db, name, description, memberIds) {
     },
   };
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleGroupsCreate(req, env, _ctx, user, path, { db, logger } = {}) {
   if (path !== '/api/admin/groups') return null;
 

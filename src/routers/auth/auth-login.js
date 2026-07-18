@@ -91,7 +91,7 @@ async function prepareUserForLogin(db, user) {
   await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
 }
 
-// eslint-disable-next-line max-params -- auth dispatcher pattern (req, env, db, users, jwtSecret)
+// auth dispatcher pattern (req, env, db, users, jwtSecret)
 export async function handleLogin(req, env, db, users, jwtSecret) {
   const parsed = await parseLoginBody(req);
   if (parsed instanceof Response) return parsed;

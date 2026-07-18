@@ -2,8 +2,6 @@ import { error, sseHeaders, sseData } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { requireOwnedChat, sleep } from '../chat-core.js';
 import { requireChatPermission } from '../chat-message-helpers.js';
-
-// eslint-disable-next-line max-params -- D1 query + encoder + controller
 async function fetchAndEnqueueDeltas(db, msgId, cursor, encoder, controller) {
   const rows = await db.all(
     'SELECT seq, payload FROM message_deltas WHERE message_id = ? AND seq > ? ORDER BY seq ASC LIMIT 200',

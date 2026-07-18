@@ -29,8 +29,6 @@ function buildAuditFilters(actorId, resourceType, action) {
     action: action && action.length <= MAX_RESOURCE_FILTER_LENGTH ? action : undefined,
   };
 }
-
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleRbacAuditList(req, env, _ctx, user, path, { db: _db, logger } = {}) {
   const { limit, offset, actorId, resourceType, action } = parseAuditQueryParams(req);
 

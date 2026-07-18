@@ -5,8 +5,6 @@ import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { resolveDefaultModel } from '../chat-core.js';
 import { mapAuthCodeToStatus, sanitizeModelId, sanitizeTitle } from './chat-collection-helpers.js';
-
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleCreateChat(req, env, db, user, originSessionId) {
   const authDecision = await authorize(env, user, {
     action: 'chat.write',

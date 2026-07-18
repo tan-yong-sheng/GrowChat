@@ -42,8 +42,6 @@ function validateUpdate(body, group) {
     memberIds,
   };
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsUpdate(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
   const body = await parseBody(req);
   if (body === null) return error(req, 'Invalid JSON', HTTP_STATUS.BAD_REQUEST);

@@ -6,7 +6,7 @@ import { error } from '../utils/response.js';
 import { logAuditEvent } from '../utils/authorize.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
+// admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
 export async function handleRbacRolesDelete(
   req,
   env,

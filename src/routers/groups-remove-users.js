@@ -4,8 +4,6 @@
  */
 
 import { handleGroupMemberOperation } from './groups-helpers.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsRemoveUsers(
   req,
   env,

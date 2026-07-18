@@ -2,8 +2,6 @@ import { error, json } from '../../utils/response.js';
 import { loadPrimaryRole } from '../../utils/user-role.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { sanitizeUser } from './auth-helpers.js';
-
-// eslint-disable-next-line max-params -- handler receives (req, env, db, users, authUser) for router dispatch
 export async function handleMe(req, env, db, users, authUser) {
   if (!authUser?.sub) {
     return error(req, 'Authentication required', HTTP_STATUS.UNAUTHORIZED);

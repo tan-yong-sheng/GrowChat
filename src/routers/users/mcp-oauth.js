@@ -49,7 +49,6 @@ async function loadCallbackServer(db, state) {
 
 async function exchangeCodeForTokens(tokenEndpoint, params, headers) {
   // URL is validated via isSafeOutboundUrl before this helper is called.
-  // fallow-ignore-next-line security-sink
   const tokenRes = await fetch(tokenEndpoint, { method: 'POST', headers, body: params });
   if (!tokenRes.ok) {
     const text = await tokenRes.text().catch(() => '');
@@ -113,7 +112,6 @@ function resolveClientCredentials(body, existingServer, metadata) {
 async function registerOAuthClient(registrationEndpoint, redirectUri, body) {
   const payload = buildRegistrationPayload(body, redirectUri);
   // URL is validated via isSafeOutboundUrl before dynamic registration is attempted.
-  // fallow-ignore-next-line security-sink
   const res = await fetch(registrationEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -139,8 +137,6 @@ function parseRegistrationResponse(data) {
     clientSecret: String(data.client_secret || '').trim(),
   };
 }
-
-// eslint-disable-next-line max-params -- client credentials resolution (body, existingServer, metadata, registrationEndpoint, redirectUri)
 async function ensureClientCredentials(
   body,
   existingServer,
@@ -258,8 +254,6 @@ async function generatePkceState() {
   const codeChallenge = await sha256Base64Url(codeVerifier);
   return { codeVerifier, codeChallenge, state: randomString(PKCE_STATE_LENGTH) };
 }
-
-// eslint-disable-next-line max-params -- server state builder (existingServer, body, serverUrl, clientId, clientSecret, metadata, registrationEndpoint, tokenAuthMethod, state, codeVerifier)
 function buildPersistedServer(
   existingServer,
   body,

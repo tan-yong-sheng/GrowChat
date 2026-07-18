@@ -9,7 +9,7 @@ import { HTTP_STATUS } from '../../shared/http-status.js';
 /**
  * Handle GET /api/admin/config - Fetch admin configuration
  */
-// eslint-disable-next-line max-params -- dispatcher pattern: (req, env, ctx, user, path, deps)
+// dispatcher pattern: (req, env, ctx, user, path, deps)
 export async function handleAdminConfigGet(req, env, ctx, user, path, { db, logger } = {}) {
   try {
     const publicRegistration = await getConfigBool(db, 'public_registration', true);

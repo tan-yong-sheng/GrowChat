@@ -96,8 +96,6 @@ const assistantStreamRunner = createAssistantRunner({
   sleep,
   createLogger,
 });
-
-// eslint-disable-next-line max-params -- router dispatcher pattern: (req, env, ctx, user, path)
 export async function chatRouter(req, env, ctx, user, path) {
   if (!isChatPath(path)) return null;
 

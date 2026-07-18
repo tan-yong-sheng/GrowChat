@@ -26,7 +26,7 @@ import {
   runConnectionTest,
 } from './users-connections.helpers.js';
 
-// eslint-disable-next-line max-params -- handler receives (req, env, user, _params, deps)
+// handler receives (req, env, user, _params, deps)
 export async function listUserConnections(req, env, user, _params, deps) {
   try {
     const db = createDB(env.DB);
@@ -48,7 +48,7 @@ export async function listUserConnections(req, env, user, _params, deps) {
   }
 }
 
-// eslint-disable-next-line max-params -- handler receives (req, env, user, _params, _deps)
+// handler receives (req, env, user, _params, _deps)
 export async function createUserConnection(req, env, user, _params, _deps) {
   try {
     const body = await readJsonBody(req);
@@ -65,7 +65,7 @@ export async function createUserConnection(req, env, user, _params, _deps) {
   }
 }
 
-// eslint-disable-next-line max-params -- handler receives (req, env, user, { connectionId }, _deps)
+// handler receives (req, env, user, { connectionId }, _deps)
 export async function updateUserConnection(req, env, user, { connectionId }, _deps) {
   try {
     const body = await readJsonBody(req);
@@ -84,7 +84,7 @@ export async function updateUserConnection(req, env, user, { connectionId }, _de
   }
 }
 
-// eslint-disable-next-line max-params -- handler receives (req, env, user, { connectionId }, _deps)
+// handler receives (req, env, user, { connectionId }, _deps)
 export async function deleteUserConnection(req, env, user, { connectionId }, _deps) {
   try {
     const db = createDB(env.DB);
@@ -101,7 +101,7 @@ export async function deleteUserConnection(req, env, user, { connectionId }, _de
   }
 }
 
-// eslint-disable-next-line max-params -- handler receives (req, env, user, _params, deps)
+// handler receives (req, env, user, _params, deps)
 export async function testUserConnection(req, env, user, _params, deps) {
   try {
     const body = await readJsonBody(req);

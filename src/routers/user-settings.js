@@ -12,8 +12,6 @@ function isUserSettingsPath(path) {
 function isAccountPending(user) {
   return user.account_status && user.account_status !== 'active';
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, path, deps)
 export async function userSettingsRouter(req, env, _ctx, user, path, _deps) {
   if (!isUserSettingsPath(path)) return null;
   if (!user) return error(req, 'Unauthorized', HTTP_STATUS.UNAUTHORIZED);

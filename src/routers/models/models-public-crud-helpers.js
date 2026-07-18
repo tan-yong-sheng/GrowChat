@@ -52,7 +52,7 @@ export function missingCacheBinding(req) {
  * Shared between update and delete flows — pass the action verb
  * (e.g. 'update', 'delete') to contextualize error and log messages.
  */
-// eslint-disable-next-line max-params -- action+logger keeps shared helper parameterized
+// action+logger keeps shared helper parameterized
 export async function rejectIfBaseModel(req, env, modelId, action, logger) {
   try {
     const modelConnections = await getAllOpenAIConnectionConfigs(env);
@@ -94,7 +94,7 @@ export async function writeCustomModelsToCache(env, customModels) {
  * action: 'model_created', 'model_updated', 'model_deleted', etc.
  * extraFields: object with additional properties merged into the audit event.
  */
-// eslint-disable-next-line max-params -- audit helper needs all params
+// audit helper needs all params
 export async function logModelAuditEvent(env, user, action, modelId, extraFields) {
   await logAuditEvent(env, {
     actor_id: user.sub,
@@ -111,7 +111,7 @@ export async function logModelAuditEvent(env, user, action, modelId, extraFields
  * Returns the same shape as findCustomModelById on success.
  * Returns { found, error, customModels, modelIndex }.
  */
-// eslint-disable-next-line max-params -- composite helper needs all context
+// composite helper needs all context
 export async function findAndValidateCustomModel(req, env, modelId, action, logger) {
   const baseError = await rejectIfBaseModel(req, env, modelId, action, logger);
   if (baseError) {

@@ -5,8 +5,6 @@
 import { error } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { logAuditEvent } from '../utils/authorize.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsDelete(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
   try {
     const group = await db.first('SELECT * FROM groups WHERE id = ?', [groupId]);

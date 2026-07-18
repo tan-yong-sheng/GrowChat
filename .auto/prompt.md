@@ -11,7 +11,7 @@ above fallow's complexity/CRAP threshold.
 - `complexity_introduced` is already at 0 and must stay there
 - `duplication_introduced` is already at 0 and must stay there
 - The remaining `functions_above_threshold` comes from inherited complex
-  functions, not new code
+functions, not new code
 
 Quality gates that must NOT regress:
 
@@ -28,9 +28,9 @@ Quality gates that must NOT regress:
 
 - **Primary**: `functions_above_threshold` (unitless, lower is better, target = 0)
   - Counts functions with cyclomatic complexity or CRAP above fallow's
-    threshold
+  threshold
   - Decomposing a function into smaller helpers drops the count when the
-    parent and all new helpers fall below the threshold
+  parent and all new helpers fall below the threshold
 - **Secondary** (must not regress):
   - `dupes` = 0
   - `fallow_health_score` ≥ 77.6
@@ -54,17 +54,17 @@ Outputs structured `METRIC name=value` lines. Takes ~3 minutes.
 
 1. Inspect `fallow health --format json` for functions above threshold
 2. Prefer safe decomposition targets:
-   - Functions just above threshold (small reduction needed)
-   - Functions with sequential branches (easy to extract helpers)
-   - Functions in files with no other threshold findings (lower blast radius)
+  - Functions just above threshold (small reduction needed)
+  - Functions with sequential branches (easy to extract helpers)
+  - Functions in files with no other threshold findings (lower blast radius)
 3. Extract small helpers with cyc ≤ 4 / CRAP ≤ 30 (at 0% coverage, cyc ≤ 5
-   keeps CRAP ≤ 25)
+ keeps CRAP ≤ 25)
 4. Keep helpers pure and behavior-preserving; avoid adding closure
-   complexity (`?.`, `||` chains)
+ complexity (`?.`, `||` chains)
 5. Verify: scoped tests pass, lint/typecheck pass, `complexity_introduced`
-   stays 0, `dupes` stays 0
+ stays 0, `dupes` stays 0
 6. Log: if `functions_above_threshold` dropped AND all gates green →
-   `keep`; otherwise `discard`
+ `keep`; otherwise `discard`
 7. Repeat
 
 ## Files in Scope
@@ -76,7 +76,7 @@ Current targets (from `fallow health --format json`):
 ## Off Limits
 
 - Do not bypass quality gates
-- Do not add `fallow-ignore` suppressions to hide real complexity
+- Do not add `fallow-ignore` or `eslint-disable` suppressions to hide real complexity
 - Do not change `.auto/measure.sh` (already configured for current metric set)
 - Do not change `fallow.toml` config
 - Do not modify `.husky/` pre-commit hooks
@@ -93,7 +93,7 @@ Current targets (from `fallow health --format json`):
 - Refactors must be behavior-preserving (no semantic changes)
 - One concern per commit; small atomic commits are easier to revert
 - A `discard` log is fine if decomposition work is net-positive — commit
-  it manually first
+it manually first
 
 ## Context
 

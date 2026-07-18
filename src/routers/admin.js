@@ -48,7 +48,7 @@ function resolveAdminPermission(path, method) {
 /**
  * Admin Router Handler
  */
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
+// Cloudflare Worker handler
 export async function adminRouter(req, env, ctx, user, path, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });

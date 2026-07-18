@@ -7,8 +7,6 @@ import {
   requireModelAdmin,
   writeCustomModelsToCache,
 } from './models-public-crud-helpers.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handlePublicModelsDelete(req, env, _ctx, user, path, { logger }) {
   const modelId = extractModelIdFromPath(path);
 

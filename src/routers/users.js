@@ -26,7 +26,6 @@ import { handleUsersAdminById } from './users/users-admin-by-id.js';
 /**
  * Users Router Handler
  */
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, path, requestContext)
 export async function usersRouter(req, env, ctx, user, path, requestContext = {}) {
   const deps = createRouterDeps(env, requestContext);
 

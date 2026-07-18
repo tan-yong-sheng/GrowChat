@@ -6,8 +6,6 @@
 import { json, error } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { getOwnedDocument, createFileContext } from './files-helpers.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileProcessStatus(
   req,
   env,
@@ -16,7 +14,6 @@ export async function handleFileProcessStatus(
   documentId,
   requestContext = {}
 ) {
-  // fallow-ignore-next-line code-duplication
   const { logger, db } = createFileContext(env, requestContext);
 
   try {

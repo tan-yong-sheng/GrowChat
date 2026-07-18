@@ -30,7 +30,7 @@ async function validateRoleUpdateInput(db, roleId, body) {
   return { role, name: nameResult.name };
 }
 
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
+// admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
 export async function handleRbacRolesUpdate(
   req,
   env,

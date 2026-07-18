@@ -17,8 +17,6 @@ import {
   resolveUploadError,
   getRequestLogger,
 } from './files-upload-helpers.js';
-
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, requestContext)
 export async function handleFileUpload(req, env, ctx, user, requestContext = {}) {
   const logger = getRequestLogger(env, requestContext);
   const db = createDB(env.DB);

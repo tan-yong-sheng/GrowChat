@@ -21,8 +21,6 @@ function findBaseModel(baseModels, modelId) {
 function findCustomModel(customModels, modelId) {
   return customModels.find((m) => m.id === modelId);
 }
-
-// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handlePublicModelsGet(req, env, _ctx, _user, path, { logger }) {
   const modelId = extractModelIdFromPath(path);
 

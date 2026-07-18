@@ -5,9 +5,9 @@ const SECONDS_PER_MINUTE = 60;
 const MS_PER_SECOND = 1000;
 const MS_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
-/* eslint-disable-next-line no-magic-numbers -- 7-day week is a standard named constant */
+/* 7-day week is a standard named constant */
 const DAYS_7_MS = 7 * MS_DAY;
-/* eslint-disable-next-line no-magic-numbers -- 30-day month threshold is a standard named constant */
+/* 30-day month threshold is a standard named constant */
 const DAYS_30_MS = 30 * MS_DAY;
 
 const KILOBYTE = 1024;
@@ -57,7 +57,6 @@ export class SseLineParser {
     this._onEvent = typeof onEvent === 'function' ? onEvent : null;
   }
 
-  // fallow-ignore-next-line code-duplication
   push(rawText) {
     this._buf += rawText;
     let text = '';

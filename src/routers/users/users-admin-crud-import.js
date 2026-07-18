@@ -10,7 +10,7 @@ import {
   syncGlobalRoleBinding,
 } from './users-helpers.js';
 
-// eslint-disable-next-line max-statements -- CSV import handler
+// CSV import handler
 export async function handleImportUsers(req, env, user, logger) {
   const authDecision = await authorize(env, user, {
     action: 'admin.user.write',

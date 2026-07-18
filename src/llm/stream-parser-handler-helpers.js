@@ -22,7 +22,6 @@ export function normalizeFinishReason(parser, raw) {
 }
 
 // ResolveContentField has 20 paths due to multiple ??/|| chains for field resolution
-// eslint-disable-next-line complexity
 export function resolveContentField(parsed) {
   const delta = parsed?.choices?.[0]?.delta || {};
   const contentField = parsed?.response ?? delta.content;

@@ -82,8 +82,6 @@ async function loadValidGroupIds(db) {
   const groups = await db.all('SELECT id FROM groups');
   return new Set((Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean));
 }
-
-// eslint-disable-next-line max-params -- helper needs all context parameters
 function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSchemaStatements) {
   const modelId = update.model_id;
   const isEnabled = nextAccessMap.has(modelId) ? nextAccessMap.get(modelId) : true;
@@ -138,8 +136,6 @@ async function buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAcces
 
   return { statements, normalizedAccessUpdates };
 }
-
-// eslint-disable-next-line max-params -- helper consolidates duplicate audit targets
 async function execStatementsAndLog(
   db,
   statements,
@@ -162,8 +158,6 @@ async function execStatementsAndLog(
     },
   });
 }
-
-/* eslint-disable max-params -- multiple context parameters */
 async function saveSettings(
   db,
   env,
@@ -224,8 +218,6 @@ async function prepareAttachmentAndAccessUpdates(db, attachmentUpdatesInput, acc
 
   return { attachmentCaps, sanitizedAttachmentUpdates, sanitizedAccessUpdates };
 }
-
-/* eslint-disable max-params -- multiple context parameters needed */
 async function buildAndExecuteStatements(
   db,
   env,
@@ -283,8 +275,6 @@ async function requireAuthAndDatabase(req, env, user) {
 
   return { db: createDB(env.DB) };
 }
-
-/* eslint-disable max-statements */
 async function validateUpdateRequest(req, env, user) {
   const authDbResult = await requireAuthAndDatabase(req, env, user);
   if (authDbResult.error) return { error: authDbResult.error };
@@ -332,8 +322,6 @@ async function validateUpdateRequest(req, env, user) {
     sanitizedAccessUpdates,
   };
 }
-
-/* eslint-disable max-params -- handler orchestrates multiple steps */
 export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _path, { logger }) {
   const validation = await validateUpdateRequest(req, env, user);
   if (validation.error) return validation.error;

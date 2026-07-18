@@ -4,7 +4,7 @@ import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { requireOwnedChat } from '../chat-core.js';
 import { requireChatAuth } from './chat-collection-helpers.js';
 
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
+// Cloudflare Worker handler
 export async function handleDeleteChat(req, env, db, user, chatId, originSessionId) {
   const denied = await requireChatAuth(req, env, user, 'chat.delete', chatId);
   if (denied) return denied;

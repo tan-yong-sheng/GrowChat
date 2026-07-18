@@ -26,8 +26,6 @@ async function validateCreateRoleInput(body) {
   }
   return { name, desiredPermissions: normalizeStringList(body.permissions) };
 }
-
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleRbacRolesCreate(req, env, _ctx, user, path, { db, logger } = {}) {
   const body = await parseCreateRoleBody(req);
   if (body.error) {

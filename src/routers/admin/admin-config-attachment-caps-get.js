@@ -11,7 +11,7 @@ import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../../chat/atta
 /**
  * Handle GET /api/admin/model-attachment-caps - Fetch attachment capabilities
  */
-// eslint-disable-next-line max-params -- Cloudflare Worker handler
+// Cloudflare Worker handler
 export async function handleAdminAttachmentCapsGet(req, env, ctx, user, path, { db, logger } = {}) {
   try {
     const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');

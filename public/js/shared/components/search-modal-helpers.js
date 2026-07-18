@@ -40,7 +40,7 @@ export function normalizeBackendQuery(query) {
 export function getSearchChatDateLabel(dateString) {
   if (!dateString) return 'Unknown date';
   const date = new Date(dateString);
-  // eslint-disable-next-line no-magic-numbers -- 1970 is Unix epoch start
+  // 1970 is Unix epoch start
   if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Unknown date';
   const label = formatDate(dateString);
   return label || 'Unknown date';

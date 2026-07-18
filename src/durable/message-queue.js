@@ -91,7 +91,7 @@ export class MessageQueueDO {
     const cleaned = Array.from(raw)
       .filter((char) => {
         const code = char.charCodeAt(0);
-        // eslint-disable-next-line no-magic-numbers -- ASCII control chars (31, 127)
+        // ASCII control chars (31, 127)
         return code > 31 && code !== 127;
       })
       .join('');

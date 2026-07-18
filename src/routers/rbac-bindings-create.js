@@ -12,8 +12,6 @@ import {
   resolvePermissionForBinding,
   resolveRoleForBinding,
 } from './rbac-helpers.js';
-
-// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleRbacBindingsCreate(req, env, _ctx, user, _path, { db, logger } = {}) {
   const parsed = await parseBindingBody(req);
   if (parsed.error) {

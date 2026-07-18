@@ -4,8 +4,6 @@
  */
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { handleGroupMemberOperation } from './groups-helpers.js';
-
-// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsAddUsers(
   req,
   env,

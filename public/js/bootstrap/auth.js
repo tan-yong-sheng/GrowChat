@@ -157,7 +157,6 @@ async function submit(e) {
   setAuthSubmitting(label);
 
   try {
-    // fallow-ignore-next-line security-sink
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -172,7 +171,7 @@ async function submit(e) {
   }
 }
 
-// eslint-disable-next-line max-statements -- Multi-branch health config
+// Multi-branch health config
 function applyHealthConfig(data) {
   const initialized = data?.initialized === true;
   const publicRegistration = data?.publicRegistrationEnabled !== false;

@@ -1,6 +1,5 @@
 import { chromium } from 'playwright';
 
-// eslint-disable-next-line max-statements
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext({

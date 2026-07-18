@@ -118,7 +118,7 @@ export function parseConnectionHeaders(body, existingConnection) {
   return { value: existingConnection?.headers || {} };
 }
 
-// eslint-disable-next-line max-params, complexity -- builder receives (body, existingConnection, providerType, baseUrl, headers)
+// builder receives (body, existingConnection, providerType, baseUrl, headers)
 export function buildTestConnection(body, existingConnection, providerType, baseUrl, headers) {
   const resolvedKey = String(body.key || existingConnection?.key || '').trim();
   const resolvedAuth = String(body.auth_type || body.authType || existingConnection?.authType || '')

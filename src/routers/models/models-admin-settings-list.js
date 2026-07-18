@@ -63,8 +63,6 @@ async function attachAttachmentCaps(db, models) {
     attachments: getModelAttachmentCapsEntry(attachmentCaps, model.id),
   }));
 }
-
-/* eslint-disable max-params, max-statements -- handler orchestrates multiple steps */
 export async function handleAdminModelsSettingsList(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
