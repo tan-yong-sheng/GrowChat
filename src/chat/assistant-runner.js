@@ -1,19 +1,16 @@
 import {
   MAX_TOOL_STEPS,
   MAX_FOLLOW_UPS,
-  FOLLOW_UP_PROMPT,
   STREAM_STATUS_STALE_MS,
-  STREAM_HARD_TIMEOUT_MS,
-  readStreamChunkWithHeartbeat,
   createStreamHelpers,
 } from './assistant-stream-utils.js';
-import { executeToolCalls } from './assistant-tool-executor.js';
-import { withMemoryCheck } from '../utils/memory-monitor.js';
 import { createLogger } from '../utils/logger.js';
-import { createStreamEventHandler } from './assistant-runner-stream-event.js';
+import { createRunStepHelpers } from './assistant-runner-step.js';
 
 // Re-export for backward compatibility
 export { readStreamChunkWithHeartbeat } from './assistant-stream-utils.js';
+
+const PROVIDER_FAMILIES_SUPPORTING_TOOLS = ['openai', 'google', 'anthropic'];
 
 function normalizeSelectedToolNames(selectedToolNames) {
   if (!Array.isArray(selectedToolNames)) return null;
@@ -22,6 +19,220 @@ function normalizeSelectedToolNames(selectedToolNames) {
 
 function normalizeToolChoice(selectedToolNames) {
   return Array.isArray(selectedToolNames) && selectedToolNames.length === 0 ? 'none' : undefined;
+}
+
+async function resolveToolContext({ deps, db, user, selectedToolNames }) {
+  const selectedToolNameList = normalizeSelectedToolNames(selectedToolNames);
+  const toolChoice = normalizeToolChoice(selectedToolNames);
+  const servers = await deps.loadToolServers(db, { userId: user?.sub || '' });
+  const built = deps.buildMcpTools(servers, { selectedToolNames: selectedToolNameList });
+  return { ...built, toolChoice };
+}
+
+function providerSupportsTools(normalizedFamily) {
+  return PROVIDER_FAMILIES_SUPPORTING_TOOLS.includes(normalizedFamily);
+}
+
+function resolveCitationsJson(citations) {
+  if (Array.isArray(citations)) return JSON.stringify(citations);
+  return citations || null;
+}
+
+function buildStreamLifecycle({
+  deps,
+  db,
+  env,
+  req,
+  user,
+  chatId,
+  model,
+  userMsgId,
+  citationsJson,
+  emitSse,
+}) {
+  return deps.createAssistantStreamLifecycle({
+    db,
+    env,
+    req,
+    user,
+    chatId,
+    model,
+    userMsgId,
+    citationsJson,
+    getMessageSnapshot: deps.getMessageSnapshot,
+    getOwnedChat: deps.getOwnedChat,
+    publishRealtimeNow: deps.publishRealtimeNow,
+    createRealtimeEvent: deps.createRealtimeEvent,
+    getOriginSessionId: deps.getOriginSessionId,
+    normalizeErrorMessage: deps.normalizeErrorMessage,
+    emitSse,
+  });
+}
+
+function buildRequestLogger(env, req) {
+  return createLogger(env, { requestId: req?.headers?.get('x-request-id') || '' });
+}
+
+function buildStreamHelpersBundle({ deps, db, assistantMsgId, encoder }) {
+  return createStreamHelpers({ db, assistantMsgId, encoder, sseData: deps.sseData });
+}
+
+async function runAssistantStream(streamContext) {
+  const {
+    ctx,
+    deps,
+    controller,
+    encoder,
+    lifecycle,
+    emitSse,
+    chatId,
+    userMsgId,
+    toolCallRecords,
+    citations,
+    fullText,
+    fullReasoning,
+    messageBlocks,
+    db,
+    env,
+    user,
+    req,
+    model,
+  } = streamContext;
+  await lifecycle.ensureAssistantRow();
+  await scheduleStaleStatusClear({ ctx, deps, lifecycle });
+  await emitStartSse({ emitSse, chatId, assistantMsgId: userMsgId, userMsgId });
+
+  const sessionOutcome = await executeSessionLoop(streamContext);
+
+  if (sessionOutcome?.lastResult?.terminate) return;
+
+  await finalizeStream({
+    deps,
+    controller,
+    encoder,
+    params: {
+      db,
+      env,
+      user,
+      req,
+      chatId,
+      model,
+      assistantMsgId: userMsgId,
+      userMsgId,
+      citations,
+      fullText,
+      fullReasoning,
+      toolCallRecords,
+      messageBlocks,
+    },
+  });
+}
+
+async function finalizeStream({ deps, controller, encoder, params }) {
+  await deps.finalizeAssistantStream({
+    ...params,
+    getMessageSnapshot: deps.getMessageSnapshot,
+    getOwnedChat: deps.getOwnedChat,
+    publishRealtimeNow: deps.publishRealtimeNow,
+    createRealtimeEvent: deps.createRealtimeEvent,
+    getOriginSessionId: deps.getOriginSessionId,
+    controller,
+    encoder,
+  });
+}
+
+function scheduleStaleStatusClear({ ctx, deps, lifecycle }) {
+  if (!ctx?.waitUntil) return;
+  ctx.waitUntil(
+    (async () => {
+      await deps.sleep(STREAM_STATUS_STALE_MS);
+      await lifecycle.clearStreamingStatus();
+    })()
+  );
+}
+
+function emitStartSse({ emitSse, chatId, assistantMsgId, userMsgId }) {
+  return emitSse({
+    event: 'start',
+    chat_id: chatId,
+    message_id: assistantMsgId,
+    user_message_id: userMsgId,
+  });
+}
+
+async function executeSessionLoop({
+  deps,
+  requestLogger,
+  env,
+  model,
+  user,
+  chatId,
+  userMsgId,
+  req,
+  controller,
+  encoder,
+  tools,
+  toolMap,
+  serversById,
+  lifecycle,
+  emitSse,
+  appendMessageBlock,
+  messageBlocks,
+  toolCallRecords,
+  citations,
+  attachmentKinds,
+  providerFamily,
+  db,
+  history,
+  toolsEnabled,
+  toolChoice,
+  fullText,
+  fullReasoning,
+  reasoningStartedAt,
+}) {
+  const stepHelpers = createRunStepHelpers({
+    deps,
+    requestLogger,
+    env,
+    model,
+    user,
+    chatId,
+    assistantMsgId: userMsgId,
+    req,
+    controller,
+    encoder,
+    tools,
+    toolMap,
+    serversById,
+    lifecycle,
+    emitSse,
+    appendMessageBlock,
+    messageBlocks,
+    toolCallRecords,
+    citations,
+    attachmentKinds,
+    providerFamily,
+    db,
+  });
+  const runStep = stepHelpers.runStepFactory({
+    fullText,
+    fullReasoning,
+    reasoningStartedAt,
+  });
+  return deps.runAsyncSessionProcessor({
+    initialMessages: history,
+    maxToolSteps: MAX_TOOL_STEPS,
+    maxFollowUps: MAX_FOLLOW_UPS,
+    providerFamily,
+    runStep: async ({ messagesForModel, followUps }) =>
+      runStep({
+        messagesForModel,
+        followUps,
+        maxFollowUps: MAX_FOLLOW_UPS,
+        toolsEnabled,
+        toolChoice,
+      }),
+  });
 }
 
 export function createAssistantRunner(deps) {
@@ -41,33 +252,27 @@ export function createAssistantRunner(deps) {
     selectedToolNames = null,
   }) {
     const assistantMsgId = crypto.randomUUID();
-    const servers = await deps.loadToolServers(db, { userId: user?.sub || '' });
-    const selectedToolNameList = normalizeSelectedToolNames(selectedToolNames);
-    const toolChoice = normalizeToolChoice(selectedToolNames);
-    const { tools, toolMap, serversById } = deps.buildMcpTools(servers, {
-      selectedToolNames: selectedToolNameList,
+    const { tools, toolMap, serversById, toolChoice } = await resolveToolContext({
+      deps,
+      db,
+      user,
+      selectedToolNames,
     });
-    const providerSupportsTools = ['openai', 'google', 'anthropic'].includes(
-      deps.normalizeProviderFamily(providerFamily) || ''
-    );
-    const toolsEnabled = tools.length > 0 && providerSupportsTools;
-    const requestLogger = createLogger(env, { requestId: req?.headers?.get('x-request-id') || '' });
+    const normalizedFamily = deps.normalizeProviderFamily(providerFamily) || '';
+    const toolsEnabled = tools.length > 0 && providerSupportsTools(normalizedFamily);
+    const requestLogger = buildRequestLogger(env, req);
 
     const encoder = new TextEncoder();
-    let fullText = '';
-    let fullReasoning = '';
-    let reasoningStartedAt = null;
-    const toolCallRecords = [];
-    const {
-      _persistDelta,
-      emitSse,
-      appendMessageBlock,
-      messageBlocks,
-      state: streamState,
-    } = createStreamHelpers({ db, assistantMsgId, encoder, sseData: deps.sseData });
+    const streamBundle = buildStreamHelpersBundle({
+      deps,
+      db,
+      assistantMsgId,
+      encoder,
+    });
+    const { emitSse, appendMessageBlock, messageBlocks, state: streamState } = streamBundle;
 
-    const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
-    const lifecycle = deps.createAssistantStreamLifecycle({
+    const lifecycle = buildStreamLifecycle({
+      deps,
       db,
       env,
       req,
@@ -75,367 +280,45 @@ export function createAssistantRunner(deps) {
       chatId,
       model,
       userMsgId,
-      citationsJson,
-      getMessageSnapshot: deps.getMessageSnapshot,
-      getOwnedChat: deps.getOwnedChat,
-      publishRealtimeNow: deps.publishRealtimeNow,
-      createRealtimeEvent: deps.createRealtimeEvent,
-      getOriginSessionId: deps.getOriginSessionId,
-      normalizeErrorMessage: deps.normalizeErrorMessage,
+      citationsJson: resolveCitationsJson(citations),
       emitSse,
     });
 
-    const readable = new ReadableStream({
-      async start(controller) {
-        streamState.streamController = controller;
-        await lifecycle.ensureAssistantRow();
+    const streamContext = buildStreamContext({
+      ctx,
+      deps,
+      requestLogger,
+      env,
+      model,
+      user,
+      chatId,
+      userMsgId,
+      req,
+      tools,
+      toolMap,
+      serversById,
+      lifecycle,
+      emitSse,
+      appendMessageBlock,
+      messageBlocks,
+      toolCallRecords: [],
+      citations,
+      attachmentKinds,
+      providerFamily,
+      db,
+      history,
+      toolsEnabled,
+      toolChoice,
+      fullText: '',
+      fullReasoning: '',
+      reasoningStartedAt: null,
+    });
 
-        if (ctx?.waitUntil) {
-          ctx.waitUntil(
-            (async () => {
-              await deps.sleep(STREAM_STATUS_STALE_MS);
-              await lifecycle.clearStreamingStatus();
-            })()
-          );
-        }
-
-        await emitSse({
-          event: 'start',
-          chat_id: chatId,
-          message_id: assistantMsgId,
-          user_message_id: userMsgId,
-        });
-
-        try {
-          const sessionOutcome = await deps.runAsyncSessionProcessor({
-            initialMessages: history,
-            maxToolSteps: MAX_TOOL_STEPS,
-            maxFollowUps: MAX_FOLLOW_UPS,
-            providerFamily,
-            runStep: async ({ messagesForModel, followUps }) => {
-              let stepTextOutput = false;
-              let stepReasoningOutput = false;
-              let finishReason = null;
-              const stepToolCalls = [];
-
-              async function startLlmStream() {
-                try {
-                  const s = await withMemoryCheck(
-                    'streamLLM',
-                    () =>
-                      deps.streamLLM(env, model, messagesForModel, {
-                        tools: toolsEnabled ? tools : undefined,
-                        toolChoice,
-                        userId: user?.sub || '',
-                        userRole: user?.primary_role || 'member',
-                      }),
-                    {
-                      logger: requestLogger,
-                      extra: { model, messagesLen: messagesForModel.length },
-                    }
-                  );
-                  return { ok: true, stream: s };
-                } catch (err) {
-                  await deps.recordAttachmentCapabilityFailure({
-                    db,
-                    modelId: model,
-                    attachmentKinds,
-                    err,
-                  });
-                  await lifecycle.sendErrorAndClose({
-                    controller,
-                    encoder,
-                    errorCode: 'llm_unavailable',
-                    err,
-                    toolCallRecords,
-                    citations,
-                  });
-                  return {
-                    ok: false,
-                    result: {
-                      action: 'final',
-                      terminate: true,
-                      nextMessagesForModel: messagesForModel,
-                    },
-                  };
-                }
-              }
-
-              function buildStreamParser() {
-                const reader = stream.getReader();
-                const decoder = new TextDecoder();
-                const parser = new deps.SseLineParser({
-                  onEvent: createStreamEventHandler({
-                    reasoningStartedAt,
-                    stepReasoningOutput: {
-                      get value() {
-                        return stepReasoningOutput;
-                      },
-                      set value(v) {
-                        stepReasoningOutput = v;
-                      },
-                    },
-                    appendMessageBlock,
-                    fullReasoning: {
-                      get value() {
-                        return fullReasoning;
-                      },
-                      set value(v) {
-                        fullReasoning = v;
-                      },
-                    },
-                    fullText,
-                    messageBlocks,
-                    lifecycle,
-                    emitSse,
-                    applyToolCallDelta: deps.applyToolCallDelta,
-                    stepToolCalls,
-                    finishReason: {
-                      get value() {
-                        return finishReason;
-                      },
-                      set value(v) {
-                        finishReason = v;
-                      },
-                    },
-                  }),
-                });
-                return { reader, decoder, parser };
-              }
-
-              async function processStreamDelta(delta) {
-                if (!delta) return;
-                fullText += delta;
-                stepTextOutput = true;
-                appendMessageBlock({ type: 'text', content: delta });
-                await lifecycle.persistAssistantContent({
-                  fullText,
-                  fullReasoning,
-                  messageBlocks,
-                });
-                const persisted = await emitSse({ response: delta }, { persist: true });
-                await deps.publishRealtimeNow(
-                  env,
-                  deps.createRealtimeEvent({
-                    type: 'message.delta',
-                    userId: user.sub,
-                    chatId,
-                    messageId: assistantMsgId,
-                    originSessionId: deps.getOriginSessionId(req),
-                    data: { delta, model, seq: persisted?.seq },
-                  })
-                );
-              }
-
-              async function processStreamIteration(reader, parser, decoder, deadlineAt) {
-                const { done, value } = await readStreamChunkWithHeartbeat(reader, {
-                  controller,
-                  encoder,
-                  deadlineAt,
-                });
-                if (done) return { done: true };
-                const delta = parser.push(decoder.decode(value, { stream: true }));
-                await processStreamDelta(delta);
-                if (await lifecycle.isCancelled()) {
-                  await lifecycle.sendCancelAndClose({ controller, encoder });
-                  return {
-                    cancelled: true,
-                    result: {
-                      action: 'final',
-                      terminate: true,
-                      nextMessagesForModel: messagesForModel,
-                    },
-                  };
-                }
-                return { done: false };
-              }
-
-              async function flushFinalDelta(parser, decoder) {
-                const finalDelta = parser.flush();
-                if (!finalDelta) return;
-                fullText += finalDelta;
-                stepTextOutput = true;
-                appendMessageBlock({ type: 'text', content: finalDelta });
-                await lifecycle.persistAssistantContent({
-                  fullText,
-                  fullReasoning,
-                  messageBlocks,
-                });
-                const persisted = await emitSse({ response: finalDelta }, { persist: true });
-                await deps.publishRealtimeNow(
-                  env,
-                  deps.createRealtimeEvent({
-                    type: 'message.delta',
-                    userId: user.sub,
-                    chatId,
-                    messageId: assistantMsgId,
-                    originSessionId: deps.getOriginSessionId(req),
-                    data: { delta: finalDelta, model, seq: persisted?.seq },
-                  })
-                );
-              }
-
-              async function checkCancelledAndClose() {
-                if (await lifecycle.isCancelled()) {
-                  await lifecycle.sendCancelAndClose({ controller, encoder });
-                  return {
-                    action: 'final',
-                    terminate: true,
-                    nextMessagesForModel: messagesForModel,
-                  };
-                }
-                return null;
-              }
-
-              async function buildToolLoopResult() {
-                const { validCalls, unknownCalls } = deps.normalizeToolCalls(
-                  stepToolCalls,
-                  toolMap
-                );
-                const result = await executeToolCalls({
-                  validCalls,
-                  unknownCalls,
-                  serversById,
-                  parseToolArguments: deps.parseToolArguments,
-                  executeMcpToolCall: deps.executeMcpToolCall,
-                  stringifyToolPayload: deps.stringifyToolPayload,
-                  lifecycle,
-                  assistantMsgId,
-                  toolCallRecords,
-                  appendMessageBlock,
-                  fullText,
-                  fullReasoning,
-                  messageBlocks,
-                  emitSse,
-                  controller,
-                  encoder,
-                  normalizeErrorMessage: deps.normalizeErrorMessage,
-                });
-                if (result.cancelled) {
-                  return {
-                    action: 'final',
-                    terminate: true,
-                    nextMessagesForModel: messagesForModel,
-                  };
-                }
-                let nextMessagesForModel = [...messagesForModel];
-                if (result.toolCallsForModel.length) {
-                  nextMessagesForModel = [
-                    ...nextMessagesForModel,
-                    { role: 'assistant', content: '', tool_calls: result.toolCallsForModel },
-                    ...result.toolResultMessages,
-                  ];
-                }
-                if (unknownCalls.length) {
-                  nextMessagesForModel = [
-                    ...nextMessagesForModel,
-                    { role: 'system', content: deps.buildUnknownToolPrompt(unknownCalls, toolMap) },
-                  ];
-                }
-                return { action: 'tool_loop', nextMessagesForModel };
-              }
-
-              function buildFollowUpResult() {
-                return {
-                  action: 'follow_up',
-                  nextMessagesForModel: [
-                    ...messagesForModel,
-                    { role: 'system', content: FOLLOW_UP_PROMPT },
-                  ],
-                };
-              }
-
-              function buildFinalResult() {
-                return { action: 'final', nextMessagesForModel: messagesForModel };
-              }
-
-              async function resolveStepOutcome() {
-                const turnContinuation = deps.resolveTurnContinuation({
-                  providerFamily,
-                  hasToolCalls: stepToolCalls.some((call) => call && call.name),
-                  finishReason,
-                  stepTextOutput,
-                  stepReasoningOutput,
-                  followUps,
-                  maxFollowUps: MAX_FOLLOW_UPS,
-                });
-                if (turnContinuation.action === 'tool_loop') return buildToolLoopResult();
-                if (turnContinuation.action === 'follow_up') return buildFollowUpResult();
-                return buildFinalResult();
-              }
-
-              const streamResult = await startLlmStream();
-              if (!streamResult.ok) return streamResult.result;
-              const stream = streamResult.stream;
-
-              const { reader, decoder, parser } = buildStreamParser();
-              const streamDeadlineAt = Date.now() + STREAM_HARD_TIMEOUT_MS;
-
-              while (true) {
-                const iteration = await processStreamIteration(
-                  reader,
-                  parser,
-                  decoder,
-                  streamDeadlineAt
-                );
-                if (iteration.done) break;
-                if (iteration.cancelled) return iteration.result;
-              }
-
-              await flushFinalDelta(parser, decoder);
-
-              parser.finalize();
-              reader.releaseLock();
-
-              const cancelResult = await checkCancelledAndClose();
-              if (cancelResult) return cancelResult;
-
-              return resolveStepOutcome();
-            },
-          });
-
-          if (sessionOutcome?.lastResult?.terminate) {
-            return;
-          }
-
-          await deps.finalizeAssistantStream({
-            db,
-            env,
-            user,
-            req,
-            chatId,
-            model,
-            assistantMsgId,
-            userMsgId,
-            citations,
-            fullText,
-            fullReasoning,
-            toolCallRecords,
-            messageBlocks,
-            getMessageSnapshot: deps.getMessageSnapshot,
-            getOwnedChat: deps.getOwnedChat,
-            publishRealtimeNow: deps.publishRealtimeNow,
-            createRealtimeEvent: deps.createRealtimeEvent,
-            getOriginSessionId: deps.getOriginSessionId,
-            controller,
-            encoder,
-          });
-        } catch (err) {
-          await lifecycle.sendErrorAndClose({
-            controller,
-            encoder,
-            errorCode: 'stream_failed',
-            err,
-            toolCallRecords,
-            citations,
-          });
-        } finally {
-          await lifecycle.clearStreamingStatus();
-        }
-      },
-      async cancel() {
-        await lifecycle.clearStreamingStatus();
-      },
+    const readable = createReadableStream({
+      streamState,
+      streamContext,
+      controller: null,
+      encoder,
     });
 
     return {
@@ -443,4 +326,89 @@ export function createAssistantRunner(deps) {
       assistantMsgId,
     };
   };
+}
+
+function buildStreamContext({
+  ctx,
+  deps,
+  requestLogger,
+  env,
+  model,
+  user,
+  chatId,
+  userMsgId,
+  req,
+  tools,
+  toolMap,
+  serversById,
+  lifecycle,
+  emitSse,
+  appendMessageBlock,
+  messageBlocks,
+  toolCallRecords,
+  citations,
+  attachmentKinds,
+  providerFamily,
+  db,
+  history,
+  toolsEnabled,
+  toolChoice,
+  fullText,
+  fullReasoning,
+  reasoningStartedAt,
+}) {
+  return {
+    ctx,
+    deps,
+    requestLogger,
+    env,
+    model,
+    user,
+    chatId,
+    userMsgId,
+    req,
+    tools,
+    toolMap,
+    serversById,
+    lifecycle,
+    emitSse,
+    appendMessageBlock,
+    messageBlocks,
+    toolCallRecords,
+    citations,
+    attachmentKinds,
+    providerFamily,
+    db,
+    history,
+    toolsEnabled,
+    toolChoice,
+    fullText,
+    fullReasoning,
+    reasoningStartedAt,
+  };
+}
+
+function createReadableStream({ streamState, streamContext, encoder }) {
+  return new ReadableStream({
+    async start(controller) {
+      streamState.streamController = controller;
+      try {
+        await runAssistantStream({ ...streamContext, controller, encoder });
+      } catch (err) {
+        await streamContext.lifecycle.sendErrorAndClose({
+          controller,
+          encoder,
+          errorCode: 'stream_failed',
+          err: err,
+          toolCallRecords: streamContext.toolCallRecords,
+          citations: streamContext.citations,
+        });
+      } finally {
+        await streamContext.lifecycle.clearStreamingStatus();
+      }
+    },
+    async cancel() {
+      await streamContext.lifecycle.clearStreamingStatus();
+    },
+  });
 }
