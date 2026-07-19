@@ -2,6 +2,28 @@ import { z, ZodError } from 'zod';
 
 const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 
+const IPV4_OCTET_LOOPBACK = 127;
+const IPV4_OCTET_PRIVATE_10 = 10;
+const IPV4_OCTET_PRIVATE_172 = 172;
+const IPV4_PRIVATE_172_LOW = 16;
+const IPV4_PRIVATE_172_HIGH = 31;
+const IPV4_OCTET_PRIVATE_192 = 192;
+const IPV4_OCTET_PRIVATE_192_B = 168;
+const IPV4_OCTET_LINK_LOCAL = 169;
+const IPV4_LINK_LOCAL_B = 254;
+const IPV4_OCTET_UNSPECIFIED = 0;
+const IPV4_OCTET_CGN = 100;
+const IPV4_CGN_LOW = 64;
+const IPV4_CGN_HIGH = 127;
+const IPV4_OCTET_BENCHMARK = 198;
+const IPV4_BENCHMARK_18 = 18;
+const IPV4_BENCHMARK_19 = 19;
+const IPV4_MULTICAST_LOW = 224;
+const IPV4_MULTICAST_HIGH = 239;
+const IPV4_RESERVED_LOW = 240;
+const PASSWORD_MIN_LENGTH = 8;
+const NAME_MAX_LENGTH = 100;
+
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
   'metadata.google.internal',
@@ -12,25 +34,48 @@ const BLOCKED_HOSTNAMES = new Set([
 // Each entry: { check(a, b) → boolean, reason }
 // Ordered from most specific to least specific so the first match wins.
 const IPV4_BLOCKED_RANGES = [
-  { check: (a) => a === 127, reason: 'Loopback addresses are not allowed' },
-  { check: (a) => a === 10, reason: 'Private network addresses are not allowed' },
   {
-    check: (a, b) => a === 172 && b >= 16 && b <= 31,
+    check: (a) => a === IPV4_OCTET_LOOPBACK,
+    reason: 'Loopback addresses are not allowed',
+  },
+  {
+    check: (a) => a === IPV4_OCTET_PRIVATE_10,
     reason: 'Private network addresses are not allowed',
   },
-  { check: (a, b) => a === 192 && b === 168, reason: 'Private network addresses are not allowed' },
-  { check: (a, b) => a === 169 && b === 254, reason: 'Link-local addresses are not allowed' },
-  { check: (a) => a === 0, reason: 'Unspecified addresses are not allowed' },
   {
-    check: (a, b) => a === 100 && b >= 64 && b <= 127,
+    check: (a, b) =>
+      a === IPV4_OCTET_PRIVATE_172 && b >= IPV4_PRIVATE_172_LOW && b <= IPV4_PRIVATE_172_HIGH,
+    reason: 'Private network addresses are not allowed',
+  },
+  {
+    check: (a, b) => a === IPV4_OCTET_PRIVATE_192 && b === IPV4_OCTET_PRIVATE_192_B,
+    reason: 'Private network addresses are not allowed',
+  },
+  {
+    check: (a, b) => a === IPV4_OCTET_LINK_LOCAL && b === IPV4_LINK_LOCAL_B,
+    reason: 'Link-local addresses are not allowed',
+  },
+  {
+    check: (a) => a === IPV4_OCTET_UNSPECIFIED,
+    reason: 'Unspecified addresses are not allowed',
+  },
+  {
+    check: (a, b) => a === IPV4_OCTET_CGN && b >= IPV4_CGN_LOW && b <= IPV4_CGN_HIGH,
     reason: 'Carrier-grade NAT addresses are not allowed',
   },
   {
-    check: (a, b) => a === 198 && (b === 18 || b === 19),
+    check: (a, b) =>
+      a === IPV4_OCTET_BENCHMARK && (b === IPV4_BENCHMARK_18 || b === IPV4_BENCHMARK_19),
     reason: 'Benchmarking addresses are not allowed',
   },
-  { check: (a) => a >= 224 && a <= 239, reason: 'Multicast addresses are not allowed' },
-  { check: (a) => a >= 240, reason: 'Reserved addresses are not allowed' },
+  {
+    check: (a) => a >= IPV4_MULTICAST_LOW && a <= IPV4_MULTICAST_HIGH,
+    reason: 'Multicast addresses are not allowed',
+  },
+  {
+    check: (a) => a >= IPV4_RESERVED_LOW,
+    reason: 'Reserved addresses are not allowed',
+  },
 ];
 
 const OBFUSCATED_IP_REASONS = [
@@ -137,14 +182,21 @@ export const ValidationSchemas = {
 
   signupCredentials: z.object({
     email: z.string().email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
+    password: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`),
+    name: z
+      .string()
+      .min(1, 'Name is required')
+      .max(NAME_MAX_LENGTH, `Name must be less than ${NAME_MAX_LENGTH} characters`),
   }),
 
   // Password reset
   passwordReset: z.object({
     token: z.string().min(1, 'Reset token is required'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`),
   }),
 
   // Profile updates
