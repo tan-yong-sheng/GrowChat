@@ -64,7 +64,7 @@ function buildNewModel(body) {
     created_at: Math.floor(Date.now() / 1000),
   };
 }
-export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { logger }) {
+export async function handlePublicModelsCreate({ req, env, ctx: _ctx, user, path: _path, logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
 
@@ -83,31 +83,41 @@ export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { lo
   }
 
   try {
-    const customModels = await loadCustomModels(env);
-    const duplicateError = findDuplicate(customModels, body);
-    if (duplicateError) {
-      return error(req, duplicateError, HTTP_STATUS.CONFLICT);
-    }
+    const ctx = await loadAndCheckCustomModels({ env, body, req });
+    if (ctx.error) return ctx.error;
 
-    const newModel = buildNewModel(body);
-    customModels.push(newModel);
-
-    await env.CACHE.put(CUSTOM_KEY, JSON.stringify(customModels), { expirationTtl: ONE_YEAR_TTL });
-
-    await logAuditEvent(env, {
-      actor_id: user.sub,
-      action: 'model_created',
-      resource_type: 'model',
-      resource_id: body.id,
-      metadata: { provider: body.provider, name: body.name },
-    });
-
+    await persistCustomModels({ env, customModels: ctx.customModels, newModel: ctx.newModel });
+    await auditModelCreation({ env, user, body });
     return jsonCreated(req, {
-      model: newModel,
+      model: ctx.newModel,
       message: 'Model configured successfully',
     });
   } catch (err) {
     logger.error('Add custom model failed', { error: err?.message || err });
     return error(req, 'Failed to add custom model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
+}
+
+async function loadAndCheckCustomModels({ env, body, req }) {
+  const customModels = await loadCustomModels(env);
+  const duplicateError = findDuplicate(customModels, body);
+  if (duplicateError) {
+    return { error: error(req, duplicateError, HTTP_STATUS.CONFLICT) };
+  }
+  return { customModels, newModel: buildNewModel(body) };
+}
+
+async function persistCustomModels({ env, customModels, newModel }) {
+  customModels.push(newModel);
+  await env.CACHE.put(CUSTOM_KEY, JSON.stringify(customModels), { expirationTtl: ONE_YEAR_TTL });
+}
+
+async function auditModelCreation({ env, user, body }) {
+  await logAuditEvent(env, {
+    actor_id: user.sub,
+    action: 'model_created',
+    resource_type: 'model',
+    resource_id: body.id,
+    metadata: { provider: body.provider, name: body.name },
+  });
 }

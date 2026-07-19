@@ -53,7 +53,7 @@ export function missingCacheBinding(req) {
  * (e.g. 'update', 'delete') to contextualize error and log messages.
  */
 // action+logger keeps shared helper parameterized
-export async function rejectIfBaseModel(req, env, modelId, action, logger) {
+export async function rejectIfBaseModel({ req, env, modelId, action, logger }) {
   try {
     const modelConnections = await getAllOpenAIConnectionConfigs(env);
     const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
@@ -95,7 +95,7 @@ export async function writeCustomModelsToCache(env, customModels) {
  * extraFields: object with additional properties merged into the audit event.
  */
 // audit helper needs all params
-export async function logModelAuditEvent(env, user, action, modelId, extraFields) {
+export async function logModelAuditEvent({ env, user, action, modelId, extraFields }) {
   await logAuditEvent(env, {
     actor_id: user.sub,
     action,
@@ -112,7 +112,7 @@ export async function logModelAuditEvent(env, user, action, modelId, extraFields
  * Returns { found, error, customModels, modelIndex }.
  */
 // composite helper needs all context
-export async function findAndValidateCustomModel(req, env, modelId, action, logger) {
+export async function findAndValidateCustomModel({ req, env, modelId, action, logger }) {
   const baseError = await rejectIfBaseModel(req, env, modelId, action, logger);
   if (baseError) {
     return { found: false, error: baseError };

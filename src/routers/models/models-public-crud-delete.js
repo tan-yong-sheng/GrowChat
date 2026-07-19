@@ -7,14 +7,20 @@ import {
   requireModelAdmin,
   writeCustomModelsToCache,
 } from './models-public-crud-helpers.js';
-export async function handlePublicModelsDelete(req, env, _ctx, user, path, { logger }) {
+export async function handlePublicModelsDelete({ req, env, ctx: _ctx, user, path, logger }) {
   const modelId = extractModelIdFromPath(path);
 
   const authError = await requireModelAdmin(req, env, user, modelId);
   if (authError) return authError;
 
   try {
-    const result = await findAndValidateCustomModel(req, env, modelId, 'delete', logger);
+    const result = await findAndValidateCustomModel({
+      req,
+      env,
+      modelId,
+      action: 'delete',
+      logger,
+    });
     if (!result.found) return result.error;
 
     const { customModels, modelIndex } = result;
@@ -23,9 +29,15 @@ export async function handlePublicModelsDelete(req, env, _ctx, user, path, { log
 
     await writeCustomModelsToCache(env, customModels);
 
-    await logModelAuditEvent(env, user, 'model_deleted', modelId, {
-      provider: deletedModel.provider,
-      name: deletedModel.name,
+    await logModelAuditEvent({
+      env,
+      user,
+      action: 'model_deleted',
+      modelId,
+      extraFields: {
+        provider: deletedModel.provider,
+        name: deletedModel.name,
+      },
     });
 
     return json(req, { success: true, message: 'Model removed successfully' });

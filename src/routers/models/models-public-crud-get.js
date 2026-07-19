@@ -21,7 +21,7 @@ function findBaseModel(baseModels, modelId) {
 function findCustomModel(customModels, modelId) {
   return customModels.find((m) => m.id === modelId);
 }
-export async function handlePublicModelsGet(req, env, _ctx, _user, path, { logger }) {
+export async function handlePublicModelsGet({ req, env, ctx: _ctx, user: _user, path, logger }) {
   const modelId = extractModelIdFromPath(path);
 
   try {

@@ -30,7 +30,7 @@ export async function handlePublicModelsCrud(
 ) {
   for (const route of ROUTE_MAP) {
     if (route.method === req.method && route.match(path)) {
-      return route.handler(req, env, ctx, user, path, { logger });
+      return route.handler({ req, env, ctx, user, path, logger });
     }
   }
   return null;

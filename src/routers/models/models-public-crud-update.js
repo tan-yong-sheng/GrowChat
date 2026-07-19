@@ -59,7 +59,7 @@ function applyUpdates(model, body) {
   applyMaxTokensUpdate(model, body);
   applyTemperatureUpdate(model, body);
 }
-export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { logger }) {
+export async function handlePublicModelsUpdate({ req, env, ctx: _ctx, user, path, logger }) {
   const modelId = extractModelIdFromPath(path);
 
   const authError = await requireModelAdmin(req, env, user, modelId);
@@ -71,7 +71,13 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
   }
 
   try {
-    const result = await findAndValidateCustomModel(req, env, modelId, 'update', logger);
+    const result = await findAndValidateCustomModel({
+      req,
+      env,
+      modelId,
+      action: 'update',
+      logger,
+    });
     if (!result.found) return result.error;
 
     const { customModels, modelIndex } = result;
@@ -80,8 +86,14 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
 
     await writeCustomModelsToCache(env, customModels);
 
-    await logModelAuditEvent(env, user, 'model_updated', modelId, {
-      fields_changed: Object.keys(body),
+    await logModelAuditEvent({
+      env,
+      user,
+      action: 'model_updated',
+      modelId,
+      extraFields: {
+        fields_changed: Object.keys(body),
+      },
     });
 
     return json(req, {
