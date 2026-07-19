@@ -10,42 +10,30 @@ import {
   syncGlobalRoleBinding,
 } from './users-helpers.js';
 
-// CSV import handler
-export async function handleImportUsers(req, env, user, logger) {
-  const authDecision = await authorize(env, user, {
-    action: 'admin.user.write',
-    resource: 'users',
-  });
-
-  if (!authDecision.allow) {
-    return authError(req, authDecision);
-  }
-
+async function parseImportBody(req) {
   let body;
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
+    return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
   }
+  return { body };
+}
 
-  const csv = String(body.csv || '');
-  if (!csv.trim()) {
-    return error(req, 'csv is required', HTTP_STATUS.BAD_REQUEST);
-  }
-
+function parseImportRows(body) {
+  const csv = String(body?.csv || '');
+  if (!csv.trim()) return { error: 'csv is required' };
   const rows = csv
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+  if (rows.length === 0) return { error: 'CSV is empty' };
+  return { rows };
+}
 
-  if (rows.length === 0) {
-    return error(req, 'CSV is empty', HTTP_STATUS.BAD_REQUEST);
-  }
-
-  const db = createDB(env.DB);
+async function runImportRowLoop({ req, db, env, rows, user, logger }) {
   const results = [];
   let created = 0;
-
   for (let index = 0; index < rows.length; index += 1) {
     const line = rows[index];
     const rowResult = await processImportRow({
@@ -61,6 +49,37 @@ export async function handleImportUsers(req, env, user, logger) {
     results.push(rowResult.entry);
     if (rowResult.entry.ok) created += 1;
   }
+  return { results, created };
+}
+
+// CSV import handler
+export async function handleImportUsers(req, env, user, logger) {
+  const authDecision = await authorize(env, user, {
+    action: 'admin.user.write',
+    resource: 'users',
+  });
+
+  if (!authDecision.allow) {
+    return authError(req, authDecision);
+  }
+
+  const bodyResult = await parseImportBody(req);
+  if (bodyResult.error) return bodyResult.error;
+
+  const rowsResult = parseImportRows(bodyResult.body);
+  if (rowsResult.error) {
+    return error(req, rowsResult.error, HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const db = createDB(env.DB);
+  const { results, created } = await runImportRowLoop({
+    req,
+    db,
+    env,
+    rows: rowsResult.rows,
+    user,
+    logger,
+  });
 
   await logAuditEvent(env, {
     actor_id: user.sub,
