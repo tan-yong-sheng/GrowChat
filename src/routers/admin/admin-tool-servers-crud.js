@@ -19,7 +19,7 @@ import { applyAuthHeaders } from '../../shared/apply-auth-headers.js';
 import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 
-async function handleListToolServers(req, env, db, user, logger) {
+async function handleListToolServers({ req, db, logger, _env, _user }) {
   try {
     const url = new URL(req.url);
     const includeDisabled = parseIncludeDisabledParam(
@@ -66,7 +66,7 @@ async function resolveToolServerOAuthIfNeeded(req, db, body, headers) {
   return resolveOAuthHeaderForServer(req, db, body, headers);
 }
 
-async function runToolServerConnectionTest(req, db, logger, url, headers, body) {
+async function runToolServerConnectionTest({ req, db, url, headers, body, _logger }) {
   const { tools: rawTools } = await testMcpConnection(url, headers);
   const toolSummaries = mapMcpTools(rawTools);
   const mergedTools = body.id
@@ -79,7 +79,7 @@ async function runToolServerConnectionTest(req, db, logger, url, headers, body) 
   });
 }
 
-async function handleTestToolServer(req, env, db, user, logger) {
+async function handleTestToolServer({ req, env, db, user, logger }) {
   const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'tool-server');
   if (denied) return denied;
 
@@ -95,14 +95,14 @@ async function handleTestToolServer(req, env, db, user, logger) {
   if (oauthResult) return oauthResult;
 
   try {
-    return await runToolServerConnectionTest(
+    return await runToolServerConnectionTest({
       req,
       db,
       logger,
-      urlResult.url,
-      headersResult.headers,
-      body
-    );
+      url: urlResult.url,
+      headers: headersResult.headers,
+      body,
+    });
   } catch (err) {
     await persistToolServerConnectionError(db, logger, body, err);
     return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
@@ -111,7 +111,7 @@ async function handleTestToolServer(req, env, db, user, logger) {
   }
 }
 
-async function handleUpdateToolServers(req, env, db, user, logger) {
+async function handleUpdateToolServers({ req, env, db, user, logger }) {
   const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'tool-server');
   if (denied) return denied;
 
@@ -148,22 +148,24 @@ async function handleUpdateToolServers(req, env, db, user, logger) {
  * Handle handleAdminToolServersCrud routes.
  * Returns Response if handled, null if path doesn't match.
  */
-export async function handleAdminToolServersCrud(
+export async function handleAdminToolServersCrud({
   req,
   env,
-  ctx,
   user,
   path,
-  { db, logger, _requestContext }
-) {
+  db,
+  logger,
+  _ctx,
+  _requestContext,
+}) {
   if (req.method === 'GET' && path === '/api/admin/tool-servers') {
-    return handleListToolServers(req, env, db, user, logger);
+    return handleListToolServers({ req, db, logger });
   }
   if (req.method === 'POST' && path === '/api/admin/tool-servers/test') {
-    return handleTestToolServer(req, env, db, user, logger);
+    return handleTestToolServer({ req, env, db, user, logger });
   }
   if (req.method === 'PUT' && path === '/api/admin/tool-servers') {
-    return handleUpdateToolServers(req, env, db, user, logger);
+    return handleUpdateToolServers({ req, env, db, user, logger });
   }
   return null;
 }
