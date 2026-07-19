@@ -82,7 +82,13 @@ async function loadValidGroupIds(db) {
   const groups = await db.all('SELECT id FROM groups');
   return new Set((Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean));
 }
-function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSchemaStatements) {
+function processAccessUpdate({
+  db,
+  update,
+  nextAccessMap,
+  validGroupIds,
+  includeSchemaStatements,
+}) {
   const modelId = update.model_id;
   const isEnabled = nextAccessMap.has(modelId) ? nextAccessMap.get(modelId) : true;
   if (!isEnabled) {
@@ -122,13 +128,13 @@ async function buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAcces
   const statements = [];
 
   for (const update of sanitizedAccessUpdates) {
-    const { statements: aclStatements, normalizedUpdate } = processAccessUpdate(
+    const { statements: aclStatements, normalizedUpdate } = processAccessUpdate({
       db,
       update,
       nextAccessMap,
       validGroupIds,
-      includeSchemaStatements
-    );
+      includeSchemaStatements,
+    });
     includeSchemaStatements = false;
     statements.push(...aclStatements);
     normalizedAccessUpdates.push(normalizedUpdate);
@@ -136,15 +142,15 @@ async function buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAcces
 
   return { statements, normalizedAccessUpdates };
 }
-async function execStatementsAndLog(
+async function execStatementsAndLog({
   db,
   statements,
   env,
   user,
   updatesCount,
   attachmentUpdatesCount,
-  accessUpdatesCount
-) {
+  accessUpdatesCount,
+}) {
   await chunkedBatch(db, statements);
   await logAuditEvent(env, {
     actor_id: user.sub,
@@ -158,7 +164,7 @@ async function execStatementsAndLog(
     },
   });
 }
-async function saveSettings(
+async function saveSettings({
   db,
   env,
   user,
@@ -166,8 +172,8 @@ async function saveSettings(
   sanitizedAttachmentUpdates,
   attachmentCaps,
   normalizedAccessUpdates,
-  accessStatements = []
-) {
+  accessStatements = [],
+}) {
   const statements = [
     ...buildBaseStatements(db),
     ...buildEnabledUpdateStatements(db, sanitizedUpdates),
@@ -178,15 +184,15 @@ async function saveSettings(
     statements.push(buildModelAttachmentCapSaveStatement(db, attachmentCaps));
   }
 
-  await execStatementsAndLog(
+  await execStatementsAndLog({
     db,
     statements,
     env,
     user,
-    sanitizedUpdates.length,
-    sanitizedAttachmentUpdates.length,
-    normalizedAccessUpdates.length
-  );
+    updatesCount: sanitizedUpdates.length,
+    attachmentUpdatesCount: sanitizedAttachmentUpdates.length,
+    accessUpdatesCount: normalizedAccessUpdates.length,
+  });
 }
 
 async function parseRequestBody(req) {
@@ -218,7 +224,7 @@ async function prepareAttachmentAndAccessUpdates(db, attachmentUpdatesInput, acc
 
   return { attachmentCaps, sanitizedAttachmentUpdates, sanitizedAccessUpdates };
 }
-async function buildAndExecuteStatements(
+async function buildAndExecuteStatements({
   db,
   env,
   user,
@@ -226,8 +232,8 @@ async function buildAndExecuteStatements(
   sanitizedUpdates,
   sanitizedAttachmentUpdates,
   attachmentCaps,
-  sanitizedAccessUpdates
-) {
+  sanitizedAccessUpdates,
+}) {
   const currentAccessMap = await getModelAccessMap(db, logger);
   const nextAccessMap = new Map(currentAccessMap);
   for (const update of sanitizedUpdates) {
@@ -239,7 +245,7 @@ async function buildAndExecuteStatements(
       ? await buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAccessMap, logger)
       : { statements: [], normalizedAccessUpdates: [] };
 
-  await saveSettings(
+  await saveSettings({
     db,
     env,
     user,
@@ -247,8 +253,8 @@ async function buildAndExecuteStatements(
     sanitizedAttachmentUpdates,
     attachmentCaps,
     normalizedAccessUpdates,
-    accessStatements
-  );
+    accessStatements,
+  });
 
   return {
     ok: true,
@@ -284,6 +290,29 @@ async function validateUpdateRequest(req, env, user) {
     return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
   }
 
+  const parsed = parseAndCountInputs(body, req);
+  if (parsed.error) return { error: parsed.error };
+
+  const sanitized = sanitizeAndPrepareInputs({ db, ...parsed.inputs }, req);
+  if (sanitized.error) return { error: sanitized.error };
+
+  const aclError = await ensureAclIfAccessUpdates({ ...sanitized, env, user, req });
+  if (aclError) return { error: aclError };
+
+  if (
+    hasNoModelChanges(
+      sanitized.sanitizedUpdates,
+      sanitized.sanitizedAttachmentUpdates,
+      sanitized.sanitizedAccessUpdates
+    )
+  ) {
+    return { error: error(req, 'No model changes provided', HTTP_STATUS.BAD_REQUEST) };
+  }
+
+  return { db, ...sanitized };
+}
+
+function parseAndCountInputs(body, req) {
   const { updatesInput, attachmentUpdatesInput, accessUpdatesInput } = parseBody(body);
 
   if (!validateUpdateCounts(updatesInput, attachmentUpdatesInput, accessUpdatesInput)) {
@@ -295,6 +324,12 @@ async function validateUpdateRequest(req, env, user) {
     return { error: error(req, 'Invalid model id in updates', HTTP_STATUS.BAD_REQUEST) };
   }
 
+  return {
+    inputs: { updatesInput, attachmentUpdatesInput, accessUpdatesInput, sanitizedUpdates },
+  };
+}
+
+async function sanitizeAndPrepareInputs({ db, attachmentUpdatesInput, accessUpdatesInput }, req) {
   const prepared = await prepareAttachmentAndAccessUpdates(
     db,
     attachmentUpdatesInput,
@@ -303,26 +338,21 @@ async function validateUpdateRequest(req, env, user) {
   if (prepared.error) {
     return { error: error(req, prepared.error, HTTP_STATUS.BAD_REQUEST) };
   }
-  const { attachmentCaps, sanitizedAttachmentUpdates, sanitizedAccessUpdates } = prepared;
-
-  if (sanitizedAccessUpdates.length > 0) {
-    const aclError = await requireAclAccess(req, env, user);
-    if (aclError) return { error: aclError };
-  }
-
-  if (hasNoModelChanges(sanitizedUpdates, sanitizedAttachmentUpdates, sanitizedAccessUpdates)) {
-    return { error: error(req, 'No model changes provided', HTTP_STATUS.BAD_REQUEST) };
-  }
-
-  return {
-    db,
-    sanitizedUpdates,
-    sanitizedAttachmentUpdates,
-    attachmentCaps,
-    sanitizedAccessUpdates,
-  };
+  return prepared;
 }
-export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _path, { logger }) {
+
+async function ensureAclIfAccessUpdates({ sanitizedAccessUpdates, env, user, req }) {
+  if (sanitizedAccessUpdates.length === 0) return null;
+  return requireAclAccess(req, env, user);
+}
+export async function handleAdminModelsSettingsUpdate({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  path: _path,
+  logger,
+}) {
   const validation = await validateUpdateRequest(req, env, user);
   if (validation.error) return validation.error;
 
@@ -335,7 +365,7 @@ export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _pat
   } = validation;
 
   try {
-    const result = await buildAndExecuteStatements(
+    const result = await buildAndExecuteStatements({
       db,
       env,
       user,
@@ -343,8 +373,8 @@ export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _pat
       sanitizedUpdates,
       sanitizedAttachmentUpdates,
       attachmentCaps,
-      sanitizedAccessUpdates
-    );
+      sanitizedAccessUpdates,
+    });
     return json(req, result);
   } catch (err) {
     logger.error('Model settings update failed', { error: err?.message || err });

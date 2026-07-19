@@ -23,7 +23,7 @@ export async function handleAdminModelsSettings(
 ) {
   for (const route of ROUTE_MAP) {
     if (route.method === req.method && route.path === path) {
-      return route.handler(req, env, ctx, user, path, { logger });
+      return route.handler({ req, env, ctx, user, path, logger });
     }
   }
   return null;

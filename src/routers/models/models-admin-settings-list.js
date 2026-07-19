@@ -63,7 +63,14 @@ async function attachAttachmentCaps(db, models) {
     attachments: getModelAttachmentCapsEntry(attachmentCaps, model.id),
   }));
 }
-export async function handleAdminModelsSettingsList(req, env, _ctx, user, _path, { logger }) {
+export async function handleAdminModelsSettingsList({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  path: _path,
+  logger,
+}) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
 
@@ -72,48 +79,74 @@ export async function handleAdminModelsSettingsList(req, env, _ctx, user, _path,
   }
 
   try {
-    const db = createDB(env.DB);
-    let openaiEnabled = true;
-    try {
-      openaiEnabled = await getConfigBool(db, 'openai_enabled', true);
-    } catch (err) {
-      logger.warn('Failed to read openai_enabled config', { error: err.message });
-    }
-
-    const { limit, offset, query, providerFilter, includeDisabled } = parseListParams(req);
-    const { baseModels, customModels } = await loadModels(env, logger, { includeDisabled });
-
-    let allModels = [...baseModels, ...customModels];
-    if (!openaiEnabled) {
-      allModels = allModels.filter((model) => !isOpenAIProvider(model));
-    }
-
-    const accessMap = await getModelAccessMap(db, logger);
-    const adminModels = buildAdminModels(allModels, accessMap);
-    const providerStats = buildProviderStats(adminModels);
-
-    let filteredModels = applyFilters(adminModels, query, providerFilter);
-    filteredModels = sortModelsByActiveThenName(filteredModels);
-    const total = filteredModels.length;
-    const activeTotal = countEnabledModels(filteredModels);
-
-    let paginatedModels = filteredModels;
-    if (limit > 0) {
-      paginatedModels = filteredModels.slice(offset, offset + limit);
-    }
-
-    paginatedModels = await attachAttachmentCaps(db, paginatedModels);
-
-    return json(req, {
-      models: paginatedModels,
-      total,
-      active_total: activeTotal,
-      limit,
-      offset,
-      providers: providerStats,
-    });
+    const ctx = await buildAdminListContext({ env, req, logger });
+    const response = buildAdminListResponse({ ...ctx, req, limit: ctx.limit, offset: ctx.offset });
+    return json(req, response);
   } catch (err) {
     logger.error('Unexpected error listing admin models', { error: err?.message || err });
     return error(req, 'Failed to list models', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
+}
+
+async function buildAdminListContext({ env, req, logger }) {
+  const db = createDB(env.DB);
+  const openaiEnabled = await resolveOpenaiEnabled(db, logger);
+  const { limit, offset, query, providerFilter, includeDisabled } = parseListParams(req);
+  const { baseModels, customModels } = await loadModels(env, logger, { includeDisabled });
+
+  const allModels = openaiEnabled
+    ? [...baseModels, ...customModels]
+    : [...baseModels, ...customModels].filter((model) => !isOpenAIProvider(model));
+
+  const accessMap = await getModelAccessMap(db, logger);
+  const adminModels = buildAdminModels(allModels, accessMap);
+  return { db, adminModels, limit, offset, query, providerFilter };
+}
+
+async function resolveOpenaiEnabled(db, logger) {
+  try {
+    return await getConfigBool(db, 'openai_enabled', true);
+  } catch (err) {
+    logger.warn('Failed to read openai_enabled config', { error: err.message });
+    return true;
+  }
+}
+
+function buildAdminListResponse({ req, db, adminModels, limit, offset, query, providerFilter }) {
+  const providerStats = buildProviderStats(adminModels);
+  const filteredModels = sortModelsByActiveThenName(
+    applyFilters(adminModels, query, providerFilter)
+  );
+  const total = filteredModels.length;
+  const activeTotal = countEnabledModels(filteredModels);
+  const paginated = applyPagination(filteredModels, limit, offset);
+  return assembleListPayload(req, db, {
+    paginated,
+    total,
+    activeTotal,
+    limit,
+    offset,
+    providerStats,
+  });
+}
+
+function applyPagination(models, limit, offset) {
+  if (limit <= 0) return models;
+  return models.slice(offset, offset + limit);
+}
+
+async function assembleListPayload(
+  req,
+  db,
+  { paginated, total, activeTotal, limit, offset, providerStats }
+) {
+  const modelsWithCaps = await attachAttachmentCaps(db, paginated);
+  return {
+    models: modelsWithCaps,
+    total,
+    active_total: activeTotal,
+    limit,
+    offset,
+    providers: providerStats,
+  };
 }
