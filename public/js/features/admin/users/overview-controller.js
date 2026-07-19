@@ -1,7 +1,6 @@
 /**
  * Controller logic for the admin users overview (event binding, view updates).
  */
-import { apiFetch } from '../../../shared/api.js';
 import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
@@ -28,13 +27,11 @@ import {
  */
 export function createOverviewController(ctx) {
   const {
-    container,
     data,
     actions,
     uiState,
     tbody,
     searchInput,
-    clearSearchBtn,
     clearSearchContainer,
     totalCount,
     pageRange,
