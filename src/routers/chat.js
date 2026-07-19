@@ -110,7 +110,14 @@ export async function chatRouter({ req, env, ctx, user, path }) {
     return json(req, { servers: serializeAllowedToolServers(servers) });
   }
 
-  const collectionResponse = await chatCollectionRouter(req, env, user, path, originSessionId, db);
+  const collectionResponse = await chatCollectionRouter({
+    req,
+    env,
+    user,
+    path,
+    originSessionId,
+    db,
+  });
   if (collectionResponse) return collectionResponse;
 
   const messageResponse = await chatMessageRouter({

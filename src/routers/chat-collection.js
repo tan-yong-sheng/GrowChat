@@ -50,7 +50,7 @@ const PATTERN_ROUTES = [
   {
     pattern: /^\/api\/chats\/([^/]+)$/,
     handlers: {
-      GET: (c, chatId) => handleGetChat(c.req, c.env, c.db, c.user, chatId),
+      GET: (c, chatId) => handleGetChat({ req: c.req, env: c.env, db: c.db, user: c.user, chatId }),
       PUT: (c, chatId) =>
         handleUpdateChat({
           req: c.req,
@@ -89,7 +89,15 @@ const PATTERN_ROUTES = [
     pattern: /^\/api\/chats\/([^/]+)\/clone$/,
     handlers: {
       POST: (c, chatId) =>
-        handleCloneChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId, publishRealtimeNow),
+        handleCloneChat({
+          req: c.req,
+          env: c.env,
+          db: c.db,
+          user: c.user,
+          sourceChatId: chatId,
+          originSessionId: c.originSessionId,
+          publishRealtimeNow,
+        }),
     },
   },
   {
@@ -143,14 +151,14 @@ function resolvePatternRoute(method, path) {
   return null;
 }
 
-export async function chatCollectionRouter(
+export async function chatCollectionRouter({
   req,
   env,
   user,
   path,
   originSessionId,
-  db = createDB(env.DB)
-) {
+  db = createDB(env.DB),
+}) {
   const context = {
     req,
     env,
