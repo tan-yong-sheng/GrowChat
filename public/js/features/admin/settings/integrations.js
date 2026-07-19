@@ -26,28 +26,8 @@ function getRowClass(serverEnabled) {
   return serverEnabled ? '' : 'opacity-70';
 }
 
-function getBadgeClass(serverEnabled) {
-  return serverEnabled ? 'hidden' : '';
-}
-
-function getToolsErrorMarkup(toolsError) {
-  return toolsError ? `<span class="text-red-500 ml-2">${escapeHtml(toolsError)}</span>` : '';
-}
-
-function getButtonClass(serverEnabled, canManageAcls) {
-  return serverEnabled && canManageAcls ? '' : 'hidden';
-}
-
 function getCanManageAttrs(canManageAcls) {
   return canManageAcls ? '' : 'disabled aria-disabled="true"';
-}
-
-function getExpandedClass(toolsExpanded) {
-  return toolsExpanded ? 'rotate-180' : '';
-}
-
-function getToolsExpandedVisibility(toolsExpanded) {
-  return toolsExpanded ? '' : 'hidden';
 }
 
 export function renderIntegrationsSettings(container, data) {
