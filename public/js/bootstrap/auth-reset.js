@@ -128,29 +128,31 @@ export function handleResetResult(res, data) {
  * @param {Event} e - The submit event
  * @param {object} sharedState - Shared state object with {isSubmitting}
  */
-// multi-branch reset state
-export async function handleResetPasswordSubmit(e, sharedState) {
+function getResetFormValues() {
+  return {
+    password: newPasswordInput.value,
+    confirmPassword: confirmPasswordInput.value,
+  };
+}
+
+function validateResetInputs(e, sharedState) {
   e.preventDefault();
-  if (sharedState.isSubmitting) return;
-
-  const password = newPasswordInput.value;
-  const confirmPassword = confirmPasswordInput.value;
-
+  if (sharedState.isSubmitting) return { skip: true };
+  const { password, confirmPassword } = getResetFormValues();
   const validationError = validateResetPassword(password, confirmPassword);
   if (validationError) {
     showResetError(validationError);
-    return;
+    return { skip: true };
   }
-
   const token = getUrlToken();
   if (!token) {
     showResetError('Invalid reset link');
-    return;
+    return { skip: true };
   }
+  return { password, token };
+}
 
-  sharedState.isSubmitting = true;
-  beginResetSubmit();
-
+async function submitResetPassword({ token, password }) {
   try {
     const res = await fetch('/api/auth/reset-password', {
       method: 'POST',
@@ -161,6 +163,19 @@ export async function handleResetPasswordSubmit(e, sharedState) {
     handleResetResult(res, data);
   } catch {
     showResetError('Network error. Please try again.');
+  }
+}
+
+// multi-branch reset state
+export async function handleResetPasswordSubmit(e, sharedState) {
+  const prepared = validateResetInputs(e, sharedState);
+  if (prepared.skip) return;
+
+  sharedState.isSubmitting = true;
+  beginResetSubmit();
+
+  try {
+    await submitResetPassword(prepared);
   } finally {
     sharedState.isSubmitting = false;
     endResetSubmit();
