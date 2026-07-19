@@ -98,7 +98,6 @@ async function handleTestToolServer({ req, env, db, user, logger }) {
     return await runToolServerConnectionTest({
       req,
       db,
-      logger,
       url: urlResult.url,
       headers: headersResult.headers,
       body,

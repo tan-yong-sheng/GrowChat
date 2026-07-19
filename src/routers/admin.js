@@ -90,17 +90,7 @@ export async function adminRouter({
     () => handleAdminConnectionsList(req, env, ctx, user, path, deps),
     () => handleAdminConnectionsSave(req, env, ctx, user, path, deps),
     () => handleAdminToolServersAccess(req, env, ctx, user, path, deps),
-    () =>
-      handleAdminToolServersCrud({
-        req,
-        env,
-        ctx,
-        user,
-        path,
-        db: deps.db,
-        logger: deps.logger,
-        requestContext: deps.requestContext,
-      }),
+    () => handleAdminToolServersCrud(req, env, ctx, user, path, deps),
     () => handleAdminToolServersOAuth(req, env, ctx, user, path, deps),
     () => handleAdminConfig(req, env, ctx, user, path, deps),
     () => handleAdminEmailSecurity({ req, env, user, path, deps }),
