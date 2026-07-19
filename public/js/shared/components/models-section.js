@@ -8,64 +8,92 @@ const escapeHtml = (value) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
-export function renderModelsHeaderHtml({
-  countTitle = 'Active models',
-  countLabel = '',
-  countValue = '',
-  searchId,
-  searchValue = '',
-  clearId,
-  clearButtonId = '',
-  clearHidden = true,
-  providerId,
-  _providerValue = 'all',
-  providerOptionsMarkup = '',
-  searchPlaceholder = 'Search models',
-}) {
+const PAGE_SIZE_TWENTY = 20;
+const PAGE_SIZE_FIFTY = 50;
+const PAGE_SIZE_HUNDRED = 100;
+const PAGE_SIZE_OPTIONS = Object.freeze([PAGE_SIZE_TWENTY, PAGE_SIZE_FIFTY, PAGE_SIZE_HUNDRED]);
+
+// -- renderModelsHeaderHtml sub-helpers --
+
+const HEADER_DEFAULTS = Object.freeze({
+  countTitle: 'Active models',
+  countLabel: '',
+  countValue: '',
+  searchValue: '',
+  clearButtonId: '',
+  clearHidden: true,
+  _providerValue: 'all',
+  providerOptionsMarkup: '',
+  searchPlaceholder: 'Search models',
+});
+
+function renderModelsTitleSection(countLabel, countValue, countTitle) {
+  const labelHtml = countLabel
+    ? `<div data-models-count-label class="text-label-sm font-semibold uppercase tracking-[0.18em] text-gray-400">${escapeHtml(countLabel)}</div>`
+    : '';
+  const valueClass = countLabel ? '' : ' ml-0.5';
+  return `
+    <div class="flex items-center text-xl font-medium px-0.5 gap-2">
+      <div class="flex-shrink-0 text-gray-900">Models</div>
+      <div class="flex flex-col items-start leading-tight">
+        ${labelHtml}
+        <div data-models-count-value class="text-gray-500 font-normal${valueClass}" title="${escapeHtml(countTitle)}">${escapeHtml(countValue)}</div>
+      </div>
+    </div>`;
+}
+
+function renderModelsControlsSection(section) {
+  return `
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:flex-wrap">
+      ${renderSearchBarHtml({
+        inputId: section.searchId,
+        value: section.searchValue,
+        placeholder: section.searchPlaceholder,
+        clearId: section.clearId,
+        clearButtonId: section.clearButtonId,
+        clearHidden: section.clearHidden,
+      })}
+      <select id="${escapeHtml(section.providerId)}" class="w-full sm:w-auto min-w-0 rounded-md border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
+        ${section.providerOptionsMarkup}
+      </select>
+    </div>`;
+}
+
+export function renderModelsHeaderHtml(opts) {
+  const o = { ...HEADER_DEFAULTS, ...opts };
   return `
     <div class="pt-0.5 pb-2.5 flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center bg-white">
-      <div class="flex items-center text-xl font-medium px-0.5 gap-2">
-        <div class="flex-shrink-0 text-gray-900">Models</div>
-        <div class="flex flex-col items-start leading-tight">
-          ${countLabel ? `<div data-models-count-label class="text-label-sm font-semibold uppercase tracking-[0.18em] text-gray-400">${escapeHtml(countLabel)}</div>` : ''}
-          <div data-models-count-value class="text-gray-500 font-normal${countLabel ? '' : ' ml-0.5'}" title="${escapeHtml(countTitle)}">${escapeHtml(countValue)}</div>
-        </div>
-      </div>
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:flex-wrap">
-        ${renderSearchBarHtml({
-          inputId: searchId,
-          value: searchValue,
-          placeholder: searchPlaceholder,
-          clearId,
-          clearButtonId,
-          clearHidden,
-        })}
-        <select id="${escapeHtml(providerId)}" class="w-full sm:w-auto min-w-0 rounded-md border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
-          ${providerOptionsMarkup}
-        </select>
-      </div>
+      ${renderModelsTitleSection(o.countLabel, o.countValue, o.countTitle)}
+      ${renderModelsControlsSection(o)}
     </div>
   `;
 }
 
-export function renderModelsTableShellHtml({
-  loading,
-  rowsHtml,
-  emptyMessage,
-  _usingFilter = false,
-  tbodyId = 'models-table-body',
-  emptyColSpan = 4,
-}) {
-  const body = loading
-    ? rowsHtml
-    : rowsHtml ||
-      `
+// -- renderModelsTableShellHtml sub-helpers --
+
+const TABLE_SHELL_DEFAULTS = Object.freeze({
+  _usingFilter: false,
+  tbodyId: 'models-table-body',
+  emptyColSpan: 4,
+});
+
+function computeTableBodyContent(loading, rowsHtml, emptyMessage, emptyColSpan) {
+  if (loading) return rowsHtml;
+  return (
+    rowsHtml ||
+    `
       <tr>
         <td colspan="${emptyColSpan}" class="py-10 text-center text-sm text-gray-400">
           ${escapeHtml(emptyMessage || 'No models found.')}
         </td>
       </tr>
-    `;
+    `
+  );
+}
+
+export function renderModelsTableShellHtml(opts) {
+  const o = { ...TABLE_SHELL_DEFAULTS, ...opts };
+  const body = computeTableBodyContent(o.loading, o.rowsHtml, o.emptyMessage, o.emptyColSpan);
 
   return `
     <div class="pb-6">
@@ -80,7 +108,7 @@ export function renderModelsTableShellHtml({
                 <th scope="col" class="px-4 py-3 w-1/6 text-right">Status</th>
               </tr>
             </thead>
-            <tbody id="${escapeHtml(tbodyId)}" class="divide-y divide-gray-50/50">
+            <tbody id="${escapeHtml(o.tbodyId)}" class="divide-y divide-gray-50/50">
               ${body}
             </tbody>
           </table>
@@ -90,43 +118,62 @@ export function renderModelsTableShellHtml({
   `;
 }
 
-export function renderModelsPaginationHtml({
-  pageSizeId = 'page-size-select',
-  limit = 20,
-  pageStart = 0,
-  pageEnd = 0,
-  pageTotal = 0,
-  currentPage = 1,
-  totalPages = 1,
-  loading = false,
-  usingFilter = false,
-  prevId = 'prev-page',
-  nextId = 'next-page',
-}) {
+// -- renderModelsPaginationHtml sub-helpers --
+
+const PAGINATION_DEFAULTS = Object.freeze({
+  pageSizeId: 'page-size-select',
+  limit: PAGE_SIZE_TWENTY,
+  pageStart: 0,
+  pageEnd: 0,
+  pageTotal: 0,
+  currentPage: 1,
+  totalPages: 1,
+  loading: false,
+  usingFilter: false,
+  prevId: 'prev-page',
+  nextId: 'next-page',
+});
+
+function renderPageSizeOptions(limit) {
+  return PAGE_SIZE_OPTIONS.map(
+    (size) => `<option value="${size}" ${limit === size ? 'selected' : ''}>${size}</option>`
+  ).join('\n    ');
+}
+
+function renderPaginationNav(nav) {
+  return `
+    <div class="flex items-center gap-3">
+      <div data-models-page-range>${nav.pageStart}-${nav.pageEnd} of ${nav.pageTotal}</div>
+      <div data-models-page-text>Page ${nav.currentPage} / ${nav.totalPages}</div>
+      <div class="flex items-center gap-2">
+        <button id="${escapeHtml(nav.prevId)}" class="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed" ${nav.loading || nav.usingFilter || nav.pageStart <= 1 ? 'disabled' : ''}>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <button id="${escapeHtml(nav.nextId)}" class="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed" ${nav.loading || nav.usingFilter || nav.pageEnd >= nav.pageTotal ? 'disabled' : ''}>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>`;
+}
+
+export function renderModelsPaginationHtml(opts) {
+  const o = { ...PAGINATION_DEFAULTS, ...opts };
   return `
     <div class="shrink-0 border-t border-gray-100 bg-white shadow-[0_-1px_0_rgba(17,24,39,0.04)]" data-models-pagination>
       <div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500">
         <div class="flex items-center gap-3">
           <span>Show</span>
-          <select id="${escapeHtml(pageSizeId)}" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300" ${loading ? 'disabled' : ''}>
-            <option value="20" ${limit === 20 ? 'selected' : ''}>20</option>
-            <option value="50" ${limit === 50 ? 'selected' : ''}>50</option>
-            <option value="100" ${limit === 100 ? 'selected' : ''}>100</option>
+          <select id="${escapeHtml(o.pageSizeId)}" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300" ${o.loading ? 'disabled' : ''}>
+            ${renderPageSizeOptions(o.limit)}
           </select>
-          <span>per page</span>
         </div>
-        <div class="flex items-center gap-4">
-          <div data-models-page-range class="text-xs text-gray-400">${escapeHtml(pageStart)}-${escapeHtml(pageEnd)} of ${escapeHtml(pageTotal)}</div>
-          <div class="flex items-center gap-2">
-            <button id="${escapeHtml(prevId)}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${usingFilter || loading || pageStart <= 1 ? 'disabled' : ''}>Prev</button>
-            <div data-models-page-text class="text-sm text-gray-600">Page ${escapeHtml(currentPage)} / ${escapeHtml(totalPages)}</div>
-            <button id="${escapeHtml(nextId)}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${usingFilter || loading || pageEnd >= pageTotal ? 'disabled' : ''}>Next</button>
-          </div>
-        </div>
+        ${renderPaginationNav(o)}
       </div>
     </div>
   `;
 }
+
+// -- DOM sync helpers --
 
 function setCountElement(container, countValue, countTitle) {
   const countEl = container.querySelector('[data-models-count-value]');
@@ -164,98 +211,115 @@ function setProviderSelect(container, providerId, providerValue, providerOptions
   providerSelect.value = currentValue;
 }
 
-export function syncModelsHeaderState(
-  container,
-  {
-    countTitle = 'Active models',
-    _countLabel = '',
-    countValue = '',
-    searchId,
-    searchValue = '',
-    clearId,
-    clearButtonId = '',
-    clearHidden = true,
-    providerId,
-    providerOptionsMarkup = '',
-    providerValue = 'all',
-  } = {}
-) {
+const SYNC_HEADER_DEFAULTS = Object.freeze({
+  countTitle: 'Active models',
+  _countLabel: '',
+  countValue: '',
+  searchValue: '',
+  clearButtonId: '',
+  clearHidden: true,
+  providerOptionsMarkup: '',
+  providerValue: 'all',
+});
+
+export function syncModelsHeaderState(container, opts) {
+  const o = { ...SYNC_HEADER_DEFAULTS, ...opts };
   if (!container) return;
-  setCountElement(container, countValue, countTitle);
-  setSearchInput(container, searchId, searchValue);
-  setClearWrap(container, clearId, clearHidden);
-  setClearButton(container, clearButtonId);
-  setProviderSelect(container, providerId, providerValue, providerOptionsMarkup);
+  setCountElement(container, o.countValue, o.countTitle);
+  setSearchInput(container, o.searchId, o.searchValue);
+  setClearWrap(container, o.clearId, o.clearHidden);
+  setClearButton(container, o.clearButtonId);
+  setProviderSelect(container, o.providerId, o.providerValue, o.providerOptionsMarkup);
 }
 
-export function syncModelsTableState(
-  container,
-  {
-    loading,
-    rowsHtml,
-    emptyMessage,
-    _usingFilter = false,
-    tbodyId = 'models-table-body',
-    emptyColSpan = 4,
-  } = {}
-) {
-  if (!container) return;
-  const tbody = container.querySelector(`#${escapeHtml(tbodyId)}`);
-  if (!tbody) return;
-  const body = loading
-    ? rowsHtml
-    : rowsHtml ||
-      `
+// -- syncModelsTableState helpers --
+
+const SYNC_TABLE_DEFAULTS = Object.freeze({
+  _usingFilter: false,
+  tbodyId: 'models-table-body',
+  emptyColSpan: 4,
+});
+
+function computeTableBody(loading, rowsHtml, emptyMessage, emptyColSpan) {
+  if (loading) return rowsHtml;
+  return (
+    rowsHtml ||
+    `
       <tr>
         <td colspan="${emptyColSpan}" class="py-10 text-center text-sm text-gray-400">
           ${escapeHtml(emptyMessage || 'No models found.')}
         </td>
       </tr>
-    `;
+    `
+  );
+}
+
+export function syncModelsTableState(container, opts) {
+  const o = { ...SYNC_TABLE_DEFAULTS, ...opts };
+  if (!container) return;
+  const tbody = container.querySelector(`#${escapeHtml(o.tbodyId)}`);
+  if (!tbody) return;
+  const body = computeTableBody(o.loading, o.rowsHtml, o.emptyMessage, o.emptyColSpan);
   if (tbody.innerHTML !== body) {
     tbody.innerHTML = body;
   }
 }
 
-export function syncModelsPaginationState(
-  container,
-  {
-    pageSizeId = 'page-size-select',
-    limit = 20,
-    pageStart = 0,
-    pageEnd = 0,
-    pageTotal = 0,
-    currentPage = 1,
-    totalPages = 1,
-    loading = false,
-    usingFilter = false,
-    prevId = 'prev-page',
-    nextId = 'next-page',
-  } = {}
-) {
-  if (!container) return;
+// -- syncModelsPaginationState helpers --
+
+const SYNC_PAGINATION_DEFAULTS = Object.freeze({
+  pageSizeId: 'page-size-select',
+  limit: PAGE_SIZE_TWENTY,
+  pageStart: 0,
+  pageEnd: 0,
+  pageTotal: 0,
+  currentPage: 1,
+  totalPages: 1,
+  loading: false,
+  usingFilter: false,
+  prevId: 'prev-page',
+  nextId: 'next-page',
+});
+
+function setPageRangeText(container, pageStart, pageEnd, pageTotal) {
   const rangeEl = container.querySelector('[data-models-page-range]');
   if (rangeEl) {
     rangeEl.textContent = `${pageStart}-${pageEnd} of ${pageTotal}`;
   }
+}
 
+function setPageText(container, currentPage, totalPages) {
   const pageText = container.querySelector('[data-models-page-text]');
   if (pageText) {
     pageText.textContent = `Page ${currentPage} / ${totalPages}`;
   }
+}
 
+function syncPageSizeSelect(container, pageSizeId, limit) {
   const pageSize = container.querySelector(`#${escapeHtml(pageSizeId)}`);
   if (pageSize && String(pageSize.value) !== String(limit)) {
     pageSize.value = String(limit);
   }
+}
 
-  const prevBtn = container.querySelector(`#${escapeHtml(prevId)}`);
+function setButtonDisabledStates(container, state) {
+  const prevBtn = container.querySelector(`#${escapeHtml(state.prevId)}`);
   if (prevBtn) {
-    prevBtn.disabled = Boolean(usingFilter || loading || pageStart <= 1);
+    prevBtn.disabled = Boolean(state.usingFilter || state.loading || state.pageStart <= 1);
   }
-
-  const nextBtn = container.querySelector(`#${escapeHtml(nextId)}`);
+  const nextBtn = container.querySelector(`#${escapeHtml(state.nextId)}`);
   if (nextBtn) {
-    nextBtn.disabled = Boolean(usingFilter || loading || pageEnd >= pageTotal);
+    nextBtn.disabled = Boolean(
+      state.usingFilter || state.loading || state.pageEnd >= state.pageTotal
+    );
   }
+}
+
+export function syncModelsPaginationState(container, opts) {
+  const o = { ...SYNC_PAGINATION_DEFAULTS, ...opts };
+  if (!container) return;
+  setPageRangeText(container, o.pageStart, o.pageEnd, o.pageTotal);
+  setPageText(container, o.currentPage, o.totalPages);
+  syncPageSizeSelect(container, o.pageSizeId, o.limit);
+  setButtonDisabledStates(container, o);
 }
