@@ -9,11 +9,19 @@ import { stripHtml } from '../utils/sanitize.js';
 import { normalizePublicRole } from '../utils/user-role.js';
 import { ValidationError } from '../errors/http-errors.js';
 
+const PASSWORD_MIN_LENGTH = 8;
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_FORBIDDEN = 403;
+const HTTP_STATUS_CONFLICT = 409;
+const HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+const HTTP_STATUS_CREATED = 201;
+const ACCESS_TOKEN_EXPIRES_IN_SECONDS = 900;
+
 async function parseJsonBody(req) {
   try {
     return await req.json();
   } catch {
-    throw Object.assign(new Error('Invalid JSON body'), { status: 400 });
+    throw Object.assign(new Error('Invalid JSON body'), { status: HTTP_STATUS_BAD_REQUEST });
   }
 }
 
@@ -29,8 +37,8 @@ function validateRegisterBody(body) {
   const password = requireString(body.password, 'email, name, password are required', {
     trim: false,
   });
-  if (password.length < 8) {
-    throw new ValidationError('Password must be at least 8 characters');
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new ValidationError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
   }
   return { email, name, password };
 }
@@ -52,7 +60,10 @@ async function checkRegistrationAllowed(db, users, env, req) {
   const hasUsers = (await users.count()) > 0;
   const publicRegistrationEnabled = await getConfigBool(db, 'public_registration', true);
   if (!publicRegistrationEnabled && hasUsers) {
-    return { allowed: false, response: error(req, 'Public registration is disabled', 403) };
+    return {
+      allowed: false,
+      response: error(req, 'Public registration is disabled', HTTP_STATUS_FORBIDDEN),
+    };
   }
   const registerLimit = await checkRateLimit(env, {
     action: 'auth-register',
@@ -62,7 +73,7 @@ async function checkRegistrationAllowed(db, users, env, req) {
   if (!registerLimit.allowed) {
     return {
       allowed: false,
-      response: error(req, 'Too many registration attempts', 429, {
+      response: error(req, 'Too many registration attempts', HTTP_STATUS_TOO_MANY_REQUESTS, {
         retry_after: Math.ceil((registerLimit.resetAt - Date.now()) / 1000),
       }),
     };
@@ -157,46 +168,48 @@ async function createRegisteredUser({
   return user;
 }
 
-export async function handleRegister({ req, env, db, users, jwtSecret, logger, sharedFns }) {
-  const { ensureUserRoleBinding, createAccessToken } = sharedFns;
-
+async function parseAndValidateBody(req) {
   let body;
   try {
     body = await parseJsonBody(req);
   } catch (err) {
-    return error(req, err.message, err.status);
+    return { errorResponse: error(req, err.message, err.status) };
   }
-
-  const { allowed, response, hasUsers } = await checkRegistrationAllowed(db, users, env, req);
-  if (!allowed) {
-    return response;
-  }
-
   let email;
   let name;
   let password;
   try {
     ({ email, name, password } = validateRegisterBody(body));
   } catch (err) {
-    return handleValidationErrorCatch(err, req);
+    return { errorResponse: handleValidationErrorCatch(err, req) };
   }
+  return { email, name, password };
+}
 
-  const { claimedBootstrap, existing, retry } = await prepareBootstrapClaim(
-    db,
-    users,
-    hasUsers,
-    email
-  );
+function claimFailureResponse(req, claimedBootstrapResult) {
+  const { existing, retry } = claimedBootstrapResult;
   if (retry) {
-    return error(req, 'Registration in progress, please retry', 409);
+    return error(req, 'Registration in progress, please retry', HTTP_STATUS_CONFLICT);
   }
   if (existing) {
-    return error(req, 'Email already registered', 409);
+    return error(req, 'Email already registered', HTTP_STATUS_CONFLICT);
   }
+  return null;
+}
 
-  const id = crypto.randomUUID();
-  const { finalRole, finalAccountStatus } = await determineAccountStatus(db, hasUsers);
-
+async function createUserWithRollback({
+  db,
+  users,
+  id,
+  email,
+  password,
+  name,
+  finalRole,
+  finalAccountStatus,
+  ensureUserRoleBinding,
+  logger,
+  claimedBootstrap,
+}) {
   let user;
   let userCreated = false;
   try {
@@ -222,11 +235,78 @@ export async function handleRegister({ req, env, db, users, jwtSecret, logger, s
     }
     throw err;
   }
+  return user;
+}
 
+function buildRegistrationResponse({
+  req,
+  user,
+  finalRole,
+  finalAccountStatus,
+  jwtSecret,
+  env,
+  createAccessToken,
+}) {
   if (finalAccountStatus === 'pending') {
     return buildPendingRegistrationResponse(req, user, finalRole);
   }
-  return buildActiveRegistrationResponse(req, user, finalRole, jwtSecret, env, createAccessToken);
+  return buildActiveRegistrationResponse({
+    req,
+    user,
+    finalRole,
+    jwtSecret,
+    env,
+    createAccessToken,
+  });
+}
+
+export async function handleRegister({ req, env, db, users, jwtSecret, logger, sharedFns }) {
+  const { ensureUserRoleBinding, createAccessToken } = sharedFns;
+
+  const { allowed, response, hasUsers } = await checkRegistrationAllowed(db, users, env, req);
+  if (!allowed) {
+    return response;
+  }
+
+  const parsed = await parseAndValidateBody(req);
+  if (parsed.errorResponse) {
+    return parsed.errorResponse;
+  }
+  const { email, name, password } = parsed;
+
+  const claimResult = await prepareBootstrapClaim(db, users, hasUsers, email);
+  const claimError = claimFailureResponse(req, claimResult);
+  if (claimError) {
+    return claimError;
+  }
+  const { claimedBootstrap } = claimResult;
+
+  const id = crypto.randomUUID();
+  const { finalRole, finalAccountStatus } = await determineAccountStatus(db, hasUsers);
+
+  const user = await createUserWithRollback({
+    db,
+    users,
+    id,
+    email,
+    password,
+    name,
+    finalRole,
+    finalAccountStatus,
+    ensureUserRoleBinding,
+    logger,
+    claimedBootstrap,
+  });
+
+  return buildRegistrationResponse({
+    req,
+    user,
+    finalRole,
+    finalAccountStatus,
+    jwtSecret,
+    env,
+    createAccessToken,
+  });
 }
 
 function buildPendingRegistrationResponse(req, user, finalRole) {
@@ -238,18 +318,18 @@ function buildPendingRegistrationResponse(req, user, finalRole) {
       status: 'pending',
       message: 'Account pending approval.',
     },
-    201
+    HTTP_STATUS_CREATED
   );
 }
 
-async function buildActiveRegistrationResponse(
+async function buildActiveRegistrationResponse({
   req,
   user,
   finalRole,
   jwtSecret,
   env,
-  createAccessToken
-) {
+  createAccessToken,
+}) {
   const accessToken = await createAccessToken(jwtSecret, user, finalRole);
   const refresh = await createRefreshToken(env, user.id);
   return json(
@@ -258,9 +338,9 @@ async function buildActiveRegistrationResponse(
       user: sanitizeUser(user, finalRole),
       access_token: accessToken,
       refresh_token: refresh.token,
-      expires_in: 900,
+      expires_in: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
       refresh_expires_at: refresh.expiresAt,
     },
-    201
+    HTTP_STATUS_CREATED
   );
 }
