@@ -58,7 +58,6 @@ process.stdout.write(JSON.stringify({
 ")
 echo "METRIC audit_new=$AUDIT_NEW"
 
-# Primary metric: complexity_introduced (lower is better, target = 0)
 COMPLEXITY_INTRODUCED=$(echo "$AUDIT_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 process.stdout.write(String(d.attribution?.complexity_introduced ?? 0));
@@ -81,18 +80,33 @@ process.stdout.write(String(d.clone_groups?.length || d.findings?.length || 0));
 ")
 echo "METRIC dupes=$DUP_COUNT"
 
+# Primary metric: lint error count (lower is better, target = 0)
+LINT_JSON=$(npx eslint --format json "src/**/*.js" "public/js/**/*.js" --ignore-pattern node_modules 2>/dev/null || true)
+NUM_LINT_ISSUES=$(echo "$LINT_JSON" | node -e "
+const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
+const total = (Array.isArray(d) ? d : []).reduce((sum, r) => sum + (r.errorCount || 0) + (r.warningCount || 0), 0);
+process.stdout.write(String(total));
+")
+echo "METRIC num_lint_issues=$NUM_LINT_ISSUES"
+
+# Per-rule breakdown
+LINT_RULES=$(echo "$LINT_JSON" | node -e "
+const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
+const counts = {};
+for (const r of (Array.isArray(d) ? d : [])) {
+  for (const m of (r.messages || [])) {
+    counts[m.ruleId || 'unknown'] = (counts[m.ruleId || 'unknown'] || 0) + 1;
+  }
+}
+process.stdout.write(JSON.stringify(counts));
+")
+echo "METRIC lint_rules=$LINT_RULES"
+
 # Run tests (fast subset)
 if pnpm test --run --reporter=dot 2>&1 | tail -10 | grep -q "Test Files"; then
   echo "METRIC tests_pass=1"
 else
   echo "METRIC tests_pass=0"
-fi
-
-# Run lint
-if pnpm run lint 2>&1 | tail -5 | grep -qi "error\|fail"; then
-  echo "METRIC lint_pass=0"
-else
-  echo "METRIC lint_pass=1"
 fi
 
 # Run typecheck

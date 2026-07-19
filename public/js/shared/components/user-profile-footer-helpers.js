@@ -16,14 +16,17 @@ export function getStatusColor(status) {
   }
 }
 
+const IDLE_TIMEOUT_MINUTES = 5;
+const SECONDS_PER_MINUTE = 60;
+const MS_PER_SECOND = 1000;
+const MS_PER_MINUTE = SECONDS_PER_MINUTE * MS_PER_SECOND;
+const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_MINUTES * MS_PER_MINUTE;
+
 export function computePresence(lastActiveAt, { isHidden = false } = {}) {
   const hidden =
     isHidden || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
   if (hidden) return 'away';
-  // 5 minutes = 300,000ms
-  // idle timeout
-  const idleMs = 5 * 60 * 1000;
-  return Date.now() - lastActiveAt <= idleMs ? 'online' : 'away';
+  return Date.now() - lastActiveAt <= IDLE_TIMEOUT_MS ? 'online' : 'away';
 }
 
 export function buildFooterMarkup(user, hasAdminPerm) {

@@ -1,53 +1,17 @@
-import {
-  createUserConnection,
-  deleteUserConnection,
-  fetchUserConnections,
-  testUserConnection,
-  updateUserConnection,
-} from '../../shared/api/resources.js';
-import {
-  buildConnectionModalMarkup,
-  buildConnectionModalModelsMarkup,
-} from '../../shared/components/connection-modal.js';
+import { fetchUserConnections } from '../../shared/api/resources.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
-import { renderStatusBadge } from '../../shared/components/status-badge.js';
 import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
-import {
-  normalizeConnectionModelSelectionMode,
-  resolveConnectionModelSelectionMode,
-} from '../../shared/utils/connection-model-selection.js';
-import {
-  isResourceHidden,
-  setResourceVisibility,
-  normalizeUserResourceOverrides,
-} from '../../shared/utils/user-resource-overrides.js';
+import { normalizeConnectionModelSelectionMode } from '../../shared/utils/connection-model-selection.js';
+import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
-import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
-import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
-import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import { saveUserPreferences } from '../../shared/utils/save-user-preferences.js';
-import {
-  isCompatibleProviderType,
-  previewConnectionModalModels,
-  buildSelectedConnectionModels,
-  normalizeConnectionManualModels,
-  normalizeModelRecord,
-  providerDisplayLabel as adminProviderDisplayLabel,
-  resolveUrlLabel,
-  updateApiTypeDisplay,
-} from '../../shared/utils/connection-helpers.js';
 
 import {
-  normalizeProviderType,
-  providerDisplayLabel,
-  providerUrlPlaceholder,
   normalizePersonalConnection,
   clonePreferences,
-  formatHeadersValue,
-  renderSummaryPill,
   buildListCard,
   buildAccessibleCard,
 } from './account-connections-helpers.js';
@@ -134,7 +98,7 @@ function applyConnectionsPayload(state, viewState, getConnections, payload) {
   viewState.error = '';
 }
 
-async function handleRefreshFallback(err, state, viewState, getConnections, onRefresh) {
+async function handleRefreshFallback({ err, state, viewState, getConnections, onRefresh }) {
   if (typeof onRefresh === 'function') {
     const nextState = await onRefresh();
     viewState.error = '';
@@ -149,127 +113,95 @@ async function handleRefreshFallback(err, state, viewState, getConnections, onRe
   }
 }
 
-export function renderAccountConnectionsSection(
-  container,
-  state = {},
-  { onRefresh, routeCache } = {}
-) {
-  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, {
-    route: 'account',
-  });
-  const canManageConnections = capabilities.canManageConnections !== false;
-  const getConnections = () => {
-    const connections = state.settings?.connections || {};
-    return {
-      personal: Array.isArray(connections.my_connections)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(
-            connections.my_connections.map((connection) => normalizePersonalConnection(connection))
-          )
-        : [],
-      accessible: Array.isArray(connections.connections)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(
-            connections.connections.map((connection) => ({
-              id: String(connection.id || '').trim(),
-              name: String(connection.name || connection.id || '').trim(),
-              note: String(connection.note || connection.base_url || '').trim(),
-              access_label: String(connection.access_label || 'Shared').trim(),
-              hidden_for_user: Boolean(connection.hidden_for_user),
-              visible_for_user: connection.visible_for_user !== false,
-            }))
-          )
-        : [],
-    };
+function getConnectionsFromState(state) {
+  const connections = state.settings?.connections || {};
+  return {
+    personal: Array.isArray(connections.my_connections)
+      ? sortResourcesByEnabledThenVisibilityThenLabel(
+          connections.my_connections.map((connection) => normalizePersonalConnection(connection))
+        )
+      : [],
+    accessible: Array.isArray(connections.connections)
+      ? sortResourcesByEnabledThenVisibilityThenLabel(
+          connections.connections.map((connection) => ({
+            id: String(connection.id || '').trim(),
+            name: String(connection.name || connection.id || '').trim(),
+            note: String(connection.note || connection.base_url || '').trim(),
+            access_label: String(connection.access_label || 'Shared').trim(),
+            hidden_for_user: Boolean(connection.hidden_for_user),
+            visible_for_user: connection.visible_for_user !== false,
+          }))
+        )
+      : [],
   };
+}
 
-  const viewState = {
-    saving: false,
-    error: '',
-    ...getConnections(),
+/**
+ * Merge 3 connection sources (saved > payload > existing) into a normalized connection record.
+ *
+ * @param {Object} payload - The request payload
+ * @param {Object|null} savedConnection - The saved/returned connection (highest priority)
+ * @param {Object|null} existingConnection - The existing connection (lowest priority)
+ * @returns {Object} Normalized connection record
+ */
+function buildMergedConnection(payload, savedConnection, existingConnection = null) {
+  const sources = { saved: savedConnection, payload, existing: existingConnection };
+  const merged = {
+    id: resolveConnectionField(sources, 'id', ''),
+    name: resolveConnectionField(sources, 'name', ''),
+    base_url: resolveConnectionField(sources, 'base_url', ''),
+    provider_type: resolveConnectionField(sources, 'provider_type', 'openai-compatible'),
+    provider_family: resolveConnectionField(sources, 'provider_family', 'openai'),
+    auth_type: resolveConnectionField(sources, 'auth_type', ''),
+    enabled: resolveConnectionEnabled(sources),
+    manual_models_mode: resolveConnectionManualModelsMode(sources),
+    headers: resolveConnectionField(sources, 'headers', {}),
+    key: resolveConnectionField(sources, 'key', ''),
+    manual_models: resolveConnectionManualModels(sources),
   };
+  const normalized = normalizePersonalConnection(merged);
+  if (existingConnection?.has_key && !normalized.has_key) {
+    normalized.has_key = true;
+  }
+  return normalized;
+}
 
-  const showPageError = (message = '') => {
-    viewState.error = String(message || '');
-    render();
-  };
-  const refreshConnections = async () => {
-    try {
-      const payload = await fetchUserConnections({ cache: 'no-store' });
-      applyConnectionsPayload(state, viewState, getConnections, payload);
-    } catch (err) {
-      await handleRefreshFallback(err, state, viewState, getConnections, onRefresh);
-    }
-    render();
-  };
-  routeCache?.registerConnectionsRefresh?.(async () => {
-    await refreshConnections();
-  });
-
+function buildConnectionMutators({ viewState }) {
   const upsertPersonalConnection = (nextConnection) => {
     const normalized = normalizePersonalConnection(nextConnection);
     if (!normalized.id) return;
     viewState.personal = upsertItemById(viewState.personal, normalized);
     viewState.error = '';
   };
-
-  /**
-   * Merge 3 connection sources (saved > payload > existing) into a normalized connection record.
-   *
-   * @param {Object} payload - The request payload
-   * @param {Object|null} savedConnection - The saved/returned connection (highest priority)
-   * @param {Object|null} existingConnection - The existing connection (lowest priority)
-   * @returns {Object} Normalized connection record
-   */
-  const mergeSavedConnection = (payload, savedConnection, existingConnection = null) => {
-    const sources = { saved: savedConnection, payload, existing: existingConnection };
-    const merged = {
-      id: resolveConnectionField(sources, 'id', ''),
-      name: resolveConnectionField(sources, 'name', ''),
-      base_url: resolveConnectionField(sources, 'base_url', ''),
-      provider_type: resolveConnectionField(sources, 'provider_type', 'openai-compatible'),
-      provider_family: resolveConnectionField(sources, 'provider_family', 'openai'),
-      auth_type: resolveConnectionField(sources, 'auth_type', ''),
-      enabled: resolveConnectionEnabled(sources),
-      manual_models_mode: resolveConnectionManualModelsMode(sources),
-      headers: resolveConnectionField(sources, 'headers', {}),
-      key: resolveConnectionField(sources, 'key', ''),
-      manual_models: resolveConnectionManualModels(sources),
-    };
-    const normalized = normalizePersonalConnection(merged);
-    if (existingConnection?.has_key && !normalized.has_key) {
-      normalized.has_key = true;
-    }
-    return normalized;
-  };
-
+  const mergeSavedConnection = buildMergedConnection;
   const removePersonalConnection = (connectionId) => {
     viewState.personal = removeItemById(viewState.personal, connectionId);
     viewState.error = '';
   };
+  return { upsertPersonalConnection, mergeSavedConnection, removePersonalConnection };
+}
 
+function buildPreferencesPersistence({ state, viewState, render }) {
   let preferencesSaveVersion = 0;
-
-  function applyPersistedConnectionPreferences(persisted) {
+  const applyPersistedConnectionPreferences = (persisted) => {
     state.settings = {
       ...(state.settings || {}),
       preferences: persisted,
     };
     viewState.error = '';
-  }
-
-  function applyConnectionPreferencesRollback(rollback) {
+  };
+  const applyConnectionPreferencesRollback = (rollback) => {
     state.settings = {
       ...(state.settings || {}),
       preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
     };
-  }
-
-  function handleConnectionPreferencesError(err, requestVersion, rollback) {
+  };
+  const handleConnectionPreferencesError = (err, requestVersion, rollback) => {
     if (requestVersion !== preferencesSaveVersion) return;
     if (rollback) applyConnectionPreferencesRollback(rollback);
     viewState.error = err?.message || 'Failed to save preferences';
     render();
-  }
-
+  };
   const persistPreferences = async ({ rollback = null } = {}) => {
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});
@@ -286,46 +218,56 @@ export function renderAccountConnectionsSection(
       handleConnectionPreferencesError(err, requestVersion, rollback);
     }
   };
+  return { persistPreferences };
+}
 
-  const modal = createConnectionModal({
-    container,
-    viewState,
-    canManageConnections,
-    upsertPersonalConnection,
-    mergeSavedConnection,
-    removePersonalConnection,
-    render,
-  });
-  const { closeModal, openConnectionModal } = modal;
+function buildConnectionRefresh({ state, viewState, getConnections, onRefresh, render }) {
+  const showPageError = (message = '') => {
+    viewState.error = String(message || '');
+    render();
+  };
+  const refreshConnections = async () => {
+    try {
+      const payload = await fetchUserConnections({ cache: 'no-store' });
+      applyConnectionsPayload(state, viewState, getConnections, payload);
+    } catch (err) {
+      await handleRefreshFallback({ err, state, viewState, getConnections, onRefresh });
+    }
+    render();
+  };
+  return { showPageError, refreshConnections };
+}
 
-  function render() {
-    const hiddenConnections = new Set(
-      normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []
-    );
-    const sortedPersonalConnections = sortResourcesByEnabledThenVisibilityThenLabel(
-      viewState.personal
-    );
-    const sortedAccessibleConnections = sortResourcesByEnabledThenVisibilityThenLabel(
-      viewState.accessible
-    );
-    const personalMarkup = sortedPersonalConnections.length
-      ? sortedPersonalConnections
-          .map((connection) => buildListCard(connection, canManageConnections))
-          .join('')
-      : '';
-    const accessibleMarkup = sortedAccessibleConnections.length
-      ? sortedAccessibleConnections
-          .map((connection) =>
-            buildAccessibleCard(
-              connection,
-              hiddenConnections.has(connection.id),
-              canManageConnections
-            )
+function computeConnectionLists({ state, viewState, canManageConnections }) {
+  const hiddenConnections = new Set(
+    normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []
+  );
+  const sortedPersonal = sortResourcesByEnabledThenVisibilityThenLabel(viewState.personal);
+  const sortedAccessible = sortResourcesByEnabledThenVisibilityThenLabel(viewState.accessible);
+  const personalMarkup = sortedPersonal.length
+    ? sortedPersonal.map((connection) => buildListCard(connection, canManageConnections)).join('')
+    : '';
+  const accessibleMarkup = sortedAccessible.length
+    ? sortedAccessible
+        .map((connection) =>
+          buildAccessibleCard(
+            connection,
+            hiddenConnections.has(connection.id),
+            canManageConnections
           )
-          .join('')
-      : '';
+        )
+        .join('')
+    : '';
+  return { personalMarkup, accessibleMarkup };
+}
 
-    container.innerHTML = `
+function buildConnectionsPageMarkup({
+  viewState,
+  canManageConnections,
+  personalMarkup,
+  accessibleMarkup,
+}) {
+  return `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         ${viewState.error ? renderErrorBanner({ message: viewState.error }) : ''}
         <div class="pt-0.5 pb-6 bg-white">
@@ -369,42 +311,111 @@ export function renderAccountConnectionsSection(
         </div>
       </div>
     `;
+}
 
-    container
-      .querySelector(
-        '[data-action="add-connection"], #add-connection, [data-account-connection-add]'
-      )
-      ?.addEventListener('click', () => {
-        if (!canManageConnections) return;
-        openConnectionModal(null);
-      });
-
-    container.querySelectorAll('[data-list-action="edit"]').forEach((button) => {
-      button.addEventListener('click', () => {
-        if (!canManageConnections) return;
-        const connectionId =
-          button.dataset.accountConnectionEdit ||
-          button.closest('[data-connection-row]')?.dataset.id;
-        const connection = viewState.personal.find((item) => item.id === connectionId);
-        if (connection) {
-          openConnectionModal(connection);
-        }
-      });
+function wireConnectionsEvents({
+  container,
+  canManageConnections,
+  viewState,
+  state,
+  render,
+  persistPreferences,
+  showPageError,
+  openConnectionModal,
+}) {
+  container
+    .querySelector('[data-action="add-connection"], #add-connection, [data-account-connection-add]')
+    ?.addEventListener('click', () => {
+      if (!canManageConnections) return;
+      openConnectionModal(null);
     });
 
-    container.querySelectorAll('.connection-toggle').forEach((toggleBtn) => {
-      toggleBtn.addEventListener('click', () =>
-        handleConnectionToggleClick(toggleBtn, {
-          viewState,
-          state,
-          canManageConnections,
-          render,
-          persistPreferences,
-          showPageError,
-        })
-      );
+  container.querySelectorAll('[data-list-action="edit"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!canManageConnections) return;
+      const connectionId =
+        button.dataset.accountConnectionEdit || button.closest('[data-connection-row]')?.dataset.id;
+      const connection = viewState.personal.find((item) => item.id === connectionId);
+      if (connection) {
+        openConnectionModal(connection);
+      }
+    });
+  });
+
+  container.querySelectorAll('.connection-toggle').forEach((toggleBtn) => {
+    toggleBtn.addEventListener('click', () =>
+      handleConnectionToggleClick(toggleBtn, {
+        viewState,
+        state,
+        canManageConnections,
+        render,
+        persistPreferences,
+        showPageError,
+      })
+    );
+  });
+}
+
+export function renderAccountConnectionsSection(
+  container,
+  state = {},
+  { onRefresh, routeCache } = {}
+) {
+  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, {
+    route: 'account',
+  });
+  const canManageConnections = capabilities.canManageConnections !== false;
+  const getConnections = () => getConnectionsFromState(state);
+  const viewState = {
+    saving: false,
+    error: '',
+    ...getConnections(),
+  };
+
+  function render() {
+    const lists = computeConnectionLists({ state, viewState, canManageConnections });
+    container.innerHTML = buildConnectionsPageMarkup({
+      viewState,
+      canManageConnections,
+      ...lists,
+    });
+    wireConnectionsEvents({
+      container,
+      canManageConnections,
+      viewState,
+      state,
+      render,
+      persistPreferences,
+      showPageError,
+      openConnectionModal,
     });
   }
+
+  const { showPageError, refreshConnections } = buildConnectionRefresh({
+    state,
+    viewState,
+    getConnections,
+    onRefresh,
+    render,
+  });
+  routeCache?.registerConnectionsRefresh?.(async () => {
+    await refreshConnections();
+  });
+
+  const { upsertPersonalConnection, mergeSavedConnection, removePersonalConnection } =
+    buildConnectionMutators({ viewState });
+  const { persistPreferences } = buildPreferencesPersistence({ state, viewState, render });
+
+  const modal = createConnectionModal({
+    container,
+    viewState,
+    canManageConnections,
+    upsertPersonalConnection,
+    mergeSavedConnection,
+    removePersonalConnection,
+    render,
+  });
+  const { openConnectionModal } = modal;
 
   render();
 }
