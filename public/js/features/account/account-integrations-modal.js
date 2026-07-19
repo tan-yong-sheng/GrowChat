@@ -5,24 +5,17 @@ import {
   createUserMcpServer,
   deleteUserMcpServer,
   updateUserMcpServer,
-  testUserMcpServer,
-} from '../../shared/api/resources.js';
-import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
+  testUserMcpServer} from '../../shared/api/resources.js';
 import { apiFetch } from '../../shared/api.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import {
   normalizeToolList,
-  clonePreferences,
-  normalizeServer,
-  shouldShowAuthField,
-  buildFormMarkup,
-} from './account-integrations-helpers.js';
+  buildFormMarkup} from './account-integrations-helpers.js';
 import {
   updateAuthFields as sharedUpdateAuthFields,
   readFormFieldValue,
-  handleOAuthApiFetchResponse,
-} from '../../shared/components/integrations-shared.js';
+  handleOAuthApiFetchResponse} from '../../shared/components/integrations-shared.js';
 
 export function createIntegrationsModal(ctx) {
   const {
@@ -31,8 +24,7 @@ export function createIntegrationsModal(ctx) {
     canManageToolServers,
     mergeSavedServer,
     removeServer,
-    upsertServer,
-  } = ctx;
+    upsertServer} = ctx;
 
   let activeModal = null;
   let activeModalHash = '';
@@ -98,13 +90,7 @@ export function createIntegrationsModal(ctx) {
     const urlInput = bodyEl?.querySelector('#server-url');
     const headersInput = bodyEl?.querySelector('#server-headers');
     const bearerInput = bodyEl?.querySelector('#server-auth-bearer');
-    const basicUserInput = bodyEl?.querySelector('#server-auth-basic-username');
     const basicPassInput = bodyEl?.querySelector('#server-auth-basic-password');
-    const oauthClientNameInput = bodyEl?.querySelector('#server-auth-oauth-client-name');
-    const oauthScopeInput = bodyEl?.querySelector('#server-auth-oauth-scope');
-    const oauthClientIdInput = bodyEl?.querySelector('#server-auth-oauth-client-id');
-    const oauthClientSecretInput = bodyEl?.querySelector('#server-auth-oauth-client-secret');
-    const oauthTokenMethodSelect = bodyEl?.querySelector('#server-auth-oauth-token-method');
     const oauthStatus = bodyEl?.querySelector('#oauth-status');
     const oauthConnectBtn = bodyEl?.querySelector('#connect-oauth');
     const bearerToggleBtn = bodyEl?.querySelector('#toggle-bearer-visibility');
@@ -150,8 +136,7 @@ export function createIntegrationsModal(ctx) {
       oauth_scope: readFormFieldValue(container, '#server-auth-oauth-scope'),
       oauth_client_id: readFormFieldValue(container, '#server-auth-oauth-client-id'),
       oauth_client_secret: readFormFieldValue(container, '#server-auth-oauth-client-secret'),
-      oauth_token_auth_method: readFormFieldValue(container, '#server-auth-oauth-token-method'),
-    });
+      oauth_token_auth_method: readFormFieldValue(container, '#server-auth-oauth-token-method')});
 
     const OPTIONAL_PAYLOAD_FIELDS = [
       'headers',
@@ -189,8 +174,7 @@ export function createIntegrationsModal(ctx) {
         oauth_scope: f.oauth_scope.trim(),
         oauth_client_id: f.oauth_client_id.trim(),
         oauth_client_secret: f.oauth_client_secret,
-        oauth_token_auth_method: String(f.oauth_token_auth_method).trim(),
-      };
+        oauth_token_auth_method: String(f.oauth_token_auth_method).trim()};
       return compactOptionalFields(payload);
     };
 
@@ -206,13 +190,11 @@ export function createIntegrationsModal(ctx) {
       if (isEdit) {
         return {
           payload,
-          result: await updateUserMcpServer(server.id, payload),
-        };
+          result: await updateUserMcpServer(server.id, payload)};
       }
       return {
         payload,
-        result: await createUserMcpServer(payload),
-      };
+        result: await createUserMcpServer(payload)};
     };
 
     const testServer = async () => {
@@ -331,8 +313,7 @@ export function createIntegrationsModal(ctx) {
         oauth_scope: fields.oauth_scope.trim(),
         oauth_client_id: fields.oauth_client_id.trim(),
         oauth_client_secret: fields.oauth_client_secret.trim(),
-        oauth_token_auth_method: fields.oauth_token_auth_method.trim(),
-      };
+        oauth_token_auth_method: fields.oauth_token_auth_method.trim()};
     }
 
     function handleOAuthStartSuccess(payload) {
@@ -349,8 +330,7 @@ export function createIntegrationsModal(ctx) {
         const fields = readFormFields();
         const res = await apiFetch('/api/users/me/resources/mcp-servers/oauth/start', {
           method: 'POST',
-          body: JSON.stringify(buildOAuthStartPayload(serverId, fields)),
-        });
+          body: JSON.stringify(buildOAuthStartPayload(serverId, fields))});
         const payload = await handleOAuthApiFetchResponse(res);
         handleOAuthStartSuccess(payload);
       } catch (err) {
