@@ -8,7 +8,6 @@ import { createAdminAclModalShell } from '../acl-modal.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import {
   bindAclModalBodyRender,
-  buildAclSaveRules,
   buildRulesByGroup,
   cloneAclRules,
   createAclModalState,

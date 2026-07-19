@@ -2,7 +2,6 @@
  * Admin Config Router - dispatcher
  * Routes requests to per-route handlers based on method + path
  */
-import { error, json } from '../../utils/response.js';
 import { handleAdminAuditLogs } from './admin-config-audit-logs.js';
 import { handleAdminConfigGet } from './admin-config-config-get.js';
 import { handleAdminConfigSet } from './admin-config-config-set.js';

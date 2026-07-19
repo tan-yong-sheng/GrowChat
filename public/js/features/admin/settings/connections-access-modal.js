@@ -15,7 +15,6 @@ import { createAdminAclModalShell } from '../acl-modal.js';
 import { normalizeConnectionManualModels } from './connections-helpers.js';
 import {
   bindAclModalBodyRender,
-  buildAclSaveRules,
   buildRulesByGroup,
   cloneAclRules,
   createAclModalState,

@@ -11,7 +11,6 @@ import { createAdminAclModalShell } from '../acl-modal.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
   bindAclModalBodyRender,
-  buildAclSaveRules,
   buildRulesByGroup,
   cloneAclRules,
   createAclModalState,
