@@ -29,6 +29,11 @@ const ASSETS_MISSING_RESPONSE = () =>
 const ASSET_FETCH_FAILED_RESPONSE = () =>
   new Response('Asset fetch failed', { status: 503, headers: PLAIN_TEXT });
 
+// ── HTTP status codes ──
+const HTTP_STATUS_NOT_FOUND = 404;
+const HTTP_STATUS_FORBIDDEN = 403;
+const HTTP_STATUS_TEMPORARY_REDIRECT = 307;
+
 /**
  * Generate a unique requestId per request using crypto.randomUUID().
  * Attached to both the logger context and error response bodies.
@@ -122,7 +127,8 @@ async function handleOptions(req) {
   return null;
 }
 
-async function resolveAuthenticatedUser(req, env, path, ctx, requestId) {
+async function resolveAuthenticatedUser(req, env, ctx, requestId) {
+  const path = getPath(req);
   const isPublic = isPublicRoute(req, path);
   if (isPublic && !req.headers.get('Authorization')) return null;
   const user = await resolveAuthUser(req, env);
@@ -148,27 +154,31 @@ function checkApiBindings(req, env, path, requestId) {
   return validateRouteBindings(req, env, path);
 }
 
-async function dispatchApiRoutes(req, env, ctx, user, path, requestId, logger) {
+async function dispatchApiRoutes(routeOptions) {
+  const { req, env, ctx, user, requestId, logger } = routeOptions;
+  const path = getPath(req);
   for (const route of API_ROUTES) {
     const response = await route({ req, env, ctx, user, path, requestId, logger });
     if (response) return response;
   }
-  return error(req, 'Not found', 404, { requestId });
+  return error(req, 'Not found', HTTP_STATUS_NOT_FOUND, { requestId });
 }
 
-async function handleApiRequest(req, env, ctx, path, requestId, logger) {
+async function handleApiRequest(req, env, ctx, loggerCtx) {
+  const { requestId, logger } = loggerCtx;
+  const path = getPath(req);
   const corsReject = validateOrigin(req, env);
   if (corsReject) return corsReject;
 
   const bindingError = checkApiBindings(req, env, path, requestId);
   if (bindingError) return bindingError;
 
-  const authResult = await resolveAuthenticatedUser(req, env, path, ctx, requestId);
+  const authResult = await resolveAuthenticatedUser(req, env, ctx, requestId);
   if (authResult?.deactivated) {
-    return error(req, 'Account deactivated', 403, { requestId });
+    return error(req, 'Account deactivated', HTTP_STATUS_FORBIDDEN, { requestId });
   }
 
-  return dispatchApiRoutes(req, env, ctx, authResult, path, requestId, logger);
+  return dispatchApiRoutes({ req, env, ctx, user: authResult, requestId, logger });
 }
 
 async function handleSpaFallback(req, env, path, logger) {
@@ -182,7 +192,7 @@ async function handleSpaFallback(req, env, path, logger) {
 async function tryFetchAuthAsset(env, req, logger) {
   try {
     const authResponse = await fetchHtmlAsset(env, req, '/auth.html', logger);
-    if (authResponse.status !== 404) return authResponse;
+    if (authResponse.status !== HTTP_STATUS_NOT_FOUND) return authResponse;
   } catch (err) {
     logger.error('Auth asset fetch failed', { error: String(err?.message || err) });
   }
@@ -218,7 +228,11 @@ async function handleAssetRequest(req, env, path, logger) {
   response = await injectSriIntoHtmlResponse(response, env, logger);
 
   // If static asset request failed with 404/307, or if it's an SPA route, serve index.html
-  if (!isStaticAsset && (response.status === 404 || response.status === 307)) {
+  if (
+    !isStaticAsset &&
+    (response.status === HTTP_STATUS_NOT_FOUND ||
+      response.status === HTTP_STATUS_TEMPORARY_REDIRECT)
+  ) {
     return await handleSpaFallback(req, env, path, logger);
   }
   return response;
@@ -257,7 +271,7 @@ async function handleRequest(req, env, ctx) {
     const optionsResponse = await handleOptions(req);
     if (optionsResponse) return optionsResponse;
     if (path.startsWith('/api/') || isPublicSharePath) {
-      return await handleApiRequest(req, env, ctx, path, requestId, logger);
+      return await handleApiRequest(req, env, ctx, { requestId, logger });
     }
     return await handleAssetRequest(req, env, path, logger);
   } catch (err) {
