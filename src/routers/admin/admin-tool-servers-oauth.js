@@ -2,7 +2,6 @@
  * Admin Tool Servers OAuth Handlers - /api/admin/tool-servers/oauth/*
  */
 import { error, json } from '../../utils/response.js';
-import { buildTokenRequest } from '../oauth-shared.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   buildAuthorizationUrl,
@@ -17,8 +16,10 @@ import {
 } from '../../admin/tool-servers.js';
 import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
+import { handleOAuthCallback } from './admin-tool-servers-oauth-callback.js';
 
 const MAX_SERVER_NAME_LENGTH = 200;
+void MAX_SERVER_NAME_LENGTH; // Reserved for future validation
 const OAUTH_CODE_VERIFIER_LENGTH = 64;
 const OAUTH_STATE_LENGTH = 32;
 
@@ -179,7 +180,7 @@ async function registerClient(req, registrationEndpoint, clientName, redirectUri
   };
 }
 
-async function ensureClientCredentials(req, body, server, registrationEndpoint, redirectUri) {
+async function ensureClientCredentials({ req, body, server, registrationEndpoint, redirectUri }) {
   let clientId = extractField(body, server, 'oauth_client_id');
   let clientSecret = extractField(body, server, 'oauth_client_secret');
   if (clientId) return { clientId, clientSecret };
@@ -215,16 +216,7 @@ function resolveTokenEndpoint(metadata, authServerUrl) {
 }
 
 function buildAuthorizationRequest(req, ctx) {
-  const {
-    body,
-    server,
-    authServerUrl,
-    metadata,
-    registrationEndpoint,
-    redirectUri,
-    clientId,
-    clientSecret,
-  } = ctx;
+  const { body, server, authServerUrl, metadata, registrationEndpoint, clientSecret } = ctx;
 
   const oauthClientName = extractField(
     body,
@@ -281,13 +273,13 @@ async function handleOAuthStart(req, env, user, db) {
   if (metaCtx.error) return metaCtx.error;
 
   const redirectUri = ctx.origin + OAUTH_CALLBACK_PATH;
-  const credCtx = await ensureClientCredentials(
+  const credCtx = await ensureClientCredentials({
     req,
-    ctx.body,
-    serverCtx.server,
-    metaCtx.registrationEndpoint,
-    redirectUri
-  );
+    body: ctx.body,
+    server: serverCtx.server,
+    registrationEndpoint: metaCtx.registrationEndpoint,
+    redirectUri,
+  });
   if (credCtx.error) return credCtx.error;
 
   if (!credCtx.clientId) {
@@ -339,132 +331,10 @@ async function handleOAuthStart(req, env, user, db) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* OAuth callback helpers                                                      */
-/* -------------------------------------------------------------------------- */
-
-function parseCallbackParams(req) {
-  const url = new URL(req.url);
-  return {
-    code: url.searchParams.get('code'),
-    state: url.searchParams.get('state'),
-    errorParam: url.searchParams.get('error'),
-  };
-}
-
-function callbackError(message, status = HTTP_STATUS.BAD_REQUEST) {
-  return new Response(message, { status });
-}
-
-function handleCallbackErrorParam(errorParam) {
-  if (!errorParam) return null;
-  return callbackError(`Authorization failed: ${errorParam}`);
-}
-
-function handleMissingCallbackCode(code, state) {
-  if (code && state) return null;
-  return callbackError('Missing authorization code or state');
-}
-
-function findServerByState(servers, state) {
-  const index = servers.findIndex((entry) => entry?.oauth_state === state);
-  return { index, server: index === -1 ? null : servers[index] };
-}
-
-function handleMissingServerState(index) {
-  if (index !== -1) return null;
-  return callbackError('OAuth session not found or expired');
-}
-
-function resolveCallbackTokenEndpoint(server) {
-  return (
-    server.oauth_token_endpoint ||
-    new URL('/token', server.oauth_authorization_server || server.url).toString()
-  );
-}
-
-function handleUnsafeCallbackTokenEndpoint(tokenEndpoint) {
-  const safety = isSafeOutboundUrl(tokenEndpoint);
-  if (safety.safe) return null;
-  return callbackError(`Token exchange failed: ${safety.reason}`);
-}
-
-async function exchangeToken(tokenEndpoint, params, headers) {
-  return fetch(tokenEndpoint, {
-    method: 'POST',
-    headers,
-    body: params,
-  });
-}
-
-async function handleFailedTokenExchange(tokenRes) {
-  if (tokenRes.ok) return null;
-  const text = await tokenRes.text().catch(() => '');
-  return callbackError(`Token exchange failed: ${text}`);
-}
-
-function buildConnectedServer(server, tokenData) {
-  const now = new Date().toISOString();
-  return {
-    ...server,
-    oauth_tokens: { ...tokenData, connected_at: now },
-    oauth_connected_at: now,
-    oauth_state: null,
-    oauth_code_verifier: null,
-  };
-}
-
-function handleCallbackException(err) {
-  return callbackError(`Token exchange failed: ${err?.message || String(err)}`);
-}
-
-function buildConnectedResponse() {
-  return new Response(
-    '<html><body><h2>OAuth connected.</h2><p>You can return to GrowChat and click Verify.</p></body></html>',
-    { headers: { 'Content-Type': 'text/html' } }
-  );
-}
-
-async function handleOAuthCallback(req, env, db) {
-  const origin = requireOrigin(req, env);
-  if (typeof origin !== 'string') return origin;
-
-  const { code, state, errorParam } = parseCallbackParams(req);
-  const errResponse =
-    handleCallbackErrorParam(errorParam) || handleMissingCallbackCode(code, state);
-  if (errResponse) return errResponse;
-
-  const servers = await loadToolServers(db);
-  const { index: serverIndex, server } = findServerByState(servers, state);
-  const missingState = handleMissingServerState(serverIndex);
-  if (missingState) return missingState;
-
-  const tokenEndpoint = resolveCallbackTokenEndpoint(server);
-  const unsafeEndpoint = handleUnsafeCallbackTokenEndpoint(tokenEndpoint);
-  if (unsafeEndpoint) return unsafeEndpoint;
-
-  const redirectUri = origin + OAUTH_CALLBACK_PATH;
-  const { params, headers } = buildTokenRequest(server, code, redirectUri);
-
-  try {
-    const tokenRes = await exchangeToken(tokenEndpoint, params, headers);
-    const failedExchange = await handleFailedTokenExchange(tokenRes);
-    if (failedExchange) return failedExchange;
-    const tokenData = await tokenRes.json();
-
-    servers[serverIndex] = buildConnectedServer(server, tokenData);
-    await saveToolServers(db, servers);
-
-    return buildConnectedResponse();
-  } catch (err) {
-    return handleCallbackException(err);
-  }
-}
-
-/* -------------------------------------------------------------------------- */
 /* Router                                                                       */
 /* -------------------------------------------------------------------------- */
 
-async function routeOAuthRequest(req, env, user, db, path) {
+async function routeOAuthRequest({ req, env, user, db, path }) {
   if (req.method === 'POST' && path === OAUTH_START_PATH) {
     return handleOAuthStart(req, env, user, db);
   }
@@ -478,13 +348,7 @@ async function routeOAuthRequest(req, env, user, db, path) {
  * Handle handleAdminToolServersOAuth routes.
  * Returns Response if handled, null if path doesn't match.
  */
-export async function handleAdminToolServersOAuth(
-  req,
-  env,
-  ctx,
-  user,
-  path,
-  { db, _logger, _requestContext }
-) {
-  return routeOAuthRequest(req, env, user, db, path);
+export async function handleAdminToolServersOAuth({ req, env, _ctx, user, path, deps = {} }) {
+  const { db } = deps;
+  return routeOAuthRequest({ req, env, user, db, path });
 }
