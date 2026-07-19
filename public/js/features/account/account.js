@@ -56,6 +56,38 @@ function getAccountNavItems(section) {
   ];
 }
 
+function renderOverviewSection(content, accountState, footerHost) {
+  content.innerHTML = renderOverview(accountState);
+  if (footerHost) footerHost.innerHTML = '';
+}
+
+async function renderDynamicSection({
+  content,
+  accountState,
+  footerHost,
+  settingsRouteCache,
+  onRefresh,
+  sectionKey,
+}) {
+  const renderer = await loadAccountSectionRenderer(sectionKey);
+  if (onRefresh) {
+    const refresh = async () => {
+      await onRefresh();
+      return accountState;
+    };
+    renderer(content, accountState, {
+      onRefresh: refresh,
+      footerHost,
+      routeCache: settingsRouteCache,
+    });
+  } else {
+    renderer(content, accountState, {
+      footerHost,
+      routeCache: settingsRouteCache,
+    });
+  }
+}
+
 async function renderAccountSection({
   section,
   accountState,
@@ -65,90 +97,36 @@ async function renderAccountSection({
   onRefresh,
 }) {
   if (section === 'overview') {
-    content.innerHTML = renderOverview(accountState);
-    if (footerHost) footerHost.innerHTML = '';
+    renderOverviewSection(content, accountState, footerHost);
     return;
   }
-
-  if (section === 'connections') {
-    const rerenderConnections = async () => {
-      await onRefresh?.();
-      return accountState;
-    };
-    const renderConnectionsSection = await loadAccountSectionRenderer('connections');
-    renderConnectionsSection(content, accountState, {
-      onRefresh: rerenderConnections,
-      footerHost,
-      routeCache: settingsRouteCache,
-    });
-    return;
-  }
-
-  if (section === 'models') {
-    const refreshModels = async () => {
-      await onRefresh?.();
-      return accountState;
-    };
-    const renderModelsSection = await loadAccountSectionRenderer('models');
-    renderModelsSection(content, accountState, {
-      onRefresh: refreshModels,
-      footerHost,
-      routeCache: settingsRouteCache,
-    });
-    return;
-  }
-
-  if (section === 'integrations') {
-    const refreshIntegrations = async () => {
-      await onRefresh?.();
-      return accountState;
-    };
-    const renderIntegrationsSection = await loadAccountSectionRenderer('integrations');
-    renderIntegrationsSection(content, accountState, {
-      onRefresh: refreshIntegrations,
-      footerHost,
-      routeCache: settingsRouteCache,
-    });
-    return;
-  }
-
   if (section === 'security') {
-    const renderSecuritySection = await loadAccountSectionRenderer('security');
-    renderSecuritySection(content, accountState, {
+    await renderDynamicSection({
+      content,
+      accountState,
       footerHost,
-      routeCache: settingsRouteCache,
+      settingsRouteCache,
+      sectionKey: 'security',
     });
     return;
   }
-
-  content.innerHTML = renderOverview(accountState);
-  if (footerHost) footerHost.innerHTML = '';
+  const REFRESHABLE_SECTIONS = new Set(['connections', 'models', 'integrations']);
+  if (REFRESHABLE_SECTIONS.has(section)) {
+    await renderDynamicSection({
+      content,
+      accountState,
+      footerHost,
+      settingsRouteCache,
+      onRefresh,
+      sectionKey: section,
+    });
+    return;
+  }
+  renderOverviewSection(content, accountState, footerHost);
 }
 
-export async function renderAccountPage(container) {
-  ensureMarkedReady();
-  setSidebarRouteScope('account');
-  const section = normalizeAccountSection(resolveAccountSectionFromPath(window.location.pathname));
-  container.dataset.view = 'account';
-  const previousCleanup = typeof container.__cleanup === 'function' ? container.__cleanup : null;
-  previousCleanup?.();
-  const settingsRouteCache = createSettingsRouteCache();
-  let removeSettingsRouteCache = null;
-  let accountState = null;
-
-  const loadCurrentState = async () => {
-    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
-    return accountState;
-  };
-
-  container.innerHTML = renderWorkspaceShell({
-    sidebarHtml: renderWorkspaceSidebar({
-      homeHref: '/',
-      homeId: 'workspace-home-link',
-      homeLabel: 'GrowChat',
-      footerId: 'sidebar-footer',
-    }),
-    mainHtml: `
+function buildAccountMainHtml(section) {
+  return `
       <div class="relative flex-1 min-h-0 overflow-hidden bg-[#fafafa] text-gray-900">
         ${renderSettingsDrawerShell({
           rootId: 'account-settings-drawer',
@@ -183,7 +161,64 @@ export async function renderAccountPage(container) {
           `,
         })}
       </div>
-    `,
+    `;
+}
+
+function bindAccountCloseHandlers(container) {
+  const closeBtn = container.querySelector('#account-settings-close');
+  const closeOverlay = container.querySelector('#account-settings-overlay');
+  const closeSettings = () => {
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+  closeBtn?.addEventListener('click', closeSettings);
+  closeOverlay?.addEventListener('click', closeSettings);
+}
+
+async function loadAndRenderAccountSection({
+  section,
+  content,
+  footerHost,
+  settingsRouteCache,
+  loadCurrentState,
+}) {
+  try {
+    await loadCurrentState();
+    await renderAccountSection({
+      section,
+      accountState: undefined,
+      content,
+      footerHost,
+      settingsRouteCache,
+      onRefresh: loadCurrentState,
+    });
+  } catch (err) {
+    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
+    if (footerHost) footerHost.innerHTML = '';
+  }
+}
+
+export async function renderAccountPage(container) {
+  ensureMarkedReady();
+  setSidebarRouteScope('account');
+  const section = normalizeAccountSection(resolveAccountSectionFromPath(window.location.pathname));
+  container.dataset.view = 'account';
+  const previousCleanup = typeof container.__cleanup === 'function' ? container.__cleanup : null;
+  previousCleanup?.();
+  const settingsRouteCache = createSettingsRouteCache();
+
+  const loadCurrentState = async () => {
+    return normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
+  };
+
+  container.innerHTML = renderWorkspaceShell({
+    sidebarHtml: renderWorkspaceSidebar({
+      homeHref: '/',
+      homeId: 'workspace-home-link',
+      homeLabel: 'GrowChat',
+      footerId: 'sidebar-footer',
+    }),
+    mainHtml: buildAccountMainHtml(section),
   });
 
   container.insertAdjacentHTML(
@@ -202,85 +237,20 @@ export async function renderAccountPage(container) {
 
   const content = container.querySelector('[data-account-content]');
   const footerHost = container.querySelector('#account-main-footer');
-  removeSettingsRouteCache = settingsRouteCache.bind();
-  container.__cleanup = () => {
-    removeSettingsRouteCache?.();
-  };
+  container.__cleanup = settingsRouteCache.bind();
 
-  try {
-    await loadCurrentState();
-    await renderAccountSection({
-      section,
-      accountState,
-      content,
-      footerHost,
-      settingsRouteCache,
-      onRefresh: loadCurrentState,
-    });
-  } catch (err) {
-    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
-    if (footerHost) footerHost.innerHTML = '';
-  }
-
-  const closeBtn = container.querySelector('#account-settings-close');
-  const closeOverlay = container.querySelector('#account-settings-overlay');
-  const closeSettings = () => {
-    window.history.replaceState({}, '', '/');
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  };
-
-  closeBtn?.addEventListener('click', closeSettings);
-  closeOverlay?.addEventListener('click', closeSettings);
+  await loadAndRenderAccountSection({
+    section,
+    content,
+    footerHost,
+    settingsRouteCache,
+    loadCurrentState,
+  });
+  bindAccountCloseHandlers(container);
 }
 
-export async function openAccountSettingsDrawer({ section = 'connections' } = {}) {
-  ensureMarkedReady();
-  const existing = document.getElementById('account-settings-drawer-modal');
-  existing?.remove();
-
-  const normalizedSection = normalizeAccountSection(section);
-  const targetPath = getAccountSectionPath(normalizedSection);
-  setSidebarRouteScope('account');
-  if (window.location.pathname !== targetPath) {
-    window.history.pushState({}, '', targetPath);
-  }
-
-  const mount = document.createElement('div');
-  mount.dataset.accountSettingsDrawerMount = '1';
-  document.body.appendChild(mount);
-
-  const settingsRouteCache = createSettingsRouteCache();
-  let removeSettingsRouteCache = null;
-  let accountState = null;
-  let currentSection = normalizeAccountSection(section);
-  let drawer = null;
-  let content = null;
-  let footerHost = null;
-
-  const loadCurrentState = async () => {
-    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
-    return accountState;
-  };
-
-  removeSettingsRouteCache = settingsRouteCache.bind();
-
-  const closeDrawer = () => {
-    removeSettingsRouteCache?.();
-    window.history.replaceState({}, '', '/');
-    window.dispatchEvent(new PopStateEvent('popstate'));
-    drawer?.remove();
-    mount.remove();
-  };
-
-  const renderDrawer = async () => {
-    mount.innerHTML = renderSettingsDrawerShell({
-      rootId: 'account-settings-drawer-modal',
-      title: 'My Settings',
-      subtitle: 'Personal account preferences and tools.',
-      scopeLabel: 'Personal',
-      closeId: 'account-settings-drawer-close',
-      overlayId: 'account-settings-drawer-overlay',
-      body: `
+function buildAccountDrawerBody(currentSection) {
+  return `
         <div class="flex h-full min-h-0 flex-col overflow-hidden">
           ${renderSettingsShell({
             navPaneHtml: renderWorkspaceVerticalTabs({
@@ -297,47 +267,113 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
             `,
           })}
         </div>
-      `,
+      `;
+}
+
+function createDrawerMount({ section, mount, closeDrawer, rerender, setDrawer }) {
+  mount.innerHTML = renderSettingsDrawerShell({
+    rootId: 'account-settings-drawer-modal',
+    title: 'My Settings',
+    subtitle: 'Personal account preferences and tools.',
+    scopeLabel: 'Personal',
+    closeId: 'account-settings-drawer-close',
+    overlayId: 'account-settings-drawer-overlay',
+    body: buildAccountDrawerBody(section),
+  });
+  const drawerEl = mount.querySelector('#account-settings-drawer-modal');
+  setDrawer(drawerEl);
+  drawerEl?.querySelector('#account-settings-drawer-close')?.addEventListener('click', closeDrawer);
+  drawerEl
+    ?.querySelector('#account-settings-drawer-overlay')
+    ?.addEventListener('click', closeDrawer);
+  drawerEl?.querySelectorAll('a[data-subnav]').forEach((link) => {
+    link.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const nav = link.dataset.accountAreaTab || link.dataset.subnav;
+      if (!nav) return;
+      const nextSection = normalizeAccountSection(nav);
+      const nextPath = getAccountSectionPath(nextSection);
+      if (window.location.pathname !== nextPath) {
+        window.history.replaceState({}, '', nextPath);
+      }
+      await rerender(nextSection);
     });
+  });
+  return {
+    content: mount.querySelector('[data-account-drawer-content]'),
+    footerHost: mount.querySelector('#account-drawer-footer'),
+  };
+}
 
-    drawer = mount.querySelector('#account-settings-drawer-modal');
-    content = mount.querySelector('[data-account-drawer-content]');
-    footerHost = mount.querySelector('#account-drawer-footer');
+function prepareAccountDrawerMount({ mount, normalizedSection }) {
+  document.getElementById('account-settings-drawer-modal')?.remove();
+  const targetPath = getAccountSectionPath(normalizedSection);
+  setSidebarRouteScope('account');
+  if (window.location.pathname !== targetPath) {
+    window.history.pushState({}, '', targetPath);
+  }
+  mount.dataset.accountSettingsDrawerMount = '1';
+  document.body.appendChild(mount);
+}
 
-    drawer?.querySelector('#account-settings-drawer-close')?.addEventListener('click', closeDrawer);
-    drawer
-      ?.querySelector('#account-settings-drawer-overlay')
-      ?.addEventListener('click', closeDrawer);
-    drawer?.querySelectorAll('a[data-subnav]').forEach((link) => {
-      link.addEventListener('click', async (event) => {
-        event.preventDefault();
-        const nav = link.dataset.accountAreaTab || link.dataset.subnav;
-        if (!nav) return;
-        currentSection = normalizeAccountSection(nav);
-        const nextPath = getAccountSectionPath(currentSection);
-        if (window.location.pathname !== nextPath) {
-          window.history.replaceState({}, '', nextPath);
-        }
-        await renderDrawer();
-      });
+function showAccountLoadError(ctx, err) {
+  if (ctx.content) {
+    ctx.content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
+  }
+  if (ctx.footerHost) ctx.footerHost.innerHTML = '';
+}
+
+export async function openAccountSettingsDrawer({ section = 'connections' } = {}) {
+  ensureMarkedReady();
+  const mount = document.createElement('div');
+  const normalizedSection = normalizeAccountSection(section);
+  prepareAccountDrawerMount({ mount, normalizedSection });
+
+  const settingsRouteCache = createSettingsRouteCache();
+  const removeSettingsRouteCache = settingsRouteCache.bind();
+
+  let drawer = null;
+  const ctx = { drawer: null, content: null, footerHost: null };
+
+  const closeDrawer = () => {
+    removeSettingsRouteCache?.();
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    drawer?.remove();
+    mount.remove();
+  };
+
+  const loadCurrentState = async () =>
+    normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
+
+  const rerender = async (nextSection) => {
+    const mounts = createDrawerMount({
+      section: nextSection,
+      mount,
+      closeDrawer,
+      rerender,
+      setDrawer: (el) => {
+        drawer = el;
+        ctx.drawer = el;
+      },
     });
-
-    await loadCurrentState();
+    ctx.content = mounts.content;
+    ctx.footerHost = mounts.footerHost;
+    const accountState = await loadCurrentState();
     await renderAccountSection({
-      section: currentSection,
+      section: nextSection,
       accountState,
-      content,
-      footerHost,
+      content: ctx.content,
+      footerHost: ctx.footerHost,
       settingsRouteCache,
       onRefresh: loadCurrentState,
     });
   };
 
   try {
-    await renderDrawer();
+    await rerender(normalizedSection);
   } catch (err) {
-    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
-    if (footerHost) footerHost.innerHTML = '';
+    showAccountLoadError(ctx, err);
   }
 
   mount.__cleanup = () => {
