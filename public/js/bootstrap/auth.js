@@ -171,13 +171,16 @@ async function submit(e) {
   }
 }
 
-// Multi-branch health config
-function applyHealthConfig(data) {
-  const initialized = data?.initialized === true;
-  const publicRegistration = data?.publicRegistrationEnabled !== false;
-  const authConfigured = data?.authConfigured === true;
-  const emailConfigured = data?.emailConfigured === true;
+function readHealthConfig(data) {
+  return {
+    initialized: data?.initialized === true,
+    publicRegistration: data?.publicRegistrationEnabled !== false,
+    authConfigured: data?.authConfigured === true,
+    emailConfigured: data?.emailConfigured === true,
+  };
+}
 
+function updateAuthConfigWarning(authConfigured) {
   if (!authConfigured) {
     document.getElementById('config-warning-text').textContent =
       'Authentication system not fully configured — JWT_SECRET is missing';
@@ -185,26 +188,44 @@ function applyHealthConfig(data) {
   } else {
     document.getElementById('config-warning').classList.add('hidden');
   }
+}
 
-  if (!initialized) {
-    setMode('register');
+function applyUninitializedMode() {
+  setMode('register');
+  setControlVisibility(forgotPasswordBtn, false);
+  setControlVisibility(toggleText, false);
+  setControlVisibility(toggleModeBtn, false);
+}
+
+function applyPublicRegistrationMode(emailConfigured) {
+  setMode('login');
+  setControlVisibility(forgotPasswordBtn, true);
+  setControlVisibility(toggleText, true);
+  setControlVisibility(toggleModeBtn, true);
+  if (!emailConfigured) {
     setControlVisibility(forgotPasswordBtn, false);
-    setControlVisibility(toggleText, false);
-    setControlVisibility(toggleModeBtn, false);
-  } else if (publicRegistration) {
-    setMode('login');
-    setControlVisibility(forgotPasswordBtn, true);
-    setControlVisibility(toggleText, true);
-    setControlVisibility(toggleModeBtn, true);
-    if (!emailConfigured) {
-      setControlVisibility(forgotPasswordBtn, false);
-    }
-  } else {
-    setMode('login');
-    setControlVisibility(forgotPasswordBtn, emailConfigured);
-    setControlVisibility(toggleText, false);
-    setControlVisibility(toggleModeBtn, false);
   }
+}
+
+function applyRegistrationClosedMode(emailConfigured) {
+  setMode('login');
+  setControlVisibility(forgotPasswordBtn, emailConfigured);
+  setControlVisibility(toggleText, false);
+  setControlVisibility(toggleModeBtn, false);
+}
+
+function applyHealthAuthMode(initialized, publicRegistration, emailConfigured) {
+  if (!initialized) return applyUninitializedMode();
+  if (publicRegistration) return applyPublicRegistrationMode(emailConfigured);
+  return applyRegistrationClosedMode(emailConfigured);
+}
+
+// Multi-branch health config
+function applyHealthConfig(data) {
+  const { initialized, publicRegistration, authConfigured, emailConfigured } =
+    readHealthConfig(data);
+  updateAuthConfigWarning(authConfigured);
+  applyHealthAuthMode(initialized, publicRegistration, emailConfigured);
 }
 
 async function bootstrapAuthMode() {
