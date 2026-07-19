@@ -26,10 +26,10 @@ export async function handleUsersAdminById(
     return handleGetUserById(req, env, user, userId);
   }
   if (req.method === 'PUT') {
-    return handleUpdateUserById(req, env, user, userId, logger);
+    return handleUpdateUserById({ req, env, user, userId, logger });
   }
   if (req.method === 'DELETE') {
-    return handleDeleteUserById(req, env, user, userId, logger);
+    return handleDeleteUserById({ req, env, user, userId, logger });
   }
 
   return null;

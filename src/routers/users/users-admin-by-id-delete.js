@@ -4,7 +4,7 @@ import { authorize, isLastOwnerOfRole, logAuditEvent } from '../../utils/authori
 import { authError, error, json } from '../../utils/response.js';
 import { loadPrimaryRole } from '../../utils/user-role.js';
 import { normalizeAccountStatus } from './users-helpers.js';
-export async function handleDeleteUserById(req, env, user, userId, logger) {
+export async function handleDeleteUserById({ req, env, user, userId, logger }) {
   const authDecision = await authorize(env, user, {
     action: 'admin.user.write',
     resource: 'user',

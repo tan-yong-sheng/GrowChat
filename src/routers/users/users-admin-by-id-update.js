@@ -22,7 +22,7 @@ class UpdateValidationError extends Error {
 }
 
 // admin dispatcher pattern (req, env, user, userId, logger)
-export async function handleUpdateUserById(req, env, user, userId, logger) {
+export async function handleUpdateUserById({ req, env, user, userId, logger }) {
   const authDecision = await authorize(env, user, {
     action: 'admin.user.write',
     resource: 'user',

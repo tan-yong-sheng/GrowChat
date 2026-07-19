@@ -137,13 +137,13 @@ function parseRegistrationResponse(data) {
     clientSecret: String(data.client_secret || '').trim(),
   };
 }
-async function ensureClientCredentials(
+async function ensureClientCredentials({
   body,
   existingServer,
   metadata,
   registrationEndpoint,
-  redirectUri
-) {
+  redirectUri,
+}) {
   const { clientId, clientSecret } = resolveClientCredentials(body, existingServer, metadata);
   if (clientId) return { clientId, clientSecret };
   if (!registrationEndpoint) {
@@ -254,7 +254,7 @@ async function generatePkceState() {
   const codeChallenge = await sha256Base64Url(codeVerifier);
   return { codeVerifier, codeChallenge, state: randomString(PKCE_STATE_LENGTH) };
 }
-function buildPersistedServer(
+function buildPersistedServer({
   existingServer,
   body,
   serverUrl,
@@ -264,8 +264,8 @@ function buildPersistedServer(
   registrationEndpoint,
   tokenAuthMethod,
   state,
-  codeVerifier
-) {
+  codeVerifier,
+}) {
   return {
     ...existingServer,
     auth_type: 'oauth',
@@ -347,13 +347,13 @@ export async function handleOauthStart(req, env, user, origin) {
   let clientId;
   let clientSecret;
   try {
-    ({ clientId, clientSecret } = await ensureClientCredentials(
-      startCtx.body,
-      startCtx.existingServer,
-      startCtx.metadata,
-      startCtx.registrationEndpoint,
-      redirectUri
-    ));
+    ({ clientId, clientSecret } = await ensureClientCredentials({
+      body: startCtx.body,
+      existingServer: startCtx.existingServer,
+      metadata: startCtx.metadata,
+      registrationEndpoint: startCtx.registrationEndpoint,
+      redirectUri,
+    }));
   } catch (err) {
     return resolveClientRegistrationError(req, err);
   }
@@ -382,18 +382,18 @@ export async function handleOauthStart(req, env, user, origin) {
     codeChallenge,
   });
 
-  const persistedServer = buildPersistedServer(
-    startCtx.existingServer,
-    startCtx.body,
-    startCtx.serverUrl,
+  const persistedServer = buildPersistedServer({
+    existingServer: startCtx.existingServer,
+    body: startCtx.body,
+    serverUrl: startCtx.serverUrl,
     clientId,
     clientSecret,
-    startCtx.metadata,
-    startCtx.registrationEndpoint,
+    metadata: startCtx.metadata,
+    registrationEndpoint: startCtx.registrationEndpoint,
     tokenAuthMethod,
     state,
-    codeVerifier
-  );
+    codeVerifier,
+  });
   await saveUserToolServerJson(startCtx.db, user.sub, startCtx.serverId, persistedServer);
 
   return json(req, { ok: true, authorization_url: authorizationUrl.toString() });
