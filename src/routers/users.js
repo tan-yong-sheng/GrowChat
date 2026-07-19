@@ -26,8 +26,16 @@ import { handleUsersAdminById } from './users/users-admin-by-id.js';
 /**
  * Users Router Handler
  */
-export async function usersRouter(req, env, ctx, user, path, requestContext = {}) {
-  const deps = createRouterDeps(env, requestContext);
+export async function usersRouter({
+  req,
+  env,
+  ctx,
+  user,
+  path,
+  requestId,
+  logger: providedLogger,
+} = {}) {
+  const deps = createRouterDeps(env, { requestId, logger: providedLogger });
 
   // Delegate to domain-specific sub-handlers.
   const handlers = [

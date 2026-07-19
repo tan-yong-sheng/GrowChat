@@ -150,7 +150,7 @@ function checkApiBindings(req, env, path, requestId) {
 
 async function dispatchApiRoutes(req, env, ctx, user, path, requestId, logger) {
   for (const route of API_ROUTES) {
-    const response = await route(req, env, ctx, user, path, { requestId, logger });
+    const response = await route({ req, env, ctx, user, path, requestId, logger });
     if (response) return response;
   }
   return error(req, 'Not found', 404, { requestId });

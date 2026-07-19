@@ -16,59 +16,59 @@ describe('realtimeRouter', () => {
   });
 
   it('returns 401 for unauthenticated user', async () => {
-    const result = await realtimeRouter(
-      new Request('https://example.com/api/realtime/stream', { method: 'GET' }),
-      { DB: {} },
-      {},
-      null,
-      '/api/realtime/stream'
-    );
+    const result = await realtimeRouter({
+      req: new Request('https://example.com/api/realtime/stream', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: null,
+      path: '/api/realtime/stream',
+    });
     expect(result.status).toBe(401);
   });
 
   it('returns 405 for unsupported method', async () => {
-    const result = await realtimeRouter(
-      new Request('https://example.com/api/realtime/stream', { method: 'DELETE' }),
-      { DB: {} },
-      {},
-      { sub: 'u1' },
-      '/api/realtime/stream'
-    );
+    const result = await realtimeRouter({
+      req: new Request('https://example.com/api/realtime/stream', { method: 'DELETE' }),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'u1' },
+      path: '/api/realtime/stream',
+    });
     expect(result.status).toBe(405);
   });
 
   it('connects realtime stream for GET', async () => {
     mocks.connectRealtimeStream.mockResolvedValue(new Response('stream'));
-    await realtimeRouter(
-      new Request('https://example.com/api/realtime/stream', { method: 'GET' }),
-      { DB: {} },
-      {},
-      { sub: 'u1' },
-      '/api/realtime/stream'
-    );
+    await realtimeRouter({
+      req: new Request('https://example.com/api/realtime/stream', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'u1' },
+      path: '/api/realtime/stream',
+    });
     expect(mocks.connectRealtimeStream).toHaveBeenCalledOnce();
   });
 
   it('connects realtime stream for POST', async () => {
     mocks.connectRealtimeStream.mockResolvedValue(new Response('stream'));
-    await realtimeRouter(
-      new Request('https://example.com/api/realtime/stream', { method: 'POST' }),
-      { DB: {} },
-      {},
-      { sub: 'u1' },
-      '/api/realtime/stream'
-    );
+    await realtimeRouter({
+      req: new Request('https://example.com/api/realtime/stream', { method: 'POST' }),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'u1' },
+      path: '/api/realtime/stream',
+    });
     expect(mocks.connectRealtimeStream).toHaveBeenCalledOnce();
   });
 
   it('returns null for non-matching path', async () => {
-    const result = await realtimeRouter(
-      new Request('https://example.com/api/unknown', { method: 'GET' }),
-      { DB: {} },
-      {},
-      { sub: 'u1' },
-      '/api/unknown'
-    );
+    const result = await realtimeRouter({
+      req: new Request('https://example.com/api/unknown', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'u1' },
+      path: '/api/unknown',
+    });
     expect(result).toBeNull();
   });
 });

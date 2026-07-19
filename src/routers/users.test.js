@@ -162,7 +162,13 @@ describe('usersRouter', () => {
       last_active_at: null,
     });
 
-    const res = await usersRouter(makeReq('/api/users/me', 'GET'), env, {}, user, '/api/users/me');
+    const res = await usersRouter({
+      req: makeReq('/api/users/me', 'GET'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
@@ -201,13 +207,13 @@ describe('usersRouter', () => {
       last_active_at: 30,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me?include=permissions,roles', 'GET'),
-      env,
-      {},
-      user,
-      '/api/users/me'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me?include=permissions,roles', 'GET'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -240,8 +246,8 @@ describe('usersRouter', () => {
       updated_at: 21,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me', 'PUT', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me', 'PUT', {
         name: ' Updated User ',
         avatar: 'https://example.com/new-avatar.png',
         avatar_emoji: '🚀',
@@ -249,11 +255,11 @@ describe('usersRouter', () => {
         settings: { theme: 'light' },
         preferences: { compact: false },
       }),
-      env,
-      {},
-      user,
-      '/api/users/me'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me',
+    });
 
     expect(res.status).toBe(200);
     expect(mocks.db.run).toHaveBeenCalledWith(
@@ -297,19 +303,19 @@ describe('usersRouter', () => {
       updated_at: 21,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/update', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/update', 'POST', {
         name: 'Updated User',
         avatar: null,
         avatar_emoji: '🙂',
         status: 'offline',
         preferences: { compact: true },
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/update'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/update',
+    });
 
     expect(res.status).toBe(200);
     expect(mocks.db.run).toHaveBeenCalledWith(
@@ -387,13 +393,13 @@ describe('usersRouter', () => {
       },
     ]);
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/connections', 'GET'),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/connections'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/connections', 'GET'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/connections',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -440,18 +446,18 @@ describe('usersRouter', () => {
       enabled: true,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/connections', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/connections', 'POST', {
         name: 'My Connection',
         base_url: 'https://personal.example.com/v1',
         provider_type: 'openai-compatible',
         key: 'secret',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/connections'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/connections',
+    });
 
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -472,13 +478,13 @@ describe('usersRouter', () => {
   it('deletes a personal connection for the current user', async () => {
     mocks.deleteUserOpenAIConnection.mockResolvedValueOnce(true);
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/connections/conn-personal', 'DELETE'),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/connections/conn-personal'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/connections/conn-personal', 'DELETE'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/connections/conn-personal',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
@@ -496,18 +502,18 @@ describe('usersRouter', () => {
       items: [{ id: 'tool-a', name: 'tool-a' }],
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/connections/test', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/connections/test', 'POST', {
         name: 'My Connection',
         base_url: 'https://personal.example.com/v1',
         provider_type: 'openai-compatible',
         key: 'secret',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/connections/test'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/connections/test',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
@@ -542,19 +548,19 @@ describe('usersRouter', () => {
       items: [{ id: 'tool-a', name: 'tool-a' }],
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/connections/test', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/connections/test', 'POST', {
         id: 'conn-personal',
         name: 'Saved Connection',
         base_url: '',
         provider_type: 'openai-compatible',
         key: '',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/connections/test'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/connections/test',
+    });
 
     expect(res.status).toBe(200);
     expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(
@@ -584,18 +590,18 @@ describe('usersRouter', () => {
       },
     });
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/connections/test', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/connections/test', 'POST', {
         name: 'Leaky Connection',
         base_url: 'https://api.openai.com/v1',
         provider_type: 'openai-compatible',
         key: 'sk-test-bad',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/connections/test'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/connections/test',
+    });
     const payload = await res.json();
     expect(res.status).toBe(502);
     expect(payload.details.message).toBe('Authentication failed \u2014 check your API key');
@@ -628,13 +634,13 @@ describe('usersRouter', () => {
       },
     ]);
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/mcp-servers', 'GET'),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/mcp-servers'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/mcp-servers', 'GET'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/mcp-servers',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -667,13 +673,13 @@ describe('usersRouter', () => {
       },
     ]);
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/mcp-servers', 'GET'),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/mcp-servers'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/mcp-servers', 'GET'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/mcp-servers',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -703,18 +709,18 @@ describe('usersRouter', () => {
       enabled: true,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/mcp-servers', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/mcp-servers', 'POST', {
         name: 'My MCP',
         url: 'https://mcp.example.com',
         auth_type: 'bearer',
         auth_bearer_token: 'secret',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/mcp-servers'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/mcp-servers',
+    });
 
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -735,19 +741,19 @@ describe('usersRouter', () => {
       tools: [{ name: 'tool-a' }, { name: 'tool-b' }],
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/mcp-servers/test', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/mcp-servers/test', 'POST', {
         name: 'My MCP',
         url: 'https://mcp.example.com',
         auth_type: 'basic',
         auth_basic_username: 'user',
         auth_basic_password: 'pass',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/mcp-servers/test'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/mcp-servers/test',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
@@ -766,17 +772,17 @@ describe('usersRouter', () => {
       enabled: true,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/mcp-servers/mcp-personal', 'PUT', {
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/mcp-servers/mcp-personal', 'PUT', {
         name: 'Updated MCP',
         url: 'https://mcp.example.com',
         auth_type: 'none',
       }),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/mcp-servers/mcp-personal'
-    );
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/mcp-servers/mcp-personal',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
@@ -791,13 +797,13 @@ describe('usersRouter', () => {
   it('deletes a personal MCP server for the current user', async () => {
     mocks.deleteUserToolServer.mockResolvedValueOnce(true);
 
-    const res = await usersRouter(
-      makeReq('/api/users/me/resources/mcp-servers/mcp-personal', 'DELETE'),
-      env,
-      {},
-      user,
-      '/api/users/me/resources/mcp-servers/mcp-personal'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/resources/mcp-servers/mcp-personal', 'DELETE'),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/resources/mcp-servers/mcp-personal',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
@@ -809,13 +815,13 @@ describe('usersRouter', () => {
   });
 
   it('rejects invalid status values on profile update', async () => {
-    const res = await usersRouter(
-      makeReq('/api/users/me', 'PUT', { status: 'busy' }),
-      env,
-      {},
-      user,
-      '/api/users/me'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me', 'PUT', { status: 'busy' }),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me',
+    });
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
@@ -825,13 +831,13 @@ describe('usersRouter', () => {
   });
 
   it('rejects invalid preferences payloads on POST /api/users/me/update', async () => {
-    const res = await usersRouter(
-      makeReq('/api/users/me/update', 'POST', { preferences: [] }),
-      env,
-      {},
-      user,
-      '/api/users/me/update'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/users/me/update', 'POST', { preferences: [] }),
+      env: env,
+      ctx: {},
+      user: user,
+      path: '/api/users/me/update',
+    });
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
@@ -906,13 +912,13 @@ describe('usersRouter', () => {
       ]);
     mocks.resolvePermissions.mockResolvedValueOnce(['admin.user.read', 'admin.audit.read']);
 
-    const res = await usersRouter(
-      makeReq('/api/admin/users/u2/access', 'GET'),
-      env,
-      {},
-      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-      '/api/admin/users/u2/access'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/admin/users/u2/access', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      path: '/api/admin/users/u2/access',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -982,18 +988,18 @@ describe('usersRouter', () => {
       return null;
     });
 
-    const res = await usersRouter(
-      makeReq('/api/admin/users', 'POST', {
+    const res = await usersRouter({
+      req: makeReq('/api/admin/users', 'POST', {
         email: 'support@example.com',
         name: 'Support Agent',
         password: 'Password123',
         primary_role: 'Support',
       }),
-      env,
-      {},
-      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-      '/api/admin/users'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      path: '/api/admin/users',
+    });
 
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -1045,15 +1051,15 @@ describe('usersRouter', () => {
       return null;
     });
 
-    const res = await usersRouter(
-      makeReq('/api/admin/users/u2', 'PUT', {
+    const res = await usersRouter({
+      req: makeReq('/api/admin/users/u2', 'PUT', {
         primary_role: 'Support',
       }),
-      env,
-      {},
-      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-      '/api/admin/users/u2'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      path: '/api/admin/users/u2',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -1076,13 +1082,13 @@ describe('usersRouter', () => {
       account_status: 'active',
     });
 
-    const res = await usersRouter(
-      makeReq('/api/admin/users/u2', 'DELETE'),
-      env,
-      {},
-      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-      '/api/admin/users/u2'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/admin/users/u2', 'DELETE'),
+      env: env,
+      ctx: {},
+      user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      path: '/api/admin/users/u2',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
@@ -1101,13 +1107,13 @@ describe('usersRouter', () => {
   });
 
   it('rejects deleting your own account', async () => {
-    const res = await usersRouter(
-      makeReq('/api/admin/users/u1', 'DELETE'),
-      env,
-      {},
-      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-      '/api/admin/users/u1'
-    );
+    const res = await usersRouter({
+      req: makeReq('/api/admin/users/u1', 'DELETE'),
+      env: env,
+      ctx: {},
+      user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      path: '/api/admin/users/u1',
+    });
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
@@ -1133,13 +1139,13 @@ describe('usersRouter', () => {
           primary_role: 'member',
         },
       ]);
-      const res = await usersRouter(
-        makeReq('/api/admin/users?q=ada', 'GET'),
-        env,
-        {},
-        { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-        '/api/admin/users'
-      );
+      const res = await usersRouter({
+        req: makeReq('/api/admin/users?q=ada', 'GET'),
+        env: env,
+        ctx: {},
+        user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+        path: '/api/admin/users',
+      });
       expect(res.status).toBe(200);
       // Verify the count query uses the 'u' alias: 'FROM users u' not 'FROM users'
       const countCall = mocks.db.first.mock.calls[0];
@@ -1155,13 +1161,13 @@ describe('usersRouter', () => {
       mocks.authorize.mockResolvedValueOnce({ allow: true });
       mocks.db.first.mockResolvedValueOnce({ count: 0 });
       mocks.db.all.mockResolvedValueOnce([]);
-      const res = await usersRouter(
-        makeReq('/api/admin/users', 'GET'),
-        env,
-        {},
-        { sub: 'u1', role: 'admin', email: 'admin@example.com' },
-        '/api/admin/users'
-      );
+      const res = await usersRouter({
+        req: makeReq('/api/admin/users', 'GET'),
+        env: env,
+        ctx: {},
+        user: { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+        path: '/api/admin/users',
+      });
       expect(res.status).toBe(200);
       const countCall = mocks.db.first.mock.calls[0];
       const countSql = countCall[0];

@@ -16,7 +16,7 @@ const logger = createRootLogger({});
  * @param {string} path - Request path
  * @returns {Promise<Response|null>}
  */
-export async function sessionManagementRouter(req, env, _ctx, user, path) {
+export async function sessionManagementRouter({ req, env, ctx: _ctx, user, path }) {
   // Only handle /api/user/sessions paths
   if (!path.startsWith('/api/user/sessions')) return null;
 

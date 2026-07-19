@@ -95,17 +95,23 @@ describe('modelsRouter', () => {
 
   it('returns 304 when If-None-Match matches for /api/models', async () => {
     const env = {};
-    const res1 = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
+    const res1 = await modelsRouter({
+      req: makeReq('/api/models', 'GET'),
+      env: env,
+      ctx: {},
+      user: null,
+      path: '/api/models',
+    });
     const etag = res1.headers.get('ETag');
     expect(etag).toBeTruthy();
 
-    const res2 = await modelsRouter(
-      makeReq('/api/models', 'GET', { 'If-None-Match': etag }),
-      env,
-      {},
-      null,
-      '/api/models'
-    );
+    const res2 = await modelsRouter({
+      req: makeReq('/api/models', 'GET', { 'If-None-Match': etag }),
+      env: env,
+      ctx: {},
+      user: null,
+      path: '/api/models',
+    });
 
     expect(res2.status).toBe(304);
   });
@@ -146,7 +152,13 @@ describe('modelsRouter', () => {
         url: 'https://api.openai.com/v1/models',
       });
 
-    const res = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
+    const res = await modelsRouter({
+      req: makeReq('/api/models', 'GET'),
+      env: env,
+      ctx: {},
+      user: null,
+      path: '/api/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -179,7 +191,13 @@ describe('modelsRouter', () => {
       error: { status: 401, message: 'Unauthorized' },
     });
 
-    const res = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
+    const res = await modelsRouter({
+      req: makeReq('/api/models', 'GET'),
+      env: env,
+      ctx: {},
+      user: null,
+      path: '/api/models',
+    });
 
     expect(res.status).toBe(200);
     // Structured logger emits JSON string via console.warn
@@ -203,13 +221,13 @@ describe('modelsRouter', () => {
 
   it('includes disabled connections when requested for admin models', async () => {
     const env = { DB: {} };
-    await modelsRouter(
-      makeReq('/api/admin/models?include_disabled=1', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models'
-    );
+    await modelsRouter({
+      req: makeReq('/api/admin/models?include_disabled=1', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models',
+    });
 
     expect(mocks.getAllOpenAIConnectionConfigs).toHaveBeenCalledWith(env, {
       includeDisabled: true,
@@ -230,13 +248,13 @@ describe('modelsRouter', () => {
       },
     ]);
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models?include_disabled=1', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models?include_disabled=1', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -267,13 +285,13 @@ describe('modelsRouter', () => {
       url: 'https://example.com/models',
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models?include_disabled=1', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models?include_disabled=1', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -317,13 +335,13 @@ describe('modelsRouter', () => {
       url: 'https://example.com/models',
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models?include_disabled=1', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models?include_disabled=1', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -371,13 +389,13 @@ describe('modelsRouter', () => {
       tool_servers: { hidden_ids: [], tools: {} },
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/models?scope=effective', 'GET'),
-      env,
-      {},
-      { sub: 'user-1', primary_role: 'admin' },
-      '/api/models'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/models?scope=effective', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1', primary_role: 'admin' },
+      path: '/api/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -448,13 +466,13 @@ describe('modelsRouter', () => {
       },
     ]);
 
-    const res = await modelsRouter(
-      makeReq('/api/models', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/models'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/models', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -489,13 +507,13 @@ describe('modelsRouter', () => {
       },
     ]);
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models?include_disabled=1&provider=gemini', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models?include_disabled=1&provider=gemini', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -551,13 +569,13 @@ describe('modelsRouter', () => {
       }),
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/gpt-5-mini/access', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models/gpt-5-mini/access'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/gpt-5-mini/access', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models/gpt-5-mini/access',
+    });
 
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -597,13 +615,13 @@ describe('modelsRouter', () => {
     });
     mocks.createDB.mockReturnValue({ all });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access',
+    });
 
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -636,13 +654,13 @@ describe('modelsRouter', () => {
     });
     mocks.createDB.mockReturnValue({ all });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'GET'),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access'
-    );
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'GET'),
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access',
+    });
 
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -678,15 +696,15 @@ describe('modelsRouter', () => {
     });
     mocks.createDB.mockReturnValue({ all, run: vi.fn() });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
         rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
       }),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models/gpt-5-mini/access'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models/gpt-5-mini/access',
+    });
 
     expect(res.status).toBe(409);
   });
@@ -761,18 +779,18 @@ describe('modelsRouter', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
         rules: [
           { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
           { principal_type: 'group', principal_id: 'g3', effect: 'deny', action: 'use' },
         ],
       }),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models/gpt-5-mini/access'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models/gpt-5-mini/access',
+    });
 
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -830,15 +848,15 @@ describe('modelsRouter', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'PUT', {
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'PUT', {
         rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
       }),
-      env,
-      {},
-      { sub: 'user-1' },
-      '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1' },
+      path: '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access',
+    });
 
     expect(res.status).toBe(200);
     expect(batch).toHaveBeenCalledTimes(1);
@@ -899,8 +917,8 @@ describe('modelsRouter', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models/access', 'PUT', {
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models/access', 'PUT', {
         updates: [
           {
             model_id: 'm1',
@@ -914,11 +932,11 @@ describe('modelsRouter', () => {
           },
         ],
       }),
-      env,
-      {},
-      { sub: 'user-1', primary_role: 'admin' },
-      '/api/admin/models/access'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1', primary_role: 'admin' },
+      path: '/api/admin/models/access',
+    });
 
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -988,8 +1006,8 @@ describe('modelsRouter', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models', 'PUT', {
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models', 'PUT', {
         attachment_updates: [
           {
             model_id: 'openai/env-openai-0:gemini-2.5-flash',
@@ -1003,11 +1021,11 @@ describe('modelsRouter', () => {
           },
         ],
       }),
-      env,
-      {},
-      { sub: 'user-1', primary_role: 'admin' },
-      '/api/admin/models'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1', primary_role: 'admin' },
+      path: '/api/admin/models',
+    });
 
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -1070,8 +1088,8 @@ describe('modelsRouter', () => {
       .mockResolvedValueOnce({ allow: true })
       .mockResolvedValueOnce({ allow: false, reason: 'missing_permission', code: 'forbidden' });
 
-    const res = await modelsRouter(
-      makeReq('/api/admin/models', 'PUT', {
+    const res = await modelsRouter({
+      req: makeReq('/api/admin/models', 'PUT', {
         access_updates: [
           {
             modelId: 'openai/env-openai-0:gemini-2.5-flash',
@@ -1079,11 +1097,11 @@ describe('modelsRouter', () => {
           },
         ],
       }),
-      env,
-      {},
-      { sub: 'user-1', primary_role: 'member' },
-      '/api/admin/models'
-    );
+      env: env,
+      ctx: {},
+      user: { sub: 'user-1', primary_role: 'member' },
+      path: '/api/admin/models',
+    });
 
     expect(res.status).toBe(403);
     expect(await res.text()).toContain('missing_permission');

@@ -12,7 +12,7 @@ function isUserSettingsPath(path) {
 function isAccountPending(user) {
   return user.account_status && user.account_status !== 'active';
 }
-export async function userSettingsRouter(req, env, _ctx, user, path, _deps) {
+export async function userSettingsRouter({ req, env, ctx: _ctx, user, path }) {
   if (!isUserSettingsPath(path)) return null;
   if (!user) return error(req, 'Unauthorized', HTTP_STATUS.UNAUTHORIZED);
 

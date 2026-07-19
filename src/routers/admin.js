@@ -49,9 +49,16 @@ function resolveAdminPermission(path, method) {
  * Admin Router Handler
  */
 // Cloudflare Worker handler
-export async function adminRouter(req, env, ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
+export async function adminRouter({
+  req,
+  env,
+  ctx,
+  user,
+  path,
+  requestId,
+  logger: providedLogger,
+} = {}) {
+  const logger = providedLogger || createLogger(env, { requestId });
 
   if (!path.startsWith('/api/admin/')) return null;
 
@@ -74,7 +81,7 @@ export async function adminRouter(req, env, ctx, user, path, requestContext = {}
   }
 
   const db = createDB(env.DB);
-  const deps = { db, logger, requestContext };
+  const deps = { db, logger };
 
   // Delegate to domain-specific sub-handlers.
   // Each returns a Response if it handles the route, or null otherwise.

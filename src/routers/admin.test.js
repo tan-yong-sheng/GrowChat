@@ -121,13 +121,13 @@ describe('adminRouter openai connections', () => {
   });
 
   it('returns persisted connections without env-backed entries', async () => {
-    const res = await adminRouter(
-      makeReq('/api/admin/openai/connections', 'GET'),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections'
-    );
+    const res = await adminRouter({
+      req: makeReq('/api/admin/openai/connections', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -166,8 +166,8 @@ describe('adminRouter openai connections', () => {
       url: 'http://localhost:11434/v1/models',
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/test', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -178,11 +178,11 @@ describe('adminRouter openai connections', () => {
           headers: '{}',
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/test'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/test',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -217,8 +217,8 @@ describe('adminRouter openai connections', () => {
       url: 'http://localhost:11434/v1/models',
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/test', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -229,11 +229,11 @@ describe('adminRouter openai connections', () => {
           headers: '{}',
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/test'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/test',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -258,8 +258,8 @@ describe('adminRouter openai connections', () => {
       },
     });
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/test', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -269,11 +269,11 @@ describe('adminRouter openai connections', () => {
           headers: '{}',
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/test'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/test',
+    });
     const payload = await res.json();
     expect(res.status).toBe(502);
     expect(payload.details.message).toBe('Authentication failed \u2014 check your API key');
@@ -335,13 +335,13 @@ describe('adminRouter openai connections', () => {
     });
     mocks.createDB.mockReturnValue({ all, run: vi.fn() });
 
-    const res = await adminRouter(
-      makeReq('/api/admin/openai/connections/conn-1/access', 'GET'),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/conn-1/access'
-    );
+    const res = await adminRouter({
+      req: makeReq('/api/admin/openai/connections/conn-1/access', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/conn-1/access',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -434,8 +434,8 @@ describe('adminRouter openai connections', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -445,11 +445,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/conn-1/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/conn-1/access',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -513,19 +513,19 @@ describe('adminRouter openai connections', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/conn-1/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/conn-1/access',
+    });
 
     expect(res.status).toBe(403);
     expect(await res.text()).toContain('missing_permission');
@@ -584,8 +584,8 @@ describe('adminRouter openai connections', () => {
       run: vi.fn().mockResolvedValue(undefined),
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -605,11 +605,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/access',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -653,8 +653,8 @@ describe('adminRouter openai connections', () => {
       },
     ]);
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -682,11 +682,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections',
+    });
 
     expect(res.status).toBe(200);
     expect(batch).toHaveBeenCalledTimes(1);
@@ -704,19 +704,19 @@ describe('adminRouter openai connections', () => {
         source: 'config',
       },
     ]);
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections/conn-disabled/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections/conn-disabled/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections/conn-disabled/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections/conn-disabled/access',
+    });
 
     expect(res.status).toBe(409);
   });
@@ -774,13 +774,13 @@ describe('adminRouter openai connections', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      makeReq('/api/admin/tool-servers/mcp-1/access', 'GET'),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/mcp-1/access'
-    );
+    const res = await adminRouter({
+      req: makeReq('/api/admin/tool-servers/mcp-1/access', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/mcp-1/access',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -811,19 +811,19 @@ describe('adminRouter openai connections', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/mcp-disabled/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/mcp-disabled/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/mcp-disabled/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/mcp-disabled/access',
+    });
 
     expect(res.status).toBe(409);
   });
@@ -910,8 +910,8 @@ describe('adminRouter openai connections', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/mcp-1/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/mcp-1/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -921,11 +921,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/mcp-1/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/mcp-1/access',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -990,19 +990,19 @@ describe('adminRouter openai connections', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/mcp-1/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/mcp-1/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/mcp-1/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/mcp-1/access',
+    });
 
     expect(res.status).toBe(403);
     expect(await res.text()).toContain('missing_permission');
@@ -1056,8 +1056,8 @@ describe('adminRouter openai connections', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/access', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1077,11 +1077,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/access'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/access',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -1094,8 +1094,8 @@ describe('adminRouter openai connections', () => {
   });
 
   it('updates admin config settings', async () => {
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/config', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1104,11 +1104,11 @@ describe('adminRouter openai connections', () => {
           default_model_id: 'gpt-5-mini',
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/config'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/config',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -1143,13 +1143,13 @@ describe('adminRouter openai connections', () => {
   });
 
   it('returns pending registration status when the config value is unset', async () => {
-    const res = await adminRouter(
-      makeReq('/api/admin/config', 'GET'),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/config'
-    );
+    const res = await adminRouter({
+      req: makeReq('/api/admin/config', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/config',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -1173,13 +1173,13 @@ describe('adminRouter openai connections', () => {
       return fallback;
     });
 
-    const getRes = await adminRouter(
-      makeReq('/api/admin/model-attachment-caps', 'GET'),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/model-attachment-caps'
-    );
+    const getRes = await adminRouter({
+      req: makeReq('/api/admin/model-attachment-caps', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/model-attachment-caps',
+    });
     const getPayload = await getRes.json();
 
     expect(getRes.status).toBe(200);
@@ -1193,8 +1193,8 @@ describe('adminRouter openai connections', () => {
       supported_types: ATTACHMENT_CAP_TYPES,
     });
 
-    const putRes = await adminRouter(
-      new Request('https://example.com/api/admin/model-attachment-caps', {
+    const putRes = await adminRouter({
+      req: new Request('https://example.com/api/admin/model-attachment-caps', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1206,11 +1206,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/model-attachment-caps'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/model-attachment-caps',
+    });
     const putPayload = await putRes.json();
 
     expect(putRes.status).toBe(200);
@@ -1239,8 +1239,8 @@ describe('adminRouter openai connections', () => {
       batch,
       prepare: vi.fn((sql) => ({ sql })),
     });
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/openai/connections', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/openai/connections', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1257,11 +1257,11 @@ describe('adminRouter openai connections', () => {
           ],
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/openai/connections'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/openai/connections',
+    });
     const payload = await res.json();
     expect(res.status).toBe(200);
     expect(payload).toEqual({ ok: true, model_updates: 0, access_updates: [] });
@@ -1305,8 +1305,8 @@ describe('adminRouter openai connections', () => {
     });
     mocks.mcpNotify.mockResolvedValueOnce({ sessionId: 'session-1' });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/test', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1315,11 +1315,11 @@ describe('adminRouter openai connections', () => {
           auth_type: 'none',
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/test'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/test',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -1396,8 +1396,8 @@ describe('adminRouter openai connections', () => {
     });
     mocks.mcpNotify.mockResolvedValueOnce({ sessionId: 'session-1' });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/test', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1406,11 +1406,11 @@ describe('adminRouter openai connections', () => {
           auth_type: 'none',
         }),
       }),
-      { DB: {} },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/test'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/test',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(200);
@@ -1481,8 +1481,8 @@ describe('adminRouter tool server oauth', () => {
       vi.fn(async () => new Response('not found', { status: 404 }))
     );
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/oauth/start', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/oauth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1497,11 +1497,11 @@ describe('adminRouter tool server oauth', () => {
           oauth_token_auth_method: '',
         }),
       }),
-      { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/oauth/start'
-    );
+      env: { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/oauth/start',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(400);
@@ -1517,8 +1517,8 @@ describe('adminRouter tool server oauth', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      new Request('https://example.com/api/admin/tool-servers/oauth/start', {
+    const res = await adminRouter({
+      req: new Request('https://example.com/api/admin/tool-servers/oauth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1533,11 +1533,11 @@ describe('adminRouter tool server oauth', () => {
           oauth_token_auth_method: '',
         }),
       }),
-      { DB: {} /* no APP_PUBLIC_ORIGIN */ },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/oauth/start'
-    );
+      env: { DB: {} /* no APP_PUBLIC_ORIGIN */ },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/oauth/start',
+    });
     const payload = await res.json();
 
     expect(res.status).toBe(500);
@@ -1562,16 +1562,16 @@ describe('adminRouter tool server oauth', () => {
       return fallback;
     });
 
-    const res = await adminRouter(
-      new Request(
+    const res = await adminRouter({
+      req: new Request(
         'https://example.com/api/admin/tool-servers/oauth/callback?error=<script>alert(1)</script>&state=test-state-123',
         { method: 'GET' }
       ),
-      { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' },
-      {},
-      { sub: 'admin-1' },
-      '/api/admin/tool-servers/oauth/callback'
-    );
+      env: { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' },
+      ctx: {},
+      user: { sub: 'admin-1' },
+      path: '/api/admin/tool-servers/oauth/callback',
+    });
 
     expect(res.status).toBe(400);
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');

@@ -23,8 +23,16 @@ export { applyUserModelVisibilityOverrides } from './models/models-discovery.js'
 /**
  * Models Router Handler
  */
-export async function modelsRouter(req, env, ctx, user, path, requestContext = {}) {
-  const deps = createRouterDeps(env, requestContext);
+export async function modelsRouter({
+  req,
+  env,
+  ctx,
+  user,
+  path,
+  requestId,
+  logger: providedLogger,
+} = {}) {
+  const deps = createRouterDeps(env, { requestId, logger: providedLogger });
 
   // Delegate to domain-specific sub-handlers.
   const handlers = [

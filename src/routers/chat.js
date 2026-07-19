@@ -96,7 +96,7 @@ const assistantStreamRunner = createAssistantRunner({
   sleep,
   createLogger,
 });
-export async function chatRouter(req, env, ctx, user, path) {
+export async function chatRouter({ req, env, ctx, user, path }) {
   if (!isChatPath(path)) return null;
 
   const authorized = requireAuth(req, user);
