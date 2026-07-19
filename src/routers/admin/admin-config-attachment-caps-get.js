@@ -12,7 +12,15 @@ import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../../chat/atta
  * Handle GET /api/admin/model-attachment-caps - Fetch attachment capabilities
  */
 // Cloudflare Worker handler
-export async function handleAdminAttachmentCapsGet(req, env, ctx, user, path, { db, logger } = {}) {
+export async function handleAdminAttachmentCapsGet({
+  req,
+  env: _env,
+  ctx: _ctx,
+  user: _user,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
     const caps = loadAttachmentCapsFromRaw(raw);

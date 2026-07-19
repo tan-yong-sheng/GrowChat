@@ -23,14 +23,14 @@ export function mapAuthCodeToStatus(code) {
  * deduplicating the pattern that appears in 5 chat-collection-* handlers.
  * Returns { denied, error, chat } — check denied for auth failure, error for ownership failure.
  */
-export async function requireOwnedAndChatAuth(req, env, db, user, action, chatId) {
-  const denied = await requireChatAuth(req, env, user, action, chatId);
+export async function requireOwnedAndChatAuth({ req, env, db, user, action, chatId } = {}) {
+  const denied = await requireChatAuth({ req, env, user, action, chatId });
   if (denied) return { denied, error: null, chat: null };
   const { error, chat } = await requireOwnedChat(req, db, chatId, user.sub);
   if (error) return { denied: null, error, chat: null };
   return { denied: null, error: null, chat };
 }
-export async function requireChatAuth(req, env, user, action, chatId) {
+export async function requireChatAuth({ req, env, user, action, chatId } = {}) {
   const authDecision = await authorize(env, user, {
     action,
     resource: 'chat',
@@ -74,7 +74,7 @@ export function sanitizeModelId(raw, fallback) {
   return trimmed;
 }
 
-export async function reloadAndPublishChat(req, env, db, user, chatId, originSessionId) {
+export async function reloadAndPublishChat({ req, env, db, user, chatId, originSessionId } = {}) {
   const { error: updatedOwnedErr, chat: updated } = await requireOwnedChat(
     req,
     db,

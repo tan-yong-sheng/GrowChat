@@ -11,29 +11,40 @@ import { getAuditLog } from '../../utils/authorize.js';
  */
 /* Multiple audit log filters */
 // Cloudflare Worker handler
-export async function handleAdminAuditLogs(req, env, _ctx, user, path, { db: _db, logger } = {}) {
+function parseAuditLogQuery(url) {
+  return {
+    actor_id: url.searchParams.get('userId') || undefined,
+    action: url.searchParams.get('action') || undefined,
+    limit: parseInt(url.searchParams.get('limit') || '50', 10),
+    offset: parseInt(url.searchParams.get('offset') || '0', 10),
+  };
+}
+
+function mapAuditLogEntries(entries) {
+  return (entries || []).map((entry) => ({
+    ...entry,
+    user_id: entry.actor_id,
+    user_email: null,
+    details: entry.metadata,
+  }));
+}
+
+export async function handleAdminAuditLogs({
+  req,
+  env,
+  ctx: _ctx,
+  user: _user,
+  path,
+  db: _db,
+  logger,
+} = {}) {
   if (path !== '/api/admin/audit-logs') return null;
 
   try {
     const url = new URL(req.url);
-    const actor_id = url.searchParams.get('userId') || undefined;
-    const action = url.searchParams.get('action') || undefined;
-    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
-    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
-
-    const result = await getAuditLog(env, {
-      actor_id,
-      action,
-      limit,
-      offset,
-    });
-
-    const mappedLogs = (result.entries || []).map((entry) => ({
-      ...entry,
-      user_id: entry.actor_id,
-      user_email: null,
-      details: entry.metadata,
-    }));
+    const query = parseAuditLogQuery(url);
+    const result = await getAuditLog(env, query);
+    const mappedLogs = mapAuditLogEntries(result.entries);
 
     return json(req, {
       logs: mappedLogs,

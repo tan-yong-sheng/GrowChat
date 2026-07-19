@@ -3,12 +3,12 @@ import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { requireOwnedChat } from '../chat-core.js';
 import { requireOwnedAndChatAuth } from './chat-collection-helpers.js';
-export async function handleArchiveChat(req, env, db, user, chatId, originSessionId) {
+export async function handleArchiveChat({ req, env, db, user, chatId, originSessionId } = {}) {
   const {
     denied,
     error: ownedErr,
     chat,
-  } = await requireOwnedAndChatAuth(req, env, db, user, 'chat.write', chatId);
+  } = await requireOwnedAndChatAuth({ req, env, db, user, action: 'chat.write', chatId });
   if (denied) return denied;
   if (ownedErr) return ownedErr;
 

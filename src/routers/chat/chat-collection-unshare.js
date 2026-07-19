@@ -1,11 +1,11 @@
 import { json } from '../../utils/response.js';
 import { requireOwnedAndChatAuth } from './chat-collection-helpers.js';
-export async function handleUnshareChat(req, env, db, user, chatId) {
+export async function handleUnshareChat({ req, env, db, user, chatId } = {}) {
   const {
     denied,
     error: ownedErr,
     chat,
-  } = await requireOwnedAndChatAuth(req, env, db, user, 'chat.share', chatId);
+  } = await requireOwnedAndChatAuth({ req, env, db, user, action: 'chat.share', chatId });
   if (denied) return denied;
   if (ownedErr) return ownedErr;
 

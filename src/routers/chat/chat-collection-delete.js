@@ -5,8 +5,8 @@ import { requireOwnedChat } from '../chat-core.js';
 import { requireChatAuth } from './chat-collection-helpers.js';
 
 // Cloudflare Worker handler
-export async function handleDeleteChat(req, env, db, user, chatId, originSessionId) {
-  const denied = await requireChatAuth(req, env, user, 'chat.delete', chatId);
+export async function handleDeleteChat({ req, env, db, user, chatId, originSessionId } = {}) {
+  const denied = await requireChatAuth({ req, env, user, action: 'chat.delete', chatId });
   if (denied) return denied;
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);

@@ -2,7 +2,7 @@ import { error, sseHeaders, sseData } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { requireOwnedChat, sleep } from '../chat-core.js';
 import { requireChatPermission } from '../chat-message-helpers.js';
-async function fetchAndEnqueueDeltas(db, msgId, cursor, encoder, controller) {
+async function fetchAndEnqueueDeltas({ db, msgId, cursor, encoder, controller } = {}) {
   const rows = await db.all(
     'SELECT seq, payload FROM message_deltas WHERE message_id = ? AND seq > ? ORDER BY seq ASC LIMIT 200',
     [msgId, cursor]
@@ -59,13 +59,13 @@ export async function handleResumeMessage({ req, env, db, user, chatId, msgId })
       let cursor = lastSeq;
       let idleRounds = 0;
       while (true) {
-        const { cursor: nextCursor, advanced } = await fetchAndEnqueueDeltas(
+        const { cursor: nextCursor, advanced } = await fetchAndEnqueueDeltas({
           db,
           msgId,
           cursor,
           encoder,
-          controller
-        );
+          controller,
+        });
         cursor = nextCursor;
         if (advanced) {
           idleRounds = 0;

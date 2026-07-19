@@ -10,7 +10,15 @@ import { HTTP_STATUS } from '../../shared/http-status.js';
  * Handle GET /api/admin/config - Fetch admin configuration
  */
 // dispatcher pattern: (req, env, ctx, user, path, deps)
-export async function handleAdminConfigGet(req, env, ctx, user, path, { db, logger } = {}) {
+export async function handleAdminConfigGet({
+  req,
+  env: _env,
+  ctx: _ctx,
+  user: _user,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const publicRegistration = await getConfigBool(db, 'public_registration', true);
     const registrationStatusRaw = await getConfigValue(db, 'public_registration_status', 'pending');

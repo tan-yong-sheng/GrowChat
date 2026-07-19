@@ -28,17 +28,19 @@ const ROUTE_MAP = [
 /**
  * Handle admin config routes - delegates to per-route handlers
  */
-export async function handleAdminConfig(
+export async function handleAdminConfig({
   req,
   env,
   ctx,
   user,
   path,
-  { db, logger, _requestContext } = {}
-) {
+  db,
+  logger,
+  requestContext: _requestContext,
+} = {}) {
   for (const route of ROUTE_MAP) {
     if (route.method === req.method && route.path === path) {
-      return route.handler(req, env, ctx, user, path, { db, logger });
+      return route.handler({ req, env, ctx, user, path, db, logger });
     }
   }
   return null;

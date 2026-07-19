@@ -25,7 +25,14 @@ const EXACT_ROUTES = [
   {
     method: 'POST',
     path: '/api/chats',
-    handler: (c) => handleCreateChat(c.req, c.env, c.db, c.user, c.originSessionId),
+    handler: (c) =>
+      handleCreateChat({
+        req: c.req,
+        env: c.env,
+        db: c.db,
+        user: c.user,
+        originSessionId: c.originSessionId,
+      }),
   },
   {
     method: 'GET',
@@ -44,15 +51,38 @@ const PATTERN_ROUTES = [
     pattern: /^\/api\/chats\/([^/]+)$/,
     handlers: {
       GET: (c, chatId) => handleGetChat(c.req, c.env, c.db, c.user, chatId),
-      PUT: (c, chatId) => handleUpdateChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
+      PUT: (c, chatId) =>
+        handleUpdateChat({
+          req: c.req,
+          env: c.env,
+          db: c.db,
+          user: c.user,
+          chatId,
+          originSessionId: c.originSessionId,
+        }),
       DELETE: (c, chatId) =>
-        handleDeleteChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
+        handleDeleteChat({
+          req: c.req,
+          env: c.env,
+          db: c.db,
+          user: c.user,
+          chatId,
+          originSessionId: c.originSessionId,
+        }),
     },
   },
   {
     pattern: /^\/api\/chats\/([^/]+)\/pin$/,
     handlers: {
-      POST: (c, chatId) => handlePinChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
+      POST: (c, chatId) =>
+        handlePinChat({
+          req: c.req,
+          env: c.env,
+          db: c.db,
+          user: c.user,
+          chatId,
+          originSessionId: c.originSessionId,
+        }),
     },
   },
   {
@@ -65,14 +95,31 @@ const PATTERN_ROUTES = [
   {
     pattern: /^\/api\/chats\/([^/]+)\/share$/,
     handlers: {
-      POST: (c, chatId) => handleShareChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
-      DELETE: (c, chatId) => handleUnshareChat(c.req, c.env, c.db, c.user, chatId),
+      POST: (c, chatId) =>
+        handleShareChat({
+          req: c.req,
+          env: c.env,
+          db: c.db,
+          user: c.user,
+          chatId,
+          originSessionId: c.originSessionId,
+        }),
+      DELETE: (c, chatId) =>
+        handleUnshareChat({ req: c.req, env: c.env, db: c.db, user: c.user, chatId }),
     },
   },
   {
     pattern: /^\/api\/chats\/([^/]+)\/archive$/,
     handlers: {
-      POST: (c, chatId) => handleArchiveChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
+      POST: (c, chatId) =>
+        handleArchiveChat({
+          req: c.req,
+          env: c.env,
+          db: c.db,
+          user: c.user,
+          chatId,
+          originSessionId: c.originSessionId,
+        }),
     },
   },
 ];

@@ -5,12 +5,12 @@ import {
   reloadAndPublishChat,
   requireOwnedAndChatAuth,
 } from './chat-collection-helpers.js';
-export async function handleUpdateChat(req, env, db, user, chatId, originSessionId) {
+export async function handleUpdateChat({ req, env, db, user, chatId, originSessionId } = {}) {
   const {
     denied,
     error: ownedErr,
     chat,
-  } = await requireOwnedAndChatAuth(req, env, db, user, 'chat.write', chatId);
+  } = await requireOwnedAndChatAuth({ req, env, db, user, action: 'chat.write', chatId });
   if (denied) return denied;
   if (ownedErr) return ownedErr;
 
@@ -29,5 +29,5 @@ export async function handleUpdateChat(req, env, db, user, chatId, originSession
     [title, pinned, chatId, user.sub]
   );
 
-  return await reloadAndPublishChat(req, env, db, user, chatId, originSessionId);
+  return await reloadAndPublishChat({ req, env, db, user, chatId, originSessionId });
 }
