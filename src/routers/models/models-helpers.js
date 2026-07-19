@@ -3,13 +3,10 @@
  *
  * Shared utility functions for model configuration and management.
  */
-import { getConfigValue } from '../../utils/app-config.js';
-import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
-import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
+
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
 import {
   applyModelAttachmentCapUpdate,
-  patchModelAttachments,
 } from '../admin/admin-config-helpers.js';
 import {
   loadModelAttachmentCaps,
