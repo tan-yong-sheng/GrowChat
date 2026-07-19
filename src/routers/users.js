@@ -40,7 +40,7 @@ export async function usersRouter({
   // Delegate to domain-specific sub-handlers.
   const handlers = [
     () => handleUsersMcp(req, env, ctx, user, path, deps),
-    () => handleUsersMe(req, env, ctx, user, path, deps),
+    () => handleUsersMe({ req, env, ctx, user, path, deps }),
     () => handleUsersConnections(req, env, ctx, user, path, deps),
     () => handleUsersAdminList(req, env, ctx, user, path, deps),
     () => handleUsersAdminAccess({ req, env, user, path, deps }),
