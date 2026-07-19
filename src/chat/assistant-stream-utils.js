@@ -3,9 +3,12 @@ const MAX_FOLLOW_UPS = 20;
 const FOLLOW_UP_PROMPT =
   'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
 const STREAM_KEEPALIVE_INTERVAL_MS = 15000;
-const STREAM_HARD_TIMEOUT_MS = 10 * 60 * 1000;
+const SECONDS_PER_MINUTE = 60;
+const MS_PER_SECOND = 1000;
+const STREAM_TIMEOUT_MINUTES = 10;
+const STREAM_HARD_TIMEOUT_MS = STREAM_TIMEOUT_MINUTES * SECONDS_PER_MINUTE * MS_PER_SECOND;
 const STREAM_KEEPALIVE_PAYLOAD = ':\n\n';
-export const STREAM_STATUS_STALE_MS = 10 * 60 * 1000;
+export const STREAM_STATUS_STALE_MS = STREAM_TIMEOUT_MINUTES * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 export {
   MAX_TOOL_STEPS,
@@ -54,30 +57,48 @@ function createTimeoutRace(reader, timeoutMs) {
   return { promise, timeoutId };
 }
 
-export async function readStreamChunkWithHeartbeat(
-  reader,
-  {
-    controller = null,
-    encoder = new TextEncoder(),
-    keepAliveIntervalMs = STREAM_KEEPALIVE_INTERVAL_MS,
-    hardTimeoutMs = STREAM_HARD_TIMEOUT_MS,
-    heartbeatPayload = STREAM_KEEPALIVE_PAYLOAD,
-    deadlineAt = null,
-  } = {}
-) {
-  const effectiveTimeoutMs = resolveEffectiveTimeoutMs(reader, deadlineAt, hardTimeoutMs);
-  const heartbeatTimer = startHeartbeat(controller, encoder, heartbeatPayload, keepAliveIntervalMs);
+export async function readStreamChunkWithHeartbeat(reader, options = {}) {
+  const opts = normalizeStreamReadOptions(options);
+  const cleanup = setupStreamReadCleanup(reader, opts);
+  return await raceStreamReads(reader, cleanup);
+}
+
+function normalizeStreamReadOptions(options) {
+  return {
+    controller: options.controller ?? null,
+    encoder: options.encoder ?? new TextEncoder(),
+    keepAliveIntervalMs: options.keepAliveIntervalMs ?? STREAM_KEEPALIVE_INTERVAL_MS,
+    hardTimeoutMs: options.hardTimeoutMs ?? STREAM_HARD_TIMEOUT_MS,
+    heartbeatPayload: options.heartbeatPayload ?? STREAM_KEEPALIVE_PAYLOAD,
+    deadlineAt: options.deadlineAt ?? null,
+  };
+}
+
+function setupStreamReadCleanup(reader, opts) {
+  const effectiveTimeoutMs = resolveEffectiveTimeoutMs(reader, opts.deadlineAt, opts.hardTimeoutMs);
+  const heartbeatTimer = startHeartbeat(
+    opts.controller,
+    opts.encoder,
+    opts.heartbeatPayload,
+    opts.keepAliveIntervalMs
+  );
   const timeoutRace = createTimeoutRace(reader, effectiveTimeoutMs);
+  return { heartbeatTimer, timeoutRace };
+}
 
+async function raceStreamReads(reader, cleanup) {
   const pendingReads = [reader.read()];
-  if (timeoutRace) pendingReads.push(timeoutRace.promise);
-
+  if (cleanup.timeoutRace) pendingReads.push(cleanup.timeoutRace.promise);
   try {
     return await Promise.race(pendingReads);
   } finally {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    if (timeoutRace) clearTimeout(timeoutRace.timeoutId);
+    teardownStreamReadTimers(cleanup);
   }
+}
+
+function teardownStreamReadTimers(cleanup) {
+  if (cleanup.heartbeatTimer) clearInterval(cleanup.heartbeatTimer);
+  if (cleanup.timeoutRace) clearTimeout(cleanup.timeoutRace.timeoutId);
 }
 export function createStreamHelpers({ db, assistantMsgId, encoder, sseData }) {
   const state = { deltaSeq: 0, streamController: null };
