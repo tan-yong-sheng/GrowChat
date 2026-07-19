@@ -3,22 +3,18 @@
  * UI sync and event binding for the account integrations section.
  */
 import {
-  updateToolToggle,
   renderLoadingSkeleton,
   buildListCard,
-  clonePreferences,
-} from './account-integrations-helpers.js';
+  clonePreferences} from './account-integrations-helpers.js';
 import { updateAllToolToggles } from '../../shared/components/integrations-shared.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
-import { buildTraceAttrs } from '../../shared/utils/trace-attrs.js';
 import { updateUserMcpServer } from '../../shared/api/resources.js';
 import {
   isResourceHidden,
   isToolHidden,
   setResourceVisibility,
   setToolVisibility,
-  normalizeUserResourceOverrides,
-} from '../../shared/utils/user-resource-overrides.js';
+  normalizeUserResourceOverrides} from '../../shared/utils/user-resource-overrides.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
 
 export function createIntegrationsEvents(ctx) {
@@ -28,11 +24,9 @@ export function createIntegrationsEvents(ctx) {
     state,
     persistPreferences,
     footerHost,
-    escapeHtml,
     escapeSelector,
     canManageToolServers,
-    canManageAcls,
-  } = ctx;
+    canManageAcls} = ctx;
 
   const ensureMounted = () =>
     container.dataset.integrationsMounted === '1' &&
@@ -149,14 +143,11 @@ export function createIntegrationsEvents(ctx) {
                 tools: (Array.isArray(server.tools) ? server.tools : []).map((tool) => ({
                   ...tool,
                   visible_for_user: !hiddenToolIds.has(String(tool?.name || '').trim()),
-                  hidden_for_user: hiddenToolIds.has(String(tool?.name || '').trim()),
-                })),
-              },
+                  hidden_for_user: hiddenToolIds.has(String(tool?.name || '').trim())}))},
               canManageToolServers,
               {
                 scope: 'shared',
-                hiddenForUser: hiddenSharedIds.has(server.id),
-              }
+                hiddenForUser: hiddenSharedIds.has(server.id)}
             );
           })
           .join('')
@@ -181,17 +172,15 @@ export function createIntegrationsEvents(ctx) {
     );
     state.settings = {
       ...(state.settings || {}),
-      preferences: nextPreferences,
-    };
+      preferences: nextPreferences};
     sectionState.error = '';
     syncListShell();
     void persistPreferences({
-      rollback: { preferences: previousPreferences },
-    });
+      rollback: { preferences: previousPreferences }});
   }
 
   function handleToolTogglePersonal(server, toolName, deps) {
-    const { sectionState, syncListState, syncActionFooter, syncFeedback } = deps;
+    const { syncListState, syncActionFooter } = deps;
     const tool = server.tools.find((entry) => entry.name === toolName);
     if (!tool) return;
     const previousEnabled = tool.enabled !== false;
@@ -209,10 +198,8 @@ export function createIntegrationsEvents(ctx) {
         tools: Array.isArray(server.tools)
           ? server.tools.map((entry) => ({
               ...entry,
-              enabled: entry.name === toolName ? !previousEnabled : entry.enabled !== false,
-            }))
-          : [],
-      });
+              enabled: entry.name === toolName ? !previousEnabled : entry.enabled !== false}))
+          : []});
       broadcastToolServersInvalidation();
     } catch (err) {
       sectionState.error = err?.message || 'Failed to update integration';
@@ -226,13 +213,7 @@ export function createIntegrationsEvents(ctx) {
   const handleToolToggle = (toolToggle, target, deps) => {
     const {
       sectionState,
-      state,
-      syncListShell,
-      syncListState,
-      syncActionFooter,
-      syncFeedback,
-      persistPreferences,
-      canManageToolServers,
+      canManageToolServers
     } = deps;
     void canManageToolServers;
     const id =
@@ -265,13 +246,11 @@ export function createIntegrationsEvents(ctx) {
     );
     state.settings = {
       ...(state.settings || {}),
-      preferences: nextPreferences,
-    };
+      preferences: nextPreferences};
     sectionState.error = '';
     syncListShell();
     void persistPreferences({
-      rollback: { preferences: previousPreferences },
-    });
+      rollback: { preferences: previousPreferences }});
   };
 
   const runPersonalServerToggleUpdate = async (server, nextEnabled, deps) => {
@@ -355,8 +334,7 @@ export function createIntegrationsEvents(ctx) {
       onApply: async (rules) => {
         aclDraftRegistry.stage(server.id, rules);
         syncActionFooter();
-      },
-    });
+      }});
   };
 
   const buildDelegatedDeps = () => ({
@@ -369,8 +347,7 @@ export function createIntegrationsEvents(ctx) {
     syncFeedback,
     persistPreferences,
     canManageToolServers,
-    canManageAcls,
-  });
+    canManageAcls});
 
   const handleEditButtonClick = (editBtn, _target, deps) => {
     const id =
@@ -388,8 +365,7 @@ export function createIntegrationsEvents(ctx) {
     { selector: '.tool-desc-toggle', handler: handleToolDescToggle },
     {
       selector: '.tool-access-btn',
-      handler: (accessBtn, _target, deps) => handleAccessButton(accessBtn, deps),
-    },
+      handler: (accessBtn, _target, deps) => handleAccessButton(accessBtn, deps)},
   ];
 
   const handleListClick = (e, deps) => {
@@ -431,6 +407,5 @@ export function createIntegrationsEvents(ctx) {
     syncListState,
     syncListShell,
     syncActionFooter,
-    bindDelegatedEvents,
-  };
+    bindDelegatedEvents};
 }
