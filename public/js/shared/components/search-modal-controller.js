@@ -10,85 +10,13 @@ import {
   renderSearchResultsMarkup,
 } from './search-modal-helpers.js';
 
-export function createSearchModalController(container, createChatFn, loadMessagesFn) {
-  let unsubscribe;
-  let cleanup = null;
-  let previousFocus = null;
-  let sidebarSuspended = false;
+// --- Constants ---
+const SEARCH_PAGE_SIZE = 20;
+const SCROLL_THRESHOLD_PX = 50;
+const DEBOUNCE_DELAY_MS = 300;
+const FOCUS_DELAY_MS = 50;
 
-  const modalRoot = container.querySelector('#modal-root');
-  const closeBtn = modalRoot.querySelector('#close-modal');
-  const overlay = modalRoot.querySelector('#modal-overlay');
-  const newChatBtn = modalRoot.querySelector('#action-new-chat');
-  const searchInput = modalRoot.querySelector('#modal-search-input');
-  const searchList = modalRoot.querySelector('#chats-search-grouped-list');
-  const resultsContainer = modalRoot.querySelector('#search-results-list');
-  const previewEmpty = modalRoot.querySelector('#search-preview-empty');
-  const previewContent = modalRoot.querySelector('#search-preview-content');
-  const loadingIndicator = modalRoot.querySelector('#search-loading-indicator');
-
-  let debounceTimer;
-  let previewAbortController = null;
-  let searchAbortController = null;
-  const destroySearchInput = renderSearchInput(searchInput);
-
-  const safeScrollIntoView = (el) => {
-    if (el && typeof el.scrollIntoView === 'function') {
-      el.scrollIntoView({ block: 'nearest' });
-    }
-  };
-
-  const close = () => setState({ showSearch: false });
-  const selectChat = (id) => {
-    close();
-    setState({ activeChatId: id });
-    loadMessagesFn(id);
-  };
-  const stopSearches = () => {
-    if (searchAbortController) searchAbortController.abort();
-    if (previewAbortController) previewAbortController.abort();
-  };
-  const resetSearchState = () =>
-    setState({ search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true } });
-
-  function updateSelectionUI() {
-    const { selectedIndex, results } = state.search;
-    newChatBtn.classList.toggle('bg-gray-100', selectedIndex === -1);
-
-    modalRoot.querySelectorAll('.search-item').forEach((el) => {
-      const idx = parseInt(el.getAttribute('data-index'));
-      const isSelected = selectedIndex === idx;
-      el.classList.toggle('bg-blue-50', isSelected);
-      el.classList.toggle('border-l-2', isSelected);
-      el.classList.toggle('border-l-blue-500', isSelected);
-      el.setAttribute('aria-selected', isSelected.toString());
-    });
-
-    if (selectedIndex === -1) {
-      safeScrollIntoView(newChatBtn);
-      showPreview(null);
-    } else if (results[selectedIndex]) {
-      const selectedEl = modalRoot.querySelector(`[data-index="${selectedIndex}"]`);
-      safeScrollIntoView(selectedEl);
-      showPreview(results[selectedIndex].id);
-    }
-  }
-
-  async function showPreview(chatId) {
-    if (!chatId) {
-      previewEmpty.classList.remove('hidden');
-      previewContent.classList.add('hidden');
-      previewContent.innerHTML = '';
-      return;
-    }
-
-    if (state.search.previewChatId === chatId && !previewContent.classList.contains('hidden'))
-      return;
-    setState({ search: { previewChatId: chatId } });
-
-    previewEmpty.classList.add('hidden');
-    previewContent.classList.remove('hidden');
-    previewContent.innerHTML = `
+const PREVIEW_SKELETON_HTML = `
       <div class="p-6 border-b border-gray-50 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-md z-10">
         <div class="flex flex-col min-w-0">
           <div class="text-label-sm font-bold uppercase tracking-widest text-gray-400 mb-0.5">Preview</div>
@@ -104,22 +32,95 @@ export function createSearchModalController(container, createChatFn, loadMessage
       </div>
     `;
 
-    if (previewAbortController) previewAbortController.abort();
-    previewAbortController = new AbortController();
+// --- DOM refs ---
 
-    try {
-      const res = await apiFetch(`/api/chats/${chatId}`, { signal: previewAbortController.signal });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+function getModalRefs(container) {
+  const modalRoot = container.querySelector('#modal-root');
+  return {
+    modalRoot,
+    closeBtn: modalRoot.querySelector('#close-modal'),
+    overlay: modalRoot.querySelector('#modal-overlay'),
+    newChatBtn: modalRoot.querySelector('#action-new-chat'),
+    searchInput: modalRoot.querySelector('#modal-search-input'),
+    searchList: modalRoot.querySelector('#chats-search-grouped-list'),
+    resultsContainer: modalRoot.querySelector('#search-results-list'),
+    previewEmpty: modalRoot.querySelector('#search-preview-empty'),
+    previewContent: modalRoot.querySelector('#search-preview-content'),
+    loadingIndicator: modalRoot.querySelector('#search-loading-indicator'),
+  };
+}
 
-      previewContent.querySelector('#preview-title').textContent = data.chat.title;
-      const messagesBox = previewContent.querySelector('#preview-messages');
+// --- Pure helpers ---
 
-      // Preview renders chat messages fetched from the authenticated API; role is escaped
-      // and message content is passed through the existing markdown renderer.
-      messagesBox.innerHTML = data.messages
-        .map(
-          (m) => `
+function safeScrollIntoView(el) {
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function closeSearch() {
+  setState({ showSearch: false });
+}
+
+function selectChatAndLoad(id, loadMessagesFn) {
+  closeSearch();
+  setState({ activeChatId: id });
+  loadMessagesFn(id);
+}
+
+function stopSearches(searchAbortController, previewAbortController) {
+  if (searchAbortController) searchAbortController.abort();
+  if (previewAbortController) previewAbortController.abort();
+}
+
+function resetSearchState() {
+  setState({ search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true } });
+}
+
+// --- UI update functions ---
+
+function updateSelectionUI(refs, ctrl) {
+  const { selectedIndex, results } = state.search;
+  refs.newChatBtn.classList.toggle('bg-gray-100', selectedIndex === -1);
+
+  refs.modalRoot.querySelectorAll('.search-item').forEach((el) => {
+    const idx = parseInt(el.getAttribute('data-index'));
+    const isSelected = selectedIndex === idx;
+    el.classList.toggle('bg-blue-50', isSelected);
+    el.classList.toggle('border-l-2', isSelected);
+    el.classList.toggle('border-l-blue-500', isSelected);
+    el.setAttribute('aria-selected', isSelected.toString());
+  });
+
+  if (selectedIndex === -1) {
+    safeScrollIntoView(refs.newChatBtn);
+    showPreview(null, refs, ctrl);
+  } else if (results[selectedIndex]) {
+    const selectedEl = refs.modalRoot.querySelector(`[data-index="${selectedIndex}"]`);
+    safeScrollIntoView(selectedEl);
+    showPreview(results[selectedIndex].id, refs, ctrl);
+  }
+}
+
+async function fetchAndRenderPreviewChat(chatId, refs, ctrl) {
+  if (ctrl.previewAbortController) ctrl.previewAbortController.abort();
+  ctrl.previewAbortController = new AbortController();
+
+  try {
+    const res = await apiFetch(`/api/chats/${chatId}`, {
+      signal: ctrl.previewAbortController.signal,
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+
+    refs.previewContent.querySelector('#preview-title').textContent = data.chat.title;
+    const messagesBox = refs.previewContent.querySelector('#preview-messages');
+
+    // Preview renders chat messages fetched from the authenticated API; role is escaped
+    // and message content is passed through the existing markdown renderer.
+    messagesBox.innerHTML = data.messages
+      .map(
+        (m) => `
         <div class="flex flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}">
           <div class="flex items-center gap-2 mb-1 ${m.role === 'user' ? 'flex-row-reverse' : ''}">
             <div class="w-5 h-5 rounded-full ${m.role === 'user' ? 'bg-surface-container text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-label-xs font-bold">
@@ -132,182 +133,227 @@ export function createSearchModalController(container, createChatFn, loadMessage
           </div>
         </div>
       `
-        )
-        .join('');
+      )
+      .join('');
 
-      messagesBox.scrollTop = messagesBox.scrollHeight;
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      previewContent.innerHTML =
-        '<div class="flex items-center justify-center h-full text-xs text-red-400">Failed to load preview</div>';
-    }
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    refs.previewContent.innerHTML =
+      '<div class="flex items-center justify-center h-full text-xs text-red-400">Failed to load preview</div>';
+  }
+}
+
+async function showPreview(chatId, refs, ctrl) {
+  if (!chatId) {
+    refs.previewEmpty.classList.remove('hidden');
+    refs.previewContent.classList.add('hidden');
+    refs.previewContent.innerHTML = '';
+    return;
   }
 
-  function renderList() {
-    const { results, query } = state.search;
-    if (results.length === 0 && !state.search.loading) {
-      // renderSearchEmptyStateMarkup escapes the query before interpolating it.
-      searchList.innerHTML = renderSearchEmptyStateMarkup(query);
-      return;
-    }
+  if (state.search.previewChatId === chatId && !refs.previewContent.classList.contains('hidden'))
+    return;
+  setState({ search: { previewChatId: chatId } });
 
-    // renderSearchResultsMarkup escapes chat titles, date labels, and the query highlight.
-    searchList.innerHTML = renderSearchResultsMarkup(results, query);
+  refs.previewEmpty.classList.add('hidden');
+  refs.previewContent.classList.remove('hidden');
+  refs.previewContent.innerHTML = PREVIEW_SKELETON_HTML;
 
-    searchList.querySelectorAll('[data-search-chat]').forEach((btn) => {
-      btn.onclick = () => selectChat(btn.getAttribute('data-search-chat'));
-      btn.onmouseover = () => {
-        const idx = parseInt(btn.getAttribute('data-index'));
-        if (state.search.selectedIndex !== idx) {
-          setState({ search: { selectedIndex: idx } });
-        }
-      };
+  await fetchAndRenderPreviewChat(chatId, refs, ctrl);
+}
+
+function renderList(refs, ctrl) {
+  const { results, query } = state.search;
+  if (results.length === 0 && !state.search.loading) {
+    // renderSearchEmptyStateMarkup escapes the query before interpolating it.
+    refs.searchList.innerHTML = renderSearchEmptyStateMarkup(query);
+    return;
+  }
+
+  // renderSearchResultsMarkup escapes chat titles, date labels, and the query highlight.
+  refs.searchList.innerHTML = renderSearchResultsMarkup(results, query);
+
+  refs.searchList.querySelectorAll('[data-search-chat]').forEach((btn) => {
+    btn.onclick = () =>
+      selectChatAndLoad(btn.getAttribute('data-search-chat'), ctrl.loadMessagesFn);
+    btn.onmouseover = () => {
+      const idx = parseInt(btn.getAttribute('data-index'));
+      if (state.search.selectedIndex !== idx) {
+        setState({ search: { selectedIndex: idx } });
+      }
+    };
+  });
+}
+
+function selectResultByIndex(selectedIndex, refs, ctrl) {
+  if (selectedIndex === -1) {
+    refs.newChatBtn.click();
+  } else if (state.search.results[selectedIndex]) {
+    selectChatAndLoad(state.search.results[selectedIndex].id, ctrl.loadMessagesFn);
+  }
+}
+
+// --- Search execution ---
+
+async function runSearch(query, append, refs, ctrl) {
+  if (ctrl.searchAbortController) ctrl.searchAbortController.abort();
+  ctrl.searchAbortController = new AbortController();
+
+  const offset = append ? state.search.offset : 0;
+  setState({ search: { query, loading: true, offset } });
+  refs.loadingIndicator.classList.remove('hidden');
+
+  try {
+    const backendQuery = normalizeBackendQuery(query);
+    const data = await fetchChats({
+      q: backendQuery,
+      limit: SEARCH_PAGE_SIZE,
+      offset,
+      signal: ctrl.searchAbortController.signal,
     });
+    const newResults = append ? [...state.search.results, ...data.chats] : data.chats;
+    setState({
+      search: {
+        results: newResults,
+        loading: false,
+        hasMore: data.chats.length === SEARCH_PAGE_SIZE,
+        offset: offset + data.chats.length,
+      },
+    });
+    renderList(refs, ctrl);
+    updateSelectionUI(refs, ctrl);
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    setState({ search: { loading: false } });
+  } finally {
+    refs.loadingIndicator.classList.add('hidden');
   }
+}
 
-  function selectResultByIndex(selectedIndex) {
-    if (selectedIndex === -1) {
-      newChatBtn.click();
-    } else if (state.search.results[selectedIndex]) {
-      selectChat(state.search.results[selectedIndex].id);
+// --- Event wiring ---
+
+function setupEventListeners(refs, ctrl) {
+  refs.closeBtn.onclick = closeSearch;
+  refs.overlay.onclick = closeSearch;
+
+  refs.newChatBtn.onclick = () => {
+    closeSearch();
+    ctrl.createChatFn();
+  };
+
+  refs.resultsContainer.onscroll = () => {
+    const { loading, hasMore, query } = state.search;
+    if (loading || !hasMore) return;
+    if (
+      refs.resultsContainer.scrollHeight -
+        refs.resultsContainer.scrollTop -
+        refs.resultsContainer.clientHeight <
+      SCROLL_THRESHOLD_PX
+    ) {
+      runSearch(query, true, refs, ctrl);
     }
-  }
+  };
 
-  async function runSearch(query, append = false) {
-    if (searchAbortController) searchAbortController.abort();
-    searchAbortController = new AbortController();
+  refs.searchInput.oninput = (e) => {
+    const q = e.target.value.trim();
+    clearTimeout(ctrl.debounceTimer);
+    ctrl.debounceTimer = setTimeout(() => runSearch(q, false, refs, ctrl), DEBOUNCE_DELAY_MS);
+  };
 
-    const offset = append ? state.search.offset : 0;
-    setState({ search: { query, loading: true, offset } });
-    loadingIndicator.classList.remove('hidden');
-
-    try {
-      const backendQuery = normalizeBackendQuery(query);
-      const data = await fetchChats({
-        q: backendQuery,
-        limit: 20,
-        offset,
-        signal: searchAbortController.signal,
-      });
-      const newResults = append ? [...state.search.results, ...data.chats] : data.chats;
-      setState({
-        search: {
-          results: newResults,
-          loading: false,
-          hasMore: data.chats.length === 20,
-          offset: offset + data.chats.length,
-        },
-      });
-      renderList();
-      updateSelectionUI();
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      setState({ search: { loading: false } });
-    } finally {
-      loadingIndicator.classList.add('hidden');
-    }
-  }
-
-  function bindDomEvents() {
-    closeBtn.onclick = close;
-    overlay.onclick = close;
-
-    newChatBtn.onclick = () => {
-      close();
-      createChatFn();
-    };
-
-    resultsContainer.onscroll = () => {
-      const { loading, hasMore, query } = state.search;
-      if (loading || !hasMore) return;
-      if (
-        resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight <
-        50
-      ) {
-        runSearch(query, true);
+  refs.searchInput.onkeydown = (e) => {
+    const { selectedIndex, results } = state.search;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (selectedIndex < results.length - 1) {
+        setState({ search: { selectedIndex: selectedIndex + 1 } });
       }
-    };
-
-    searchInput.oninput = (e) => {
-      const q = e.target.value.trim();
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => runSearch(q), 300);
-    };
-
-    searchInput.onkeydown = (e) => {
-      const { selectedIndex, results } = state.search;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (selectedIndex < results.length - 1) {
-          setState({ search: { selectedIndex: selectedIndex + 1 } });
-        }
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (selectedIndex > -1) {
-          setState({ search: { selectedIndex: selectedIndex - 1 } });
-        }
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        selectResultByIndex(selectedIndex);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (selectedIndex > -1) {
+        setState({ search: { selectedIndex: selectedIndex - 1 } });
       }
-    };
-  }
-
-  bindDomEvents();
-
-  function openModal() {
-    setModalHash('search-modal');
-    if (!modalRoot.classList.contains('hidden')) return;
-    previousFocus = document.activeElement;
-    if (!sidebarSuspended) {
-      suspendSidebarVisibility();
-      sidebarSuspended = true;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      selectResultByIndex(selectedIndex, refs, ctrl);
     }
-    document.body.style.overflow = 'hidden';
-    modalRoot.classList.remove('hidden');
-    resetSearchState();
-    runSearch('');
-    setTimeout(() => searchInput.focus(), 50);
-  }
+  };
+}
 
-  function closeModal() {
-    if (!modalRoot.classList.contains('hidden')) {
-      document.body.style.overflow = '';
-      if (sidebarSuspended) {
-        restoreSidebarVisibility();
-        sidebarSuspended = false;
-      }
-      if (previousFocus) previousFocus.focus();
-      clearModalHash('search-modal');
+// --- Modal lifecycle ---
+
+function openModal(refs, ctrl) {
+  setModalHash('search-modal');
+  if (!refs.modalRoot.classList.contains('hidden')) return;
+  ctrl.previousFocus = document.activeElement;
+  if (!ctrl.sidebarSuspended) {
+    suspendSidebarVisibility();
+    ctrl.sidebarSuspended = true;
+  }
+  document.body.style.overflow = 'hidden';
+  refs.modalRoot.classList.remove('hidden');
+  resetSearchState();
+  runSearch('', false, refs, ctrl);
+  setTimeout(() => refs.searchInput.focus(), FOCUS_DELAY_MS);
+}
+
+function closeModal(refs, ctrl) {
+  if (!refs.modalRoot.classList.contains('hidden')) {
+    document.body.style.overflow = '';
+    if (ctrl.sidebarSuspended) {
+      restoreSidebarVisibility();
+      ctrl.sidebarSuspended = false;
     }
-    modalRoot.classList.add('hidden');
-    searchInput.value = '';
-    stopSearches();
+    if (ctrl.previousFocus) ctrl.previousFocus.focus();
+    clearModalHash('search-modal');
   }
+  refs.modalRoot.classList.add('hidden');
+  refs.searchInput.value = '';
+  stopSearches(ctrl.searchAbortController, ctrl.previewAbortController);
+}
 
-  unsubscribe = subscribe((currentState) => {
+// --- Main export ---
+
+export function createSearchModalController(container, createChatFn, loadMessagesFn) {
+  const refs = getModalRefs(container);
+  const ctrl = {
+    searchAbortController: null,
+    previewAbortController: null,
+    debounceTimer: null,
+    previousFocus: null,
+    sidebarSuspended: false,
+    cleanup: null,
+    unsubscribe: null,
+    createChatFn,
+    loadMessagesFn,
+  };
+  const destroySearchInput = renderSearchInput(refs.searchInput);
+
+  setupEventListeners(refs, ctrl);
+
+  ctrl.unsubscribe = subscribe((currentState) => {
     if (currentState.showSearch) {
-      openModal();
+      openModal(refs, ctrl);
     } else {
-      closeModal();
+      closeModal(refs, ctrl);
     }
-    updateSelectionUI();
+    updateSelectionUI(refs, ctrl);
   });
 
-  cleanup = () => {
-    if (unsubscribe) unsubscribe();
+  ctrl.cleanup = () => {
+    if (ctrl.unsubscribe) ctrl.unsubscribe();
     destroySearchInput?.();
     document.body.style.overflow = '';
-    if (sidebarSuspended) {
+    if (ctrl.sidebarSuspended) {
       restoreSidebarVisibility();
-      sidebarSuspended = false;
+      ctrl.sidebarSuspended = false;
     }
-    stopSearches();
-    if (debounceTimer) clearTimeout(debounceTimer);
+    stopSearches(ctrl.searchAbortController, ctrl.previewAbortController);
+    if (ctrl.debounceTimer) clearTimeout(ctrl.debounceTimer);
     clearModalHash('search-modal');
   };
 
   return () => {
-    if (cleanup) cleanup();
+    if (ctrl.cleanup) ctrl.cleanup();
   };
 }
