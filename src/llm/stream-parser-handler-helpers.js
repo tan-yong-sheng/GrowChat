@@ -21,22 +21,45 @@ export function normalizeFinishReason(parser, raw) {
   return classifyFinishReason(value);
 }
 
+function getDelta(parsed) {
+  return parsed?.choices?.[0]?.delta || {};
+}
+
+function getResponseOrDeltaContent(parsed, delta) {
+  return parsed?.response ?? delta.content;
+}
+
+function getMessageContent(parsed) {
+  return parsed?.choices?.[0]?.message?.content;
+}
+
+function getChoiceText(parsed) {
+  return parsed?.choices?.[0]?.text;
+}
+
+function hasTextField(value) {
+  return (
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    value !== null &&
+    typeof value.text === 'string'
+  );
+}
+
+function unwrapTextContent(resolvedContent) {
+  if (hasTextField(resolvedContent)) {
+    return resolvedContent.text;
+  }
+  return resolvedContent;
+}
+
 // ResolveContentField has 20 paths due to multiple ??/|| chains for field resolution
 export function resolveContentField(parsed) {
-  const delta = parsed?.choices?.[0]?.delta || {};
-  const contentField = parsed?.response ?? delta.content;
-  const messageContent = parsed?.choices?.[0]?.message?.content;
-  let resolvedContent = contentField ?? messageContent ?? parsed?.choices?.[0]?.text;
-
-  const isObjectWithText =
-    typeof resolvedContent === 'object' &&
-    !Array.isArray(resolvedContent) &&
-    resolvedContent !== null &&
-    typeof resolvedContent.text === 'string';
-  if (isObjectWithText) {
-    resolvedContent = resolvedContent.text;
-  }
-
+  const delta = getDelta(parsed);
+  const contentField = getResponseOrDeltaContent(parsed, delta);
+  const messageContent = getMessageContent(parsed);
+  const choiceText = getChoiceText(parsed);
+  const resolvedContent = unwrapTextContent(contentField ?? messageContent ?? choiceText);
   return { delta, resolvedContent };
 }
 

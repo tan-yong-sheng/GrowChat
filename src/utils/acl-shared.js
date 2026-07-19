@@ -31,6 +31,55 @@ export function isAclActionRelevant(action) {
  * @param {Function} [options.isPersonal] - Optional predicate returning true for personal resources
  * @returns {{allowed: boolean, access_label: string, access_variant: string}}
  */
+function getNormalizedRules(rules, normalizeRule) {
+  return Array.isArray(rules) ? rules.map(normalizeRule).filter(Boolean) : [];
+}
+
+function ruleMatches({ normalizedRules, effect, user, userGroupIds }) {
+  return normalizedRules.some(
+    (rule) =>
+      rule.effect === effect &&
+      isAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
+}
+
+function hasDenyMatch(normalizedRules, user, userGroupIds) {
+  return ruleMatches({ normalizedRules, effect: 'deny', user, userGroupIds });
+}
+
+function hasAllowMatch(normalizedRules, user, userGroupIds) {
+  return ruleMatches({ normalizedRules, effect: 'allow', user, userGroupIds });
+}
+
+function checkPersonalAccess(resource, isPersonal) {
+  if (isPersonal(resource)) {
+    return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
+  }
+  return null;
+}
+
+function checkDenyAccess(normalizedRules, user, userGroupIds) {
+  if (hasDenyMatch(normalizedRules, user, userGroupIds)) {
+    return { allowed: false, access_label: 'No access', access_variant: 'none' };
+  }
+  return null;
+}
+
+function checkAllowAccess(normalizedRules, user, userGroupIds) {
+  if (hasAllowMatch(normalizedRules, user, userGroupIds)) {
+    return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
+  }
+  return null;
+}
+
+function checkAdminAccess(user, allowAdmin) {
+  if (allowAdmin && user?.primary_role === 'admin') {
+    return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
+  }
+  return null;
+}
+
 // evaluateAclAccess has 12 paths
 export function evaluateAclAccess({
   resource,
@@ -41,35 +90,19 @@ export function evaluateAclAccess({
   allowAdmin = true,
   isPersonal = () => false,
 }) {
-  if (isPersonal(resource)) {
-    return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
-  }
+  const personal = checkPersonalAccess(resource, isPersonal);
+  if (personal) return personal;
 
-  const normalizedRules = Array.isArray(rules) ? rules.map(normalizeRule).filter(Boolean) : [];
+  const normalizedRules = getNormalizedRules(rules, normalizeRule);
 
-  const denyMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'deny' &&
-      isAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (denyMatched) {
-    return { allowed: false, access_label: 'No access', access_variant: 'none' };
-  }
+  const deny = checkDenyAccess(normalizedRules, user, userGroupIds);
+  if (deny) return deny;
 
-  const allowMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'allow' &&
-      isAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (allowMatched) {
-    return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
-  }
+  const allow = checkAllowAccess(normalizedRules, user, userGroupIds);
+  if (allow) return allow;
 
-  if (allowAdmin && user?.primary_role === 'admin') {
-    return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
-  }
+  const admin = checkAdminAccess(user, allowAdmin);
+  if (admin) return admin;
 
   return { allowed: false, access_label: 'No access', access_variant: 'none' };
 }
