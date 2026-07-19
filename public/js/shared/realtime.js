@@ -1,5 +1,22 @@
 import { getAuthState, getClientSessionId, refreshToken } from './api.js';
 
+// ── HTTP status codes ──
+const HTTP_STATUS_UNAUTHORIZED = 401;
+
+// ── Failure logging thresholds ──
+const LOG_FAILURE_THRESHOLD = 3;
+const LOG_FAILURE_MODULUS = 10;
+
+// ── SSE protocol constants ──
+const DATA_PREFIX_LENGTH = 5;
+
+// ── Event deduplication ──
+const DUPLICATE_TTL_MS = 120000;
+
+// ── Reconnection constants ──
+const MAX_RECONNECT_DELAY_MS = 60000;
+const MAX_BACKOFF_DELAY_MS = 30000;
+
 function stringField(value) {
   return String(value || '');
 }
@@ -64,7 +81,7 @@ class RealtimeClient {
   }
 
   async tryHandleUnauthorized(res, auth) {
-    if (res.status !== 401 || !auth?.refresh_token) return false;
+    if (res.status !== HTTP_STATUS_UNAUTHORIZED || !auth?.refresh_token) return false;
     const refreshed = await refreshToken(auth.refresh_token);
     this.eventSource = null;
     if (refreshed) {
@@ -88,7 +105,7 @@ class RealtimeClient {
   }
 
   shouldLogFailure(count) {
-    return count <= 3 || count % 10 === 0;
+    return count <= LOG_FAILURE_THRESHOLD || count % LOG_FAILURE_MODULUS === 0;
   }
 
   logConnectError(err) {
@@ -137,7 +154,7 @@ class RealtimeClient {
     const dataParts = [];
     for (const line of lines) {
       if (line.startsWith(':')) continue;
-      if (line.startsWith('data:')) dataParts.push(line.slice(5).trimStart());
+      if (line.startsWith('data:')) dataParts.push(line.slice(DATA_PREFIX_LENGTH).trimStart());
     }
     return dataParts;
   }
@@ -174,7 +191,7 @@ class RealtimeClient {
   isKnownDuplicate(key) {
     if (!key || key === '||||') return false;
     const existing = this.seenEventKeys.get(key);
-    return existing && Date.now() - existing < 120000;
+    return existing && Date.now() - existing < DUPLICATE_TTL_MS;
   }
 
   compactEventKeysIfNeeded() {
@@ -209,11 +226,11 @@ class RealtimeClient {
     const delay =
       forceDelayMs ??
       (this.failureCount > 0
-        ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), 60000)
+        ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), MAX_RECONNECT_DELAY_MS)
         : this.reconnectDelayMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 30000);
+      this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_BACKOFF_DELAY_MS);
       this.connect();
     }, delay);
   }
