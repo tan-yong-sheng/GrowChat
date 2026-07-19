@@ -11,15 +11,12 @@ import {
   discoverConnectionModels,
   extractConnectionModelId,
   getAllOpenAIConnectionConfigs,
-  normalizeConnectionManualModels,
 } from '../../llm/connections.js';
 import {
-  buildProviderId,
   formatModelId,
   normalizeConnectionModelId,
   normalizeProviderFamily,
 } from '../../llm/provider-registry.js';
-import { normalizeConnectionModelSelectionMode } from '../../../public/js/shared/utils/connection-model-selection.js';
 import {
   CONNECTION_DISCOVERY_CACHE_TTL_MS,
   createConnectionDiscoveryCacheKey,
@@ -31,7 +28,6 @@ import {
 import {
   buildConnectionModelContext,
   buildDiscoveredModel,
-  isModelEnabled,
 } from './models-discovery-helpers.js';
 
 const rootLogger = createRootLogger({});
