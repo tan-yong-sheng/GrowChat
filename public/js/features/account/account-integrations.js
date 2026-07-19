@@ -1,66 +1,189 @@
-/* global openToolServerAccessModal, aclDraftRegistry */
-import {
-  createUserMcpServer,
-  deleteUserMcpServer,
-  fetchUserMcpServers,
-  testUserMcpServer,
-  updateUserMcpServer,
-} from '../../shared/api/resources.js';
-import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
+import { fetchUserMcpServers } from '../../shared/api/resources.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
-import { renderStatusBadge } from '../../shared/components/status-badge.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
-import {
-  isResourceHidden,
-  isToolHidden,
-  normalizeUserResourceOverrides,
-  setResourceVisibility,
-  setToolVisibility,
-} from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { escapeHtml, escapeSelector } from '../../shared/utils/dom-escape.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
-import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import { saveUserPreferences } from '../../shared/utils/save-user-preferences.js';
 import { buildTraceAttrs } from '../../shared/utils/trace-attrs.js';
 
 import {
-  normalizeTool,
-  normalizeToolList,
   clonePreferences,
   normalizeServer,
-  shouldShowAuthField,
   renderLoadingSkeleton,
-  buildFormMarkup,
-  updateToolToggle,
-  buildListCard,
 } from './account-integrations-helpers.js';
 import { createIntegrationsModal } from './account-integrations-modal.js';
 import { createIntegrationsEvents } from './account-integrations-events.js';
+import { buildMergedServer } from './account-integrations-merge.js';
 
-/**
- * Return the first truthy value among the candidates.
- * Mirrors the `a || b || c` fallback chain semantics exactly.
- */
-function firstTruthy(...candidates) {
-  for (const c of candidates) {
-    if (c) return c;
-  }
-  return undefined;
+function buildIntegrationsEvents({
+  container,
+  sectionState,
+  canManageToolServers,
+  canManageAcls,
+  state,
+  persistPreferences,
+  openModalRef,
+  removeServerRef,
+}) {
+  return createIntegrationsEvents({
+    container,
+    sectionState,
+    canManageToolServers,
+    canManageAcls,
+    state,
+    persistPreferences,
+    get openModal() {
+      return openModalRef.value;
+    },
+    get removeServer() {
+      return removeServerRef.value;
+    },
+    escapeHtml,
+    escapeSelector,
+  });
 }
 
-export function renderAccountIntegrationsSection(
+function setupIntegrationsRuntime({
   container,
-  state = {},
-  { onRefresh, footerHost, routeCache } = {}
-) {
-  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, {
-    route: 'account',
+  state,
+  sectionState,
+  canManageToolServers,
+  canManageAcls,
+  refreshPreferencesUi,
+}) {
+  const renderRef = { value: () => {} };
+  const openModalRef = { value: () => {} };
+  const removeServerRef = { value: () => {} };
+  const persistPreferencesRef = { current: async () => {} };
+  const events = buildIntegrationsEvents({
+    container,
+    sectionState,
+    canManageToolServers,
+    canManageAcls,
+    state,
+    persistPreferences: (...args) => persistPreferencesRef.current(...args),
+    openModalRef,
+    removeServerRef,
   });
-  const canManageToolServers = capabilities.canManageToolServers !== false;
-  const canManageAcls = capabilities.canManageAcls !== false;
-  const sectionState = {
+  const {
+    ensureMounted,
+    syncFeedback,
+    syncHeaderButtons,
+    syncListState,
+    syncListShell,
+    syncActionFooter,
+    bindDelegatedEvents,
+  } = events;
+
+  function render() {
+    return renderIntegrationsView({
+      container,
+      ensureMounted,
+      sectionState,
+      canManageToolServers,
+      syncFeedback,
+      syncHeaderButtons,
+      syncListShell,
+      bindDelegatedEvents,
+      syncActionFooter,
+    });
+  }
+  renderRef.value = render;
+
+  const { persistPreferences } = buildIntegrationsPersistence({
+    state,
+    sectionState,
+    refreshPreferencesUi: refreshPreferencesUi || (() => {}),
+  });
+  persistPreferencesRef.current = persistPreferences;
+  const loadServers = buildIntegrationsLoader({ sectionState, render });
+  const { upsertServer, removeServer, mergeSavedServer } = buildServerMutators({ sectionState });
+  removeServerRef.value = removeServer;
+
+  const modal = buildIntegrationsModalBinding({
+    container,
+    sectionState,
+    canManageToolServers,
+    canManageAcls,
+    mergeSavedServer,
+    removeServer,
+    upsertServer,
+    persistPreferences,
+    syncFeedback,
+    syncListState,
+    syncListShell,
+    syncActionFooter,
+    renderRef,
+  });
+  openModalRef.value = modal.openModal;
+
+  return { render, loadServers };
+}
+
+function renderIntegrationsView({
+  container,
+  ensureMounted,
+  sectionState,
+  canManageToolServers,
+  syncFeedback,
+  syncHeaderButtons,
+  syncListShell,
+  bindDelegatedEvents,
+  syncActionFooter,
+}) {
+  if (!ensureMounted()) {
+    container.innerHTML = buildIntegrationsMarkup({ sectionState, canManageToolServers });
+    container.dataset.integrationsMounted = '1';
+    syncHeaderButtons();
+    syncListShell();
+    bindDelegatedEvents();
+    syncActionFooter();
+    return;
+  }
+  syncFeedback();
+  syncHeaderButtons();
+  syncListShell();
+  syncActionFooter();
+}
+
+function buildIntegrationsModalBinding({
+  container,
+  sectionState,
+  canManageToolServers,
+  canManageAcls,
+  mergeSavedServer,
+  removeServer,
+  upsertServer,
+  persistPreferences,
+  syncFeedback,
+  syncListState,
+  syncListShell,
+  syncActionFooter,
+  renderRef,
+}) {
+  return createIntegrationsModal({
+    container,
+    sectionState,
+    canManageToolServers,
+    canManageAcls,
+    mergeSavedServer,
+    removeServer,
+    upsertServer,
+    persistPreferences,
+    syncFeedback,
+    syncListState,
+    syncListShell,
+    syncActionFooter,
+    get render() {
+      return renderRef.value;
+    },
+  });
+}
+
+function buildIntegrationsSectionState(state) {
+  return {
     loading: false,
     saving: false,
     error: '',
@@ -73,9 +196,24 @@ export function renderAccountIntegrationsSection(
           .filter((server) => Boolean(server) && server.enabled !== false)
       : [],
   };
-  let preferencesSaveVersion = 0;
+}
 
-  const normalizeFromPayload = (payload) => ({
+function buildServerMutators({ sectionState }) {
+  const upsertServer = (nextServer) => {
+    const normalized = normalizeServer(nextServer);
+    if (!normalized.id) return;
+    sectionState.servers = upsertItemById(sectionState.servers, normalized);
+    sectionState.error = '';
+  };
+  const removeServer = (serverId) => {
+    sectionState.servers = removeItemById(sectionState.servers, serverId);
+    sectionState.error = '';
+  };
+  return { upsertServer, removeServer, mergeSavedServer: buildMergedServer };
+}
+
+function normalizeIntegrationsPayload(payload) {
+  return {
     servers: Array.isArray(payload?.servers)
       ? sortResourcesByEnabledThenVisibilityThenLabel(
           payload.servers.map(normalizeServer).filter(Boolean)
@@ -88,35 +226,30 @@ export function renderAccountIntegrationsSection(
             .filter((server) => Boolean(server) && server.enabled !== false)
         )
       : [],
-  });
+  };
+}
 
-  function applyPersistedPreferences(persisted) {
+function buildIntegrationsPersistence({ state, sectionState, refreshPreferencesUi }) {
+  let preferencesSaveVersion = 0;
+  const applyPersistedPreferences = (persisted) => {
     state.settings = {
       ...(state.settings || {}),
       preferences: persisted,
     };
     sectionState.error = '';
-  }
-
-  function applyPreferencesRollback(rollback) {
+  };
+  const applyPreferencesRollback = (rollback) => {
     state.settings = {
       ...(state.settings || {}),
       preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
     };
-  }
-
-  function refreshPreferencesUi() {
-    syncListShell();
-    syncFeedback();
-  }
-
-  function handlePreferencesSaveError(error, requestVersion, rollback) {
+  };
+  const handlePreferencesSaveError = (error, requestVersion, rollback) => {
     if (requestVersion !== preferencesSaveVersion) return;
     if (rollback) applyPreferencesRollback(rollback);
     sectionState.error = error?.message || 'Failed to update shared integration visibility';
     refreshPreferencesUi();
-  }
-
+  };
   const persistPreferences = async ({ rollback = null } = {}) => {
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});
@@ -132,43 +265,17 @@ export function renderAccountIntegrationsSection(
       handlePreferencesSaveError(error, requestVersion, rollback);
     }
   };
+  return { persistPreferences };
+}
 
-  let activeModal = null;
-  let activeModalHash = '';
-
-  const events = createIntegrationsEvents({
-    container,
-    sectionState,
-    canManageToolServers,
-    canManageAcls,
-    state,
-    persistPreferences,
-    get openModal() {
-      return openModal;
-    },
-    get removeServer() {
-      return removeServer;
-    },
-    escapeHtml,
-    escapeSelector,
-  });
-  const {
-    ensureMounted,
-    syncFeedback,
-    syncHeaderButtons,
-    syncListState,
-    syncListShell,
-    syncActionFooter,
-    bindDelegatedEvents,
-  } = events;
-
-  const loadServers = async () => {
+function buildIntegrationsLoader({ sectionState, render }) {
+  return async () => {
     sectionState.loading = true;
     sectionState.error = '';
     render();
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
-      const { servers, sharedServers } = normalizeFromPayload(payload);
+      const { servers, sharedServers } = normalizeIntegrationsPayload(payload);
       sectionState.servers = servers;
       sectionState.sharedServers = sharedServers;
     } catch (err) {
@@ -178,19 +285,19 @@ export function renderAccountIntegrationsSection(
       render();
     }
   };
+}
 
-  function render() {
-    if (!ensureMounted()) {
-      const traceAttrs = buildTraceAttrs({
-        route: '/account/settings/integrations',
-        scope: 'account',
-        family: 'mcp-servers',
-        owner: 'account effective truth',
-        read: ['/api/users/me/settings', '/api/users/me/resources/mcp-servers'],
-        write: ['/api/users/me/resources/mcp-servers/:id', '/api/users/me'],
-        invalidation: 'account settings only',
-      });
-      container.innerHTML = `
+function buildIntegrationsMarkup({ sectionState, canManageToolServers }) {
+  const traceAttrs = buildTraceAttrs({
+    route: '/account/settings/integrations',
+    scope: 'account',
+    family: 'mcp-servers',
+    owner: 'account effective truth',
+    read: ['/api/users/me/settings', '/api/users/me/resources/mcp-servers'],
+    write: ['/api/users/me/resources/mcp-servers/:id', '/api/users/me'],
+    invalidation: 'account settings only',
+  });
+  return `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full"${traceAttrs}>
         ${sectionState.error ? renderErrorBanner({ message: sectionState.error }) : '<div id="integrations-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>'}
         <div class="pt-0.5 pb-6 bg-white">
@@ -223,166 +330,29 @@ export function renderAccountIntegrationsSection(
           </div>
         </div>
       </div>
-      `;
-      container.dataset.integrationsMounted = '1';
-      syncHeaderButtons();
-      syncListShell();
-      bindDelegatedEvents();
-      syncActionFooter();
-    } else {
-      syncFeedback();
-      syncHeaderButtons();
-      syncListShell();
-      syncActionFooter();
-    }
-  }
+    `;
+}
 
-  const refreshServers = async () => {
-    try {
-      const payload = await fetchUserMcpServers({ cache: 'no-store' });
-      const { servers, sharedServers } = normalizeFromPayload(payload);
-      sectionState.servers = servers;
-      sectionState.sharedServers = sharedServers;
-    } catch (err) {
-      if (typeof onRefresh === 'function') {
-        const nextState = await onRefresh();
-        if (nextState?.settings?.integrations?.servers) {
-          sectionState.servers = sortResourcesByEnabledThenVisibilityThenLabel(
-            nextState.settings.integrations.servers.map(normalizeServer).filter(Boolean)
-          );
-          sectionState.sharedServers = Array.isArray(
-            nextState.settings?.integrations?.accessible_servers
-          )
-            ? sortResourcesByEnabledThenVisibilityThenLabel(
-                nextState.settings.integrations.accessible_servers
-                  .map(normalizeServer)
-                  .filter((server) => Boolean(server) && server.enabled !== false)
-              )
-            : sectionState.sharedServers;
-        } else {
-          throw err;
-        }
-      } else {
-        throw err;
-      }
-    }
-    sectionState.error = '';
-    render();
-  };
-  const upsertServer = (nextServer) => {
-    const normalized = normalizeServer(nextServer);
-    if (!normalized.id) return;
-    sectionState.servers = upsertItemById(sectionState.servers, normalized);
-    sectionState.error = '';
-  };
-
-  const pickFirstTruthyFromOrder = (key, sourceOrder, payload, savedServer, existingServer) => {
-    const values = sourceOrder.map((src) => {
-      if (src === 'saved') return savedServer?.[key];
-      if (src === 'payload') return payload?.[key];
-      return existingServer?.[key];
-    });
-    return firstTruthy(...values);
-  };
-
-  const pickMergedTools = (payload, savedServer, existingServer) => {
-    if (Array.isArray(savedServer?.tools)) return savedServer.tools;
-    if (Array.isArray(payload?.tools)) return payload.tools;
-    if (Array.isArray(existingServer?.tools)) return existingServer.tools;
-    return [];
-  };
-
-  const pickMergedEnabled = (payload, savedServer, existingServer) => {
-    if (typeof savedServer?.enabled === 'boolean') return savedServer.enabled;
-    return payload?.enabled ?? existingServer?.enabled;
-  };
-
-  // Source order matches original behavior: id/headers skip 'payload'; name/url use
-  // saved → payload → existing; auth fields use saved → payload → existing.
-  const FIELD_SOURCE_ORDERS = {
-    id: ['saved', 'existing'],
-    name: ['saved', 'payload', 'existing'],
-    url: ['saved', 'payload', 'existing'],
-    headers: ['saved', 'existing', 'payload'],
-    auth_type: ['saved', 'payload', 'existing'],
-    auth_bearer_token: ['saved', 'payload', 'existing'],
-    auth_basic_username: ['saved', 'payload', 'existing'],
-    auth_basic_password: ['saved', 'payload', 'existing'],
-    oauth_client_name: ['saved', 'payload', 'existing'],
-    oauth_scope: ['saved', 'payload', 'existing'],
-    oauth_client_id: ['saved', 'payload', 'existing'],
-    oauth_client_secret: ['saved', 'payload', 'existing'],
-    oauth_token_auth_method: ['saved', 'payload', 'existing'],
-  };
-
-  const FIELD_FALLBACKS = {
-    id: '',
-    name: '',
-    url: '',
-    headers: '',
-    auth_type: 'none',
-    auth_bearer_token: '',
-    auth_basic_username: '',
-    auth_basic_password: '',
-    oauth_client_name: '',
-    oauth_scope: '',
-    oauth_client_id: '',
-    oauth_client_secret: '',
-    oauth_token_auth_method: '',
-  };
-
-  function applyFieldSourceOrders(merged, payload, savedServer, existingServer) {
-    for (const [field, sourceOrder] of Object.entries(FIELD_SOURCE_ORDERS)) {
-      const value = pickFirstTruthyFromOrder(
-        field,
-        sourceOrder,
-        payload,
-        savedServer,
-        existingServer
-      );
-      merged[field] = value || FIELD_FALLBACKS[field];
-    }
-    return merged;
-  }
-
-  const mergeSavedServer = (payload, savedServer, existingServer = null) => {
-    const merged = {
-      ...existingServer,
-      ...payload,
-      ...savedServer,
-      enabled: pickMergedEnabled(payload, savedServer, existingServer),
-      tools: pickMergedTools(payload, savedServer, existingServer),
-      toolsExpanded: Boolean(savedServer?.toolsExpanded ?? existingServer?.toolsExpanded),
-      toolsError: String(savedServer?.toolsError || existingServer?.toolsError || '').trim(),
-    };
-    applyFieldSourceOrders(merged, payload, savedServer, existingServer);
-    return normalizeServer(merged);
-  };
-
-  const removeServer = (serverId) => {
-    sectionState.servers = removeItemById(sectionState.servers, serverId);
-    sectionState.error = '';
-  };
-
-  const modal = createIntegrationsModal({
+export function renderAccountIntegrationsSection(
+  container,
+  state = {},
+  { onRefresh: _onRefresh, footerHost: _footerHost, routeCache: _routeCache } = {}
+) {
+  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, {
+    route: 'account',
+  });
+  const canManageToolServers = capabilities.canManageToolServers !== false;
+  const canManageAcls = capabilities.canManageAcls !== false;
+  const sectionState = buildIntegrationsSectionState(state);
+  const refreshPreferencesUi = () => {};
+  const { render, loadServers } = setupIntegrationsRuntime({
     container,
+    state,
     sectionState,
     canManageToolServers,
     canManageAcls,
-    mergeSavedServer,
-    removeServer,
-    upsertServer,
-    persistPreferences,
-    syncFeedback,
-    syncListState,
-    syncListShell,
-    syncActionFooter,
-    get render() {
-      return render;
-    },
+    refreshPreferencesUi,
   });
-  const { closeModal, setSaving, openModal } = modal;
-
   render();
   loadServers();
 }
