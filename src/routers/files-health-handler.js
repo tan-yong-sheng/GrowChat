@@ -5,7 +5,7 @@ import { HTTP_STATUS } from '../shared/http-status.js';
 import { json, error } from '../utils/response.js';
 import { withTimeout } from '../utils/promise.js';
 
-export async function handleFilesHealth(req, env, _ctx, _user) {
+export async function handleFilesHealth({ req, env, ctx: _ctx, user: _user }) {
   if (!env.FILES) {
     return error(req, 'FILES binding missing', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }

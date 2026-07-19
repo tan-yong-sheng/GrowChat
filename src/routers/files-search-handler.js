@@ -28,7 +28,7 @@ async function runSearchQuery(db, opts) {
     [opts.userId, `%${opts.q}%`, opts.limit, opts.offset]
   );
 }
-async function searchDocuments(req, env, ctx, user, _requestContext) {
+async function searchDocuments({ req, env, ctx: _ctx, user, requestContext: _requestContext }) {
   const db = createDB(env.DB);
   const url = new URL(req.url);
   const { q, limit, offset } = parseSearchParams(url);
@@ -52,7 +52,13 @@ async function searchDocuments(req, env, ctx, user, _requestContext) {
   }
   return json(req, { documents, query: q, limit, offset });
 }
-export async function handleFileSearch(req, env, ctx, user, _requestContext = {}) {
+export async function handleFileSearch({
+  req,
+  env,
+  ctx,
+  user,
+  requestContext: _requestContext = {},
+}) {
   const searchLimit = await checkRateLimit(env, {
     action: 'file-search',
     subject: user.sub,

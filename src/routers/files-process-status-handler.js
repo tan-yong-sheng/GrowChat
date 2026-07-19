@@ -6,14 +6,14 @@
 import { json, error } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { getOwnedDocument, createFileContext } from './files-helpers.js';
-export async function handleFileProcessStatus(
+export async function handleFileProcessStatus({
   req,
   env,
-  ctx,
+  ctx: _ctx,
   user,
   documentId,
-  requestContext = {}
-) {
+  requestContext = {},
+}) {
   const { logger, db } = createFileContext(env, requestContext);
 
   try {

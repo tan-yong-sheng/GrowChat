@@ -35,7 +35,14 @@ async function resolveBlobResponse(opts) {
 
   return new Response(object.body, { status: HTTP_STATUS.OK, headers });
 }
-export async function handleFileBlob(req, env, ctx, user, documentId, requestContext = {}) {
+export async function handleFileBlob({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  documentId,
+  requestContext = {},
+}) {
   const ctx2 = await prepareFileHandlerContext(req, env, requestContext, user);
   if (!ctx2.ok) return ctx2.response;
 

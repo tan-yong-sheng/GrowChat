@@ -52,7 +52,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
   // Check exact path matches first (no params)
   for (const route of ROUTE_MAP) {
     if (req.method === route.method && path === route.path) {
-      return route.handler(req, env, ctx, user, requestContext);
+      return route.handler({ req, env, ctx, user, requestContext });
     }
   }
 
@@ -67,14 +67,21 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
       // This is a GET-only path — return 405
       return new Response(null, { status: 405 });
     }
-    return handleFileDelete(req, env, ctx, user, fileId, requestContext);
+    return handleFileDelete({ req, env, ctx, user, documentId: fileId, requestContext });
   }
 
   // Pattern-based routes (with :id param)
   for (const route of PATTERN_MAP) {
     const match = path.match(route.pattern);
     if (match && req.method === 'GET') {
-      return route.handler(req, env, ctx, user, match[route.matchIndex], requestContext);
+      return route.handler({
+        req,
+        env,
+        ctx,
+        user,
+        documentId: match[route.matchIndex],
+        requestContext,
+      });
     }
   }
 

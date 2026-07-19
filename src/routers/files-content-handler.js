@@ -29,7 +29,14 @@ function resolveFileContent(doc) {
     note: 'Binary file - text excerpt not available',
   };
 }
-export async function handleFileContent(req, env, ctx, user, documentId, requestContext = {}) {
+export async function handleFileContent({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  documentId,
+  requestContext = {},
+}) {
   const ctx2 = await prepareFileHandlerContext(req, env, requestContext, user);
   if (!ctx2.ok) return ctx2.response;
 
