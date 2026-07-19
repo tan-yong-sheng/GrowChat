@@ -10,92 +10,115 @@ import { loadToolServerAclRules } from '../../utils/tool-server-acl.js';
 import { loadPrimaryRole } from '../../utils/user-role.js';
 import { loadModelEnabledMap, normalizeAccountStatus } from './users-helpers.js';
 
+const HTTP_STATUS_NOT_FOUND = 404;
+const HTTP_STATUS_INTERNAL_ERROR = 500;
+const USER_PATH_ID_INDEX = -2;
+
+async function authorizeAdminRead(env, user, userId, req) {
+  const authDecision = await authorize(env, user, {
+    action: 'admin.user.read',
+    resource: 'user',
+    resourceId: userId,
+  });
+  if (!authDecision.allow) {
+    return { error: authError(req, authDecision) };
+  }
+  return { error: null };
+}
+
+async function findUserOrError(db, userId, req) {
+  const targetUser = await findUserById(db, userId);
+  if (!targetUser) {
+    return { user: null, error: error(req, 'User not found', HTTP_STATUS_NOT_FOUND) };
+  }
+  return { user: targetUser, error: null };
+}
+
+async function loadUserAccessContext(db, env, logger, userId) {
+  const primaryRole = (await loadPrimaryRole(db, userId)) ?? 'member';
+  const groupInfo = await loadUserGroupInfo(db, userId);
+  const userPermissions = await resolvePermissions(db, {
+    sub: userId,
+    role: primaryRole,
+  });
+  const enabledMaps = await loadResourceEnabledMaps(db, env, logger);
+  const overrides = await loadUserResourceOverrides(db, userId);
+  const hiddenIds = extractHiddenIds(overrides);
+  return {
+    primaryRole,
+    groupIds: groupInfo.groupIds,
+    groupMap: groupInfo.groupMap,
+    userPermissions,
+    modelEnabledMap: enabledMaps.modelEnabledMap,
+    connectionEnabledMap: enabledMaps.connectionEnabledMap,
+    toolServerEnabledMap: enabledMaps.toolServerEnabledMap,
+    hiddenIds,
+  };
+}
+
+async function loadResourceEnabledMaps(db, env, logger) {
+  const modelEnabledMap = await loadModelEnabledMap(db, logger);
+  const connectionEnabledMap = await buildConnectionEnabledMap(env);
+  const toolServerEnabledMap = await buildToolServerEnabledMap(db);
+  return { modelEnabledMap, connectionEnabledMap, toolServerEnabledMap };
+}
+
+function extractHiddenIds(overrides) {
+  return {
+    connections: new Set(overrides?.connections?.hidden_ids ?? []),
+    models: new Set(overrides?.models?.hidden_ids ?? []),
+    tool_servers: new Set(overrides?.tool_servers?.hidden_ids ?? []),
+  };
+}
+
+async function buildAccessRules(db, context) {
+  const { modelEnabledMap, connectionEnabledMap, toolServerEnabledMap, hiddenIds } = context;
+  const modelRules = await buildModelRules({
+    db,
+    enabledMap: modelEnabledMap,
+    hiddenIds: hiddenIds.models,
+    groupMap: context.groupMap,
+  });
+  const connectionRules = await buildConnectionRules({
+    db,
+    enabledMap: connectionEnabledMap,
+    hiddenIds: hiddenIds.connections,
+    groupMap: context.groupMap,
+  });
+  const toolServerRules = await buildToolServerRules({
+    db,
+    enabledMap: toolServerEnabledMap,
+    hiddenIds: hiddenIds.tool_servers,
+    groupMap: context.groupMap,
+  });
+  return { modelRules, connectionRules, toolServerRules };
+}
+
 /**
  * Handle users/admin/access routes.
  * Returns Response if handled, null if path doesn't match.
  */
-export async function handleUsersAdminAccess(
-  req,
-  env,
-  ctx,
-  user,
-  path,
-  { _db, logger, _requestContext }
-) {
-  if (req.method === 'GET' && path.match(/^\/api\/admin\/users\/[^/]+\/access$/)) {
-    const userId = path.split('/').slice(-2, -1)[0];
-    const authDecision = await authorize(env, user, {
-      action: 'admin.user.read',
-      resource: 'user',
-      resourceId: userId,
-    });
+export async function handleUsersAdminAccess({ req, env, user, path, deps }) {
+  const ACCESS_PATH_PATTERN = /^\/api\/admin\/users\/[^/]+\/access$/;
+  if (req.method === 'GET' && ACCESS_PATH_PATTERN.test(path)) {
+    const userId = path.split('/').slice(USER_PATH_ID_INDEX, -1)[0];
+    const { logger } = deps;
 
-    if (!authDecision.allow) {
-      return authError(req, authDecision);
-    }
+    const auth = await authorizeAdminRead(env, user, userId, req);
+    if (auth.error) return auth.error;
 
     const db = createDB(env.DB);
     try {
-      const targetUser = await findUserById(db, userId);
-      if (!targetUser) {
-        return error(req, 'User not found', 404);
-      }
+      const { user: targetUser, error: findError } = await findUserOrError(db, userId, req);
+      if (findError) return findError;
 
-      const primaryRole = (await loadPrimaryRole(db, userId)) ?? 'member';
-      const { groupRows, groupIds, groupMap } = await loadUserGroupInfo(db, userId);
-      const userPermissions = await resolvePermissions(db, {
-        sub: userId,
-        role: primaryRole,
-      });
-      const modelEnabledMap = await loadModelEnabledMap(db, logger);
-      const connectionEnabledMap = await buildConnectionEnabledMap(env);
-      const toolServerEnabledMap = await buildToolServerEnabledMap(db);
+      const context = await loadUserAccessContext(db, env, logger, userId);
+      const rules = await buildAccessRules(db, context);
 
-      const userResourceOverrides = await loadUserResourceOverrides(db, userId);
-      const hiddenConnectionIds = new Set(userResourceOverrides?.connections?.hidden_ids ?? []);
-      const hiddenModelIds = new Set(userResourceOverrides?.models?.hidden_ids ?? []);
-      const hiddenToolServerIds = new Set(userResourceOverrides?.tool_servers?.hidden_ids ?? []);
-
-      const modelRules = await buildModelRules(
-        db,
-        modelEnabledMap,
-        hiddenModelIds,
-        userId,
-        groupIds,
-        groupMap
-      );
-      const connectionRules = await buildConnectionRules(
-        db,
-        connectionEnabledMap,
-        hiddenConnectionIds,
-        userId,
-        groupIds,
-        groupMap
-      );
-      const toolServerRules = await buildToolServerRules(
-        db,
-        toolServerEnabledMap,
-        hiddenToolServerIds,
-        userId,
-        groupIds,
-        groupMap
-      );
-
-      return json(
-        req,
-        buildAccessResponse(
-          targetUser,
-          primaryRole,
-          groupMap,
-          userPermissions,
-          modelRules,
-          connectionRules,
-          toolServerRules
-        )
-      );
+      return json(req, buildAccessResponse({ targetUser, context, rules }));
     } catch (err) {
       logger.error('Inspect user access failed', { error: err?.message ?? err });
-      return error(req, 'Failed to inspect user access', 500);
+      return error(req, 'Failed to inspect user access', HTTP_STATUS_INTERNAL_ERROR);
     }
   }
 
@@ -125,7 +148,7 @@ async function loadUserGroupInfo(db, userId) {
   const groupMap = new Map(
     (Array.isArray(groupRows) ? groupRows : []).map((group) => [group.id, group.name])
   );
-  return { groupRows, groupIds, groupMap };
+  return { groupIds, groupMap };
 }
 
 async function buildConnectionEnabledMap(env) {
@@ -143,41 +166,26 @@ async function buildToolServerEnabledMap(db) {
   return new Map(servers.map((server) => [String(server.id || ''), server.enabled !== false]));
 }
 
-function buildAccessResponse(
-  targetUser,
-  primaryRole,
-  groupMap,
-  userPermissions,
-  modelRules,
-  connectionRules,
-  toolServerRules
-) {
+function buildAccessResponse({ targetUser, context, rules }) {
   return {
     user: {
       id: targetUser.id,
       email: targetUser.email,
       name: targetUser.name,
       account_status: normalizeAccountStatus(targetUser.account_status),
-      primary_role: primaryRole,
+      primary_role: context.primaryRole,
     },
-    groups: Array.from(groupMap.entries()).map(([id, name]) => ({ id, name })),
-    role_permissions: userPermissions,
+    groups: Array.from(context.groupMap.entries()).map(([id, name]) => ({ id, name })),
+    role_permissions: context.userPermissions,
     access: {
-      models: modelRules,
-      connections: connectionRules,
-      mcp_servers: toolServerRules,
+      models: rules.modelRules,
+      connections: rules.connectionRules,
+      mcp_servers: rules.toolServerRules,
     },
   };
 }
 
-function matchesRulePrincipal(rule, userId, groupIds) {
-  if (rule?.principal_type === 'user') {
-    return String(rule.principal_id || '') === String(userId || '');
-  }
-  return groupIds.has(String(rule.principal_id || ''));
-}
-
-function buildDecoratedRule(rule, familyLabel, enabledMap, hiddenIds, userId, groupIds, groupMap) {
+function buildDecoratedRule({ rule, familyLabel, enabledMap, hiddenIds, groupMap }) {
   const resourceId =
     rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '';
   const resourceEnabled = enabledMap.has(resourceId) ? enabledMap.get(resourceId) : true;
@@ -216,56 +224,26 @@ function rulePrincipalLabel(rule, groupMap) {
   return 'Direct user';
 }
 
-async function buildModelRules(db, modelEnabledMap, hiddenModelIds, userId, groupIds, groupMap) {
-  const ids = [...modelEnabledMap.keys()].filter((id) => !hiddenModelIds.has(id));
+function buildFamilyRules({ rules, familyLabel, enabledMap, hiddenIds, groupMap }) {
+  return rules.map((rule) =>
+    buildDecoratedRule({ rule, familyLabel, enabledMap, hiddenIds, groupMap })
+  );
+}
+
+async function buildModelRules({ db, enabledMap, hiddenIds, groupMap }) {
+  const ids = [...enabledMap.keys()].filter((id) => !hiddenIds.has(id));
   const rules = await loadModelAclRules(db, null, new Set(ids));
-  return rules.map((rule) =>
-    buildDecoratedRule(rule, 'model', modelEnabledMap, hiddenModelIds, userId, groupIds, groupMap)
-  );
+  return buildFamilyRules({ rules, familyLabel: 'model', enabledMap, hiddenIds, groupMap });
 }
 
-async function buildConnectionRules(
-  db,
-  connectionEnabledMap,
-  hiddenConnectionIds,
-  userId,
-  groupIds,
-  groupMap
-) {
-  const ids = [...connectionEnabledMap.keys()].filter((id) => !hiddenConnectionIds.has(id));
+async function buildConnectionRules({ db, enabledMap, hiddenIds, groupMap }) {
+  const ids = [...enabledMap.keys()].filter((id) => !hiddenIds.has(id));
   const rules = await loadConnectionAclRules(db, null, new Set(ids));
-  return rules.map((rule) =>
-    buildDecoratedRule(
-      rule,
-      'connection',
-      connectionEnabledMap,
-      hiddenConnectionIds,
-      userId,
-      groupIds,
-      groupMap
-    )
-  );
+  return buildFamilyRules({ rules, familyLabel: 'connection', enabledMap, hiddenIds, groupMap });
 }
 
-async function buildToolServerRules(
-  db,
-  toolServerEnabledMap,
-  hiddenToolServerIds,
-  userId,
-  groupIds,
-  groupMap
-) {
-  const ids = [...toolServerEnabledMap.keys()].filter((id) => !hiddenToolServerIds.has(id));
+async function buildToolServerRules({ db, enabledMap, hiddenIds, groupMap }) {
+  const ids = [...enabledMap.keys()].filter((id) => !hiddenIds.has(id));
   const rules = await loadToolServerAclRules(db, null, new Set(ids));
-  return rules.map((rule) =>
-    buildDecoratedRule(
-      rule,
-      'tool_server',
-      toolServerEnabledMap,
-      hiddenToolServerIds,
-      userId,
-      groupIds,
-      groupMap
-    )
-  );
+  return buildFamilyRules({ rules, familyLabel: 'tool_server', enabledMap, hiddenIds, groupMap });
 }

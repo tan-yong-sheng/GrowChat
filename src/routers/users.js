@@ -43,7 +43,7 @@ export async function usersRouter({
     () => handleUsersMe(req, env, ctx, user, path, deps),
     () => handleUsersConnections(req, env, ctx, user, path, deps),
     () => handleUsersAdminList(req, env, ctx, user, path, deps),
-    () => handleUsersAdminAccess(req, env, ctx, user, path, deps),
+    () => handleUsersAdminAccess({ req, env, user, path, deps }),
     () => handleUsersAdminCrud(req, env, ctx, user, path, deps),
     () => handleUsersAdminById(req, env, ctx, user, path, deps),
   ];
