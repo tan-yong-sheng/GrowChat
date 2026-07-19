@@ -1,336 +1,95 @@
 // WireChat controllers: render, message list, chat handlers, shell.
 // Phase 3 of wireChat extraction from chat.js.
+// @ts-nocheck
 
 import { handleClickChat } from './chat-click-handler.js';
+import {
+  buildFallbackAssistantMessage,
+  buildTempChatImpls,
+  getMessageById,
+  hydrateAttachmentImages,
+} from './chat-wire-controller-helpers.js';
+import {
+  buildRenderControllerSection,
+  buildShellControllerSection,
+  createChatListHandlersSection,
+  createMessageListInteractionsSection,
+} from './chat-wire-controller-section-builders.js';
 
-export function setupWireChatControllers(ctx, deps) {
-  const {
-    messagesList,
-    welcomeScreenContainer,
-    messagesContainer,
-    thinkingCollapsedByKey,
-    toolExpandedByKey,
-    thinkingActiveByMessageId,
-    thinkingDurationByMessageId,
-    thinkingStartByMessageId,
-    toolCallsByMessageId,
-    messageBlocksById,
-    errorExpandedByMessageId,
-    currentLeafByChatId,
-    branchSelectionByChat,
-    streamingOverrideByChat,
-    loadMessages,
-    openCitation,
-    setStreamingState,
-    clearGlobalStreamAbort,
-    setGlobalStreamAbort,
-    consumeSseTextStream,
-    notePayloadSeq,
-    updateMessageContentDom,
-    applyAssistantErrorMessage,
-    sharedByChatId,
-    isTempChatId,
-    loadChats,
-    refreshShareState,
-    renderShareModal,
-    syncChatUrl,
-    streamSession,
-    messageInputContainer,
-    chatListContainerEl,
-    sidebarHomeBtn,
-    toggleSidebarMobile,
-    toggleSidebarDesktop,
-    openSearchBtn,
-    newChatBtn,
-    sidebarBackdrop,
-    toggleChatsBtn,
-    toggleChatsIcon,
-    uiResources,
-    pruneTempChats,
-    buildTempChat,
-    getDraftAttachments,
-    getDraftToolNames,
-    setDraftAttachments,
-    setDraftToolNames,
-    chatMessageFlow,
-    resolveTempMessageId,
-    replaceTempMessageId,
-    registerPendingTempMessage,
-    waitForResolvedMessageId,
-    setBranchSelection,
-    getMessageSeq,
-    updateChatTitleLocal,
-    recentChatIds,
-    schedulePrune,
-    drawMessages,
-    sidebar,
-    startNewChat,
-    chatList,
-    openArchivedModal,
-    pinnedSectionCollapsed,
-    PINNED_COLLAPSED_KEY,
-    ensureSearchModal,
-  } = ctx;
-  const {
-    state,
-    setState,
-    apiFetch,
-    fetchChats,
-    fetchSharedChats,
-    appendBlock,
-    ensureThinkingBlock,
-    updateToolCallState,
-    createChatRenderController,
-    createChatShellController,
-    createChatMessageStream,
-    createChatDataController,
-    loadChatListActionsModule,
-    loadChatMessageListControllerModule,
-    formatApiErrorMessage,
-    extractThinkingBlocks,
-    touchRecentChat,
-    showToast,
-    renderMessageInput,
-  } = deps;
-
-  function resolveExistingMessage(chatId, messageId) {
-    const messages = state.messagesByChat[chatId] || [];
-    return messages.find((msg) => String(msg.id) === String(messageId));
-  }
-
-  function resolveFallbackContent(content, existing, errorActive, errorMessage) {
-    const safeError = String(errorMessage || 'LLM request failed');
-    let nextContent = content ?? existing?.content ?? '';
-    if (errorActive && !nextContent) {
-      nextContent = `Error: ${safeError}`;
-    }
-    return { nextContent, safeError };
-  }
-
-  function buildExistingFallback(existing, nextContent, errorActive, safeError) {
-    return {
-      ...existing,
-      content: nextContent,
-      status: errorActive ? 'error' : existing.status,
-      error_message: errorActive ? safeError : existing.error_message,
-      done: true,
-    };
-  }
-
-  function buildNewFallback(messageId, nextContent, model, parentId, errorActive, safeError) {
-    return {
-      id: messageId,
-      role: 'assistant',
-      content: nextContent,
-      model: model || state.activeModelId,
-      parent_id: parentId || null,
-      status: errorActive ? 'error' : undefined,
-      error_message: errorActive ? safeError : undefined,
-      created_at: Math.floor(Date.now() / 1000),
-      done: true,
-    };
-  }
-
-  const buildFallbackAssistantMessage = (chatId, messageId, options = {}) => {
-    if (!chatId || !messageId) return null;
-    const { content, errorActive, errorMessage, model, parentId } = options;
-    const existing = resolveExistingMessage(chatId, messageId);
-    const { nextContent, safeError } = resolveFallbackContent(
-      content,
-      existing,
-      errorActive,
-      errorMessage
-    );
-    if (existing) {
-      return buildExistingFallback(existing, nextContent, errorActive, safeError);
-    }
-    return buildNewFallback(messageId, nextContent, model, parentId, errorActive, safeError);
-  };
-  const resolveMessageList = (chatId) => state.messagesByChat[chatId] || [];
-
-  const findMessageInList = (list, messageId) =>
-    list.find((msg) => String(msg.id) === String(messageId)) || null;
-
-  const getMessageById = (chatId, messageId) => {
-    if (!chatId || !messageId) return null;
-    return findMessageInList(resolveMessageList(chatId), messageId);
-  };
-  const hydrateAttachmentImages = (containerEl) => uiResources.hydrateAttachmentImages(containerEl);
-  const renderController = createChatRenderController({
-    state,
-    setState,
-    messagesList,
-    welcomeScreenContainer,
-    messagesContainer,
-    hydrateAttachmentImages,
-    branchSelectionByChat,
-    currentLeafByChatId,
-    streamingOverrideByChat,
-    errorExpandedByMessageId,
-    thinkingCollapsedByKey,
-    toolExpandedByKey,
-    thinkingActiveByMessageId,
-    thinkingDurationByMessageId,
-    thinkingStartByMessageId,
-    toolCallsByMessageId,
-    messageBlocksById,
-    showToast,
-    apiFetch,
-    loadMessages,
-    waitForResolvedMessageId,
-    getMessageById,
-    resolveTempMessageId,
-    replaceTempMessageId,
-    registerPendingTempMessage,
-    setBranchSelection,
-    setStreamingState,
-    getActiveStreamAbort: () => ctx.activeStreamAbort,
-    setActiveStreamAbort: (value) => {
-      ctx.activeStreamAbort = value;
-    },
-    clearGlobalStreamAbort,
-    setGlobalStreamAbort,
-    consumeSseTextStream,
-    appendBlock,
-    ensureThinkingBlock,
-    updateToolCallState,
-    notePayloadSeq,
-    buildFallbackAssistantMessage,
-    formatApiErrorMessage,
-    updateMessageContentDom,
-    applyAssistantErrorMessage,
-    openCitation,
-  });
+function assembleRenderSection(ctx, deps) {
+  const renderController = buildRenderControllerSection({ ctx, deps });
   ctx.drawMessagesImpl = renderController.drawMessages;
-  let destroyMessageListInteractions = null;
-  let messageListInteractionsReadyPromise = null;
-  const ensureMessageListInteractions = () => {
-    if (destroyMessageListInteractions) return Promise.resolve(true);
-    if (messageListInteractionsReadyPromise) return messageListInteractionsReadyPromise;
-    messageListInteractionsReadyPromise = loadChatMessageListControllerModule()
-      .then(({ createChatMessageListController }) => {
-        destroyMessageListInteractions = createChatMessageListController({
-          messagesList,
-          thinkingCollapsedByKey,
-          toolExpandedByKey,
-          openCitation,
-        });
-        return true;
-      })
-      .catch((err) => {
-        console.warn('Failed to load chat message list interactions:', err);
-        messageListInteractionsReadyPromise = null;
-        return null;
-      });
-    return messageListInteractionsReadyPromise;
-  };
-  const createFallbackChatHandlers = () => ({
-    onClick: (id) => {
-      handleClickChat(
-        { isTempChatId, setState, syncChatUrl, drawMessages, state, loadMessages },
-        id
-      );
-    },
-    rename: async () => {},
-    pin: async () => {},
-    duplicate: async () => {},
-    share: async () => {},
-    archive: async () => {},
-    delete: async () => {},
-  });
-  let getChatHandlersImpl = createFallbackChatHandlers;
-  const getChatHandlers = (...args) => getChatHandlersImpl(...args);
-  let chatListHandlersReadyPromise = null;
-  const ensureChatListHandlers = () => {
-    if (chatListHandlersReadyPromise) return chatListHandlersReadyPromise;
-    chatListHandlersReadyPromise = loadChatListActionsModule()
-      .then(({ createChatListHandlers }) => {
-        getChatHandlersImpl = createChatListHandlers({
-          state,
-          apiFetch,
-          loadChats,
-          loadMessages,
-          syncChatUrl,
-          setState,
-          isTempChatId,
-          refreshShareState,
-          renderShareModal,
-          sharedByChatId,
-          toggleArchiveChat: deps.toggleArchiveChat,
-          drawMessages,
-          currentLeafByChatId,
-          streamingOverrideByChatId: streamingOverrideByChat,
-        });
-        ctx.drawChats?.(state.chats, state.activeChatId);
-        return true;
-      })
-      .catch((err) => {
-        console.warn('Failed to load chat list handlers:', err);
-        chatListHandlersReadyPromise = null;
-        return null;
-      });
-    return chatListHandlersReadyPromise;
-  };
-  const pruneTempChatsImpl = (list) =>
-    Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : [];
-  const buildTempChatImpl = (id = null) => {
-    const nowTs = Math.floor(Date.now() / 1000);
-    const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
-    const tempChatId = id || `temp-${nowTs}-${Math.random().toString(36).slice(2, 8)}`;
-    return {
-      id: tempChatId,
-      title: 'New Chat',
-      model: modelToUse || null,
-      pinned: 0,
-      created_at: nowTs,
-      updated_at: nowTs,
-    };
-  };
-  const shellController = createChatShellController({
-    state,
-    setState,
-    fetchChats,
-    drawMessages,
-    loadMessages,
-    buildTempChat: buildTempChatImpl,
-    pruneTempChats: pruneTempChatsImpl,
-    setDraftToolNames,
-    isTempChatId,
-    openArchivedModal,
-    ensureSearchModal: ctx.ensureSearchModal,
-    chatListContainerEl,
-    root: ctx.root,
-    sidebarHomeBtn,
-    toggleSidebarMobile,
-    toggleSidebarDesktop,
-    openSearchBtn,
-    newChatBtn,
-    sidebarBackdrop,
-    toggleChatsBtn,
-    toggleChatsIcon,
-    getChatHandlers,
+  return renderController;
+}
+
+function assembleMessageListSection(ctx, deps) {
+  return createMessageListInteractionsSection({ ctx, deps });
+}
+
+function assembleChatListSection(ctx, deps) {
+  return createChatListHandlersSection({ ctx, deps, handleClickChat });
+}
+
+function assembleShellSection(ctx, deps, chatListHandlers) {
+  const tempChat = buildTempChatImpls(deps.state, ctx.isTempChatId);
+  const shellController = buildShellControllerSection({
+    ctx,
+    deps: { ...deps, ...tempChat },
+    getChatHandlers: chatListHandlers.getChatHandlers,
   });
   ctx.syncChatUrlImpl = shellController.syncChatUrl;
   ctx.startNewChatImpl = shellController.startNewChat;
   ctx.refreshChatListObserverImpl = shellController.refreshChatListObserver;
-
   const shellEventCleanup = shellController.bindShellEvents();
+  return { shellController, shellEventCleanup, tempChat };
+}
+
+function bindAssembledSectionsToCtx(ctx, assembled) {
+  const {
+    renderController,
+    messageList,
+    chatListHandlers,
+    shellController,
+    shellEventCleanup,
+    tempChat,
+  } = assembled;
+  const { state, uiResources } = ctx;
 
   Object.assign(ctx, {
     destroyShellEvents: shellEventCleanup,
     shellController,
     renderController,
-    destroyMessageListInteractions,
-    messageListInteractionsReadyPromise,
-    ensureMessageListInteractions,
-    getChatHandlers,
-    chatListHandlersReadyPromise,
-    ensureChatListHandlers,
-    pruneTempChats: pruneTempChatsImpl,
-    buildTempChat: buildTempChatImpl,
-    buildFallbackAssistantMessage,
-    getMessageById,
-    hydrateAttachmentImages,
-    getChatHandlersImpl,
+    destroyMessageListInteractions: messageList.destroyMessageListInteractions,
+    messageListInteractionsReadyPromise: messageList.messageListInteractionsReadyPromise,
+    ensureMessageListInteractions: messageList.ensureMessageListInteractions,
+    getChatHandlers: chatListHandlers.getChatHandlers,
+    chatListHandlersReadyPromise: chatListHandlers.chatListHandlersReadyPromise,
+    ensureChatListHandlers: chatListHandlers.ensureChatListHandlers,
+    pruneTempChats: tempChat.pruneTempChatsImpl,
+    buildTempChat: tempChat.buildTempChatImpl,
+    buildFallbackAssistantMessage: (chatId, messageId, options) =>
+      buildFallbackAssistantMessage(state, chatId, messageId, options),
+    getMessageById: (chatId, messageId) => getMessageById(state, chatId, messageId),
+    hydrateAttachmentImages: (containerEl) => hydrateAttachmentImages(uiResources, containerEl),
+    getChatHandlersImpl: chatListHandlers.getChatHandlersImpl,
+  });
+}
+
+export function setupWireChatControllers(ctx, deps) {
+  const renderController = assembleRenderSection(ctx, deps);
+  const messageList = assembleMessageListSection(ctx, deps);
+  const chatListHandlers = assembleChatListSection(ctx, deps);
+  const { shellController, shellEventCleanup, tempChat } = assembleShellSection(
+    ctx,
+    deps,
+    chatListHandlers
+  );
+  bindAssembledSectionsToCtx(ctx, {
+    renderController,
+    messageList,
+    chatListHandlers,
+    shellController,
+    shellEventCleanup,
+    tempChat,
   });
 }
