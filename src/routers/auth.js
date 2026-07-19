@@ -23,7 +23,16 @@ const ROUTE_MAP = [
   {
     method: 'POST',
     path: '/api/auth/register',
-    handler: (c) => handleRegister(c.req, c.env, c.db, c.users, c.jwtSecret, c.logger, c.sharedFns),
+    handler: (c) =>
+      handleRegister({
+        req: c.req,
+        env: c.env,
+        db: c.db,
+        users: c.users,
+        jwtSecret: c.jwtSecret,
+        logger: c.logger,
+        sharedFns: c.sharedFns,
+      }),
   },
   {
     method: 'POST',
@@ -53,7 +62,7 @@ const ROUTE_MAP = [
   {
     method: 'POST',
     path: '/api/auth/reset-password',
-    handler: (c) => handleResetPassword(c.req, c.env, c.db),
+    handler: (c) => handleResetPassword({ req: c.req, env: c.env, db: c.db }),
   },
   { method: 'GET', path: '/api/auth/verify-email', handler: (c) => handleVerifyEmail(c.req) },
   {
@@ -64,7 +73,14 @@ const ROUTE_MAP = [
   {
     method: 'POST',
     path: '/api/auth/change-password',
-    handler: (c) => handleChangePassword(c.req, c.env, c.db, c.authUser, c.requestContext),
+    handler: (c) =>
+      handleChangePassword({
+        req: c.req,
+        env: c.env,
+        db: c.db,
+        authUser: c.authUser,
+        requestContext: c.requestContext,
+      }),
   },
   {
     method: 'GET',

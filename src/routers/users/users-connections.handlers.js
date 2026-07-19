@@ -27,7 +27,7 @@ import {
 } from './users-connections.helpers.js';
 
 // handler receives (req, env, user, _params, deps)
-export async function listUserConnections(req, env, user, _params, deps) {
+export async function listUserConnections({ req, env, user, params: _params, logger }) {
   try {
     const db = createDB(env.DB);
     const payload = await loadWorkspaceConnectionsPayload({
@@ -43,13 +43,13 @@ export async function listUserConnections(req, env, user, _params, deps) {
       my_connections: payload.my_connections,
     });
   } catch (err) {
-    deps.logger.error('Load user connections failed', { error: err?.message || err });
+    logger.error('Load user connections failed', { error: err?.message || err });
     return error(req, 'Failed to load resources', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
 
 // handler receives (req, env, user, _params, _deps)
-export async function createUserConnection(req, env, user, _params, _deps) {
+export async function createUserConnection({ req, env, user, params: _params }) {
   try {
     const body = await readJsonBody(req);
     const db = createDB(env.DB);
@@ -66,7 +66,7 @@ export async function createUserConnection(req, env, user, _params, _deps) {
 }
 
 // handler receives (req, env, user, { connectionId }, _deps)
-export async function updateUserConnection(req, env, user, { connectionId }, _deps) {
+export async function updateUserConnection({ req, env, user, params: { connectionId } }) {
   try {
     const body = await readJsonBody(req);
     const db = createDB(env.DB);
@@ -85,7 +85,7 @@ export async function updateUserConnection(req, env, user, { connectionId }, _de
 }
 
 // handler receives (req, env, user, { connectionId }, _deps)
-export async function deleteUserConnection(req, env, user, { connectionId }, _deps) {
+export async function deleteUserConnection({ req, env, user, params: { connectionId } }) {
   try {
     const db = createDB(env.DB);
     const deleted = await deleteUserOpenAIConnection({
@@ -102,7 +102,7 @@ export async function deleteUserConnection(req, env, user, { connectionId }, _de
 }
 
 // handler receives (req, env, user, _params, deps)
-export async function testUserConnection(req, env, user, _params, deps) {
+export async function testUserConnection({ req, env, user, params: _params, logger }) {
   try {
     const body = await readJsonBody(req);
     const db = createDB(env.DB);
@@ -115,21 +115,21 @@ export async function testUserConnection(req, env, user, _params, deps) {
     }
 
     const headers = parseConnectionHeaders(body, existingConnection);
-    const connection = buildTestConnection(
+    const connection = buildTestConnection({
       body,
       existingConnection,
       providerType,
-      baseUrlResult.value,
-      headers.value
-    );
+      baseUrl: baseUrlResult.value,
+      headers: headers.value,
+    });
 
     const discovery = await runConnectionTest(connection);
     if (!discovery.items.length) {
-      return buildDiscoveryFailureResponse(req, discovery, deps.logger);
+      return buildDiscoveryFailureResponse(req, discovery, logger);
     }
     return buildDiscoverySuccessResponse(req, discovery);
   } catch (err) {
-    deps.logger.error('Connection test failed', { error: err?.message || err });
+    logger.error('Connection test failed', { error: err?.message || err });
     if (err instanceof ValidationError) {
       return error(req, err.message, HTTP_STATUS.BAD_REQUEST);
     }

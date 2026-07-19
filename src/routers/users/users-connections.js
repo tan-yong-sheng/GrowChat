@@ -72,5 +72,5 @@ export async function handleUsersConnections(
     return accountPendingResponse(req);
   }
 
-  return matched.route.handler(req, env, user, matched.params, { logger });
+  return matched.route.handler({ req, env, ctx, user, params: matched.params, logger });
 }

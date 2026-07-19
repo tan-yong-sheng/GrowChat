@@ -97,7 +97,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     expect(mocks.json).toHaveBeenCalledWith(
       expect.anything(),
@@ -115,7 +115,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     expect(mocks.error).toHaveBeenCalledWith(
       expect.anything(),
@@ -136,7 +136,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     expect(mocks.error).toHaveBeenCalledWith(
       expect.anything(),
@@ -159,7 +159,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     expect(mocks.error).toHaveBeenCalledWith(
       expect.anything(),
@@ -185,7 +185,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     expect(mocks.error).toHaveBeenCalledWith(
       expect.anything(),
@@ -207,7 +207,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     expect(mocks.error).toHaveBeenCalledWith(
       expect.anything(),
@@ -228,7 +228,7 @@ describe('auth-change-password', () => {
     const env = { CACHE: {} };
     const authUser = makeAuthUser('user-123');
 
-    await handleChangePassword(req, env, db, authUser);
+    await handleChangePassword({ req, env, db, authUser });
 
     const bumpCallOrder = mocks.bumpSessionVersion.mock.invocationCallOrder[0];
     const runCallOrder = db.run.mock.invocationCallOrder[0];

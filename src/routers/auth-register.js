@@ -157,7 +157,7 @@ async function createRegisteredUser({
   return user;
 }
 
-export async function handleRegister(req, env, db, users, jwtSecret, logger, sharedFns) {
+export async function handleRegister({ req, env, db, users, jwtSecret, logger, sharedFns }) {
   const { ensureUserRoleBinding, createAccessToken } = sharedFns;
 
   let body;

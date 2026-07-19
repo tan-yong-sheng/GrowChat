@@ -118,21 +118,30 @@ export function parseConnectionHeaders(body, existingConnection) {
   return { value: existingConnection?.headers || {} };
 }
 
-// builder receives (body, existingConnection, providerType, baseUrl, headers)
-export function buildTestConnection(body, existingConnection, providerType, baseUrl, headers) {
-  const resolvedKey = String(body.key || existingConnection?.key || '').trim();
-  const resolvedAuth = String(body.auth_type || body.authType || existingConnection?.authType || '')
-    .trim()
-    .toLowerCase();
-  const resolvedHeaders = Object.keys(headers).length ? headers : existingConnection?.headers || {};
+// builder receives { body, existingConnection, providerType, baseUrl, headers }
+export function buildTestConnection({ body, existingConnection, providerType, baseUrl, headers }) {
   return {
     providerType,
     providerFamily: providerType,
     baseUrl,
-    key: resolvedKey,
-    headers: resolvedHeaders,
-    authType: resolvedAuth,
+    key: resolveTestKey(body, existingConnection),
+    headers: resolveTestHeaders(headers, existingConnection),
+    authType: resolveTestAuth(body, existingConnection),
   };
+}
+
+function resolveTestKey(body, existingConnection) {
+  return String(body.key || existingConnection?.key || '').trim();
+}
+
+function resolveTestAuth(body, existingConnection) {
+  return String(body.auth_type || body.authType || existingConnection?.authType || '')
+    .trim()
+    .toLowerCase();
+}
+
+function resolveTestHeaders(headers, existingConnection) {
+  return Object.keys(headers).length ? headers : existingConnection?.headers || {};
 }
 
 function getFirstDefinedId(item) {

@@ -94,7 +94,7 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   });
 }
 
-export async function handleResetPassword(req, env, db) {
+export async function handleResetPassword({ req, env, db }) {
   let body;
   try {
     body = await req.json();
