@@ -3,27 +3,21 @@
  * and model loading/refreshing for the connection create/edit modal.
  */
 
-import { apiFetch } from '../../../shared/api.js';
+import { renderModalModels } from './connections-modal-form-render-models.js';
 import {
-  normalizeConnectionManualModels,
-  normalizeModelRecord,
-  formatConnectionModelId,
-  getConnectionProviderId,
   providerDisplayLabel,
   providerUrlPlaceholder,
   isCompatibleProviderType,
   resolveUrlLabel,
   resolveKeyLabel,
-  cloneModelSelection,
-  inflateManualConnectionModels,
 } from './connections-helpers.js';
-import { buildTestableConnectionPayload } from '../../../shared/utils/connection-helpers.js';
+import { updateApiTypeDisplay } from './connections-helpers-modal-models.js';
 import {
-  updateApiTypeDisplay,
-  previewConnectionModalModels,
-} from './connections-helpers-modal-models.js';
-import { normalizeConnectionModelSelectionMode } from '../../../shared/utils/connection-model-selection.js';
-import { renderModalModels } from './connections-modal-form-render-models.js';
+  addManualModalModel as addManualModalModelOp,
+  removeManualModalModel as removeManualModalModelOp,
+  loadModalModels as loadModalModelsOp,
+  refreshModalModels as refreshModalModelsOp,
+} from './connections-modal-form-ops.js';
 
 function queryConnectionModalRefs(scope) {
   return {
@@ -139,6 +133,16 @@ function applyModalButtons(refs, isReadOnlyConnection, modalMode) {
   toggleElementClass(refs.testMessage, 'hidden', isReadOnlyConnection);
 }
 
+function updateModalSaveButtonInternal(connectionsState, scope) {
+  const btn = scope.querySelector('#save-modal');
+  if (!btn) return;
+  const saving = connectionsState.modalSaving;
+  btn.disabled = saving;
+  btn.textContent = saving ? 'Saving...' : 'Save';
+  btn.classList.toggle('opacity-60', saving);
+  btn.classList.toggle('cursor-not-allowed', saving);
+}
+
 export function createConnectionsModalForm(deps) {
   const { container, connectionsState, setTestStatus } = deps;
 
@@ -160,315 +164,14 @@ export function createConnectionsModalForm(deps) {
     setTestStatus('idle', '', scope);
   };
 
-  function getModalConnection(scope, connectionsState) {
-    const connection = connectionsState.selectedConnection;
-    if (!connection?.id || connection?.readOnly) return null;
-    return connection;
-  }
-
-  function getModelInputValue(scope) {
-    const input = scope.querySelector('#modal-manual-model-id');
-    if (!input) return null;
-    const raw = String(input.value || '').trim();
-    const safe = raw.replace(/^models\//i, '');
-    if (!safe) return null;
-    return { input, safe };
-  }
-
-  function resolveModelFullId(connection, safe) {
-    const providerId = getConnectionProviderId(connection);
-    const fullId = formatConnectionModelId(providerId, safe);
-    if (!fullId) return null;
-    return fullId;
-  }
-
-  function upsertModalModel(nextModels, manualRecord, fullId, safe) {
-    const existingIndex = nextModels.findIndex((model) => model.id === fullId);
-    if (existingIndex === -1) {
-      nextModels.push(manualRecord);
-    } else {
-      nextModels[existingIndex] = {
-        ...nextModels[existingIndex],
-        ...manualRecord,
-        manual: true,
-        manualModelId: safe,
-      };
-    }
-    return nextModels;
-  }
-
-  function addModelToManualModels(connection, safe) {
-    const nextManualModels = normalizeConnectionManualModels(connection.manualModels);
-    if (!nextManualModels.some((model) => model.modelId === safe)) {
-      nextManualModels.push({ modelId: safe, name: safe });
-    }
-    return nextManualModels;
-  }
-
-  function clearDeletedModelTombstones(state, safe, fullId) {
-    if (!Array.isArray(state.deletedManualModelIds)) return [];
-    return state.deletedManualModelIds.filter((id) => id !== safe && id !== fullId);
-  }
-
-  function parseConnectionTestError(responsePayload) {
-    return (
-      responsePayload.details?.message ||
-      responsePayload.message ||
-      responsePayload.error ||
-      'Connection failed'
-    );
-  }
-
-  function getRefreshModelStatusMessage(responsePayload) {
-    const count = Array.isArray(responsePayload.models) ? responsePayload.models.length : 0;
-    return count > 0 ? `Connection successful. ${count} models loaded.` : 'Connection successful.';
-  }
-
-  function resetModalModelsState(connectionsState) {
-    connectionsState.modalModels = [];
-    connectionsState.modalModelsSelection = new Set();
-    connectionsState.modalModelsOriginal = new Set();
-  }
-
-  function mergeRefreshedManualModels(connectionsState, responsePayload) {
-    const existingManualModels = connectionsState.selectedConnection
-      ? inflateManualConnectionModels(connectionsState.selectedConnection).filter(
-          (model) =>
-            !Array.isArray(connectionsState.deletedManualModelIds) ||
-            !connectionsState.deletedManualModelIds.includes(model.manualModelId)
-        )
-      : [];
-    if (existingManualModels.length > 0) {
-      const merged = new Map(
-        (connectionsState.modalModels || []).map((model) => [model.id, model])
-      );
-      existingManualModels.forEach((model) => {
-        if (!merged.has(model.id)) {
-          merged.set(model.id, model);
-          connectionsState.modalModelsSelection.add(model.id);
-          connectionsState.modalModelsOriginal.add(model.id);
-        }
-      });
-      connectionsState.modalModels = Array.from(merged.values());
-    }
-  }
-
-  const addManualModalModel = (scope = container) => {
-    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
-    const connection = getModalConnection(scope, connectionsState);
-    if (!connection) return;
-    const modelInput = getModelInputValue(scope);
-    if (!modelInput) {
-      setTestStatus('error', 'Model name is required', modalRoot);
-      return;
-    }
-    const { input, safe } = modelInput;
-    const fullId = resolveModelFullId(connection, safe);
-    if (!fullId) {
-      setTestStatus('error', 'Model name is required', modalRoot);
-      return;
-    }
-    const nextModels = Array.isArray(connectionsState.modalModels)
-      ? [...connectionsState.modalModels]
-      : [];
-    const manualRecord = normalizeModelRecord({
-      id: fullId,
-      name: safe,
-      manual: true,
-      manualModelId: safe,
-    });
-    upsertModalModel(nextModels, manualRecord, fullId, safe);
-    addModelToManualModels(connection, safe);
-    connectionsState.modalModelsError = null;
-    connectionsState.modalModelsLoading = false;
-    // Note: we intentionally do NOT mutate connection.manualModels here. The
-    // modal-local modalModels + modalModelsSelection drives the save payload
-    // (buildSelectedConnectionModels), so writing to the live connection is
-    // unnecessary. Mutating it would also break the cancel/refresh-resurrects
-    // invariant: if the user cancels, the in-memory connection would still
-    // carry the new model even though nothing was persisted.
-    connectionsState.modalModels = nextModels;
-    connectionsState.modalModelsSelection = new Set(connectionsState.modalModelsSelection || []);
-    connectionsState.modalModelsSelection.add(fullId);
-    connectionsState.modalModelsOriginal = new Set(connectionsState.modalModelsOriginal || []);
-    connectionsState.modalModelsOriginal.add(fullId);
-    // Clear any tombstone from a previous remove of the same model so the
-    // re-add isn't silently filtered out by buildSelectedConnectionModels().
-    connectionsState.deletedManualModelIds = clearDeletedModelTombstones(
-      connectionsState,
-      safe,
-      fullId
-    );
-    input.value = '';
-    renderModalModels(connectionsState, modalRoot);
-  };
-
-  function findRemoveableManualModel(connectionsState, modelId) {
-    if (!connectionsState.selectedConnection?.id || connectionsState.selectedConnection?.readOnly)
-      return null;
-    const models = Array.isArray(connectionsState.modalModels) ? connectionsState.modalModels : [];
-    const target = models.find((m) => m.id === modelId);
-    if (!target || !target.manual) return null;
-    return target;
-  }
-
-  const removeManualModalModel = (modelId, scope = container) => {
-    const target = findRemoveableManualModel(connectionsState, modelId);
-    if (!target) return;
-    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
-    const deletedModelId = target.manualModelId || modelId;
-    connectionsState.modalModels = connectionsState.modalModels.filter((m) => m.id !== modelId);
-    if (connectionsState.modalModelsSelection instanceof Set) {
-      connectionsState.modalModelsSelection.delete(modelId);
-    }
-    if (connectionsState.modalModelsOriginal instanceof Set) {
-      connectionsState.modalModelsOriginal.delete(modelId);
-    }
-    if (!Array.isArray(connectionsState.deletedManualModelIds)) {
-      connectionsState.deletedManualModelIds = [];
-    }
-    connectionsState.deletedManualModelIds.push(deletedModelId);
-    // Note: we intentionally do NOT mutate connection.manualModels here.
-    // The modal-local modalModels + deletedManualModelIds drives the save
-    // payload (buildSelectedConnectionModels + the delete filter in the
-    // save handler), so writing to the live connection is unnecessary.
-    // Mutating it would also break the cancel/refresh-resurrects invariant:
-    // if the user cancels, the in-memory connection would still carry the
-    // deletion even though nothing was persisted, and the next open would
-    // show a stale model list. refreshModalModels() filters the seeded
-    // manual models against deletedManualModelIds to keep the deleted
-    // model from resurrecting after a Test/Verify.
-    renderModalModels(connectionsState, modalRoot);
-  };
-
-  function parseModelFetchError(err) {
-    return err.details?.message || err.message || err.error || 'Failed to load models';
-  }
-
-  function inferConnectionModelMode(connection, seedSelection) {
-    const rawMode = connection?.manualModelsMode || connection?.manual_models_mode;
-    return (
-      normalizeConnectionModelSelectionMode(rawMode) || (seedSelection.size > 0 ? 'some' : 'all')
-    );
-  }
-
-  function initializeModalState(connectionsState, connection, connectionId, scope) {
-    const seedModels = inflateManualConnectionModels(connection);
-    const seedSelection = new Set(seedModels.map((model) => model.id));
-    const inferredMode = inferConnectionModelMode(connection, seedSelection);
-    connectionsState.modalModelsLoading = true;
-    connectionsState.modalModelsError = null;
-    connectionsState.modalModelsConnectionId = connectionId;
-    connectionsState.modalModels = seedModels;
-    connectionsState.modalModelsSelection = seedSelection;
-    connectionsState.modalModelsOriginal = cloneModelSelection(seedSelection);
-    renderModalModels(connectionsState, scope);
-    return { seedModels, seedSelection, inferredMode };
-  }
-
-  function clearModalModelsState(connectionsState, scope) {
-    connectionsState.modalModels = [];
-    connectionsState.modalModelsSelection = new Set();
-    connectionsState.modalModelsOriginal = new Set();
-    connectionsState.modalModelsQuery = '';
-    connectionsState.modalModelsConnectionId = null;
-    connectionsState.modalModelsError = null;
-    connectionsState.modalModelsLoading = false;
-    renderModalModels(connectionsState, scope);
-  }
-
-  const loadModalModels = async (connection, scope = container) => {
-    const connectionId = String(connection?.id || '').trim();
-    if (!connectionId) {
-      clearModalModelsState(connectionsState, scope);
-      return;
-    }
-    const { seedModels, seedSelection, inferredMode } = initializeModalState(
-      connectionsState,
-      connection,
-      connectionId,
-      scope
-    );
-    try {
-      const res = await apiFetch('/api/admin/models?limit=0&offset=0&include_disabled=1');
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(parseModelFetchError(err));
-      }
-      const payload = await res.json();
-      const allModels = Array.isArray(payload?.models) ? payload.models : [];
-      const preview = previewConnectionModalModels(seedModels, seedSelection, allModels, {
-        ...connection,
-        manualModelsMode: inferredMode,
-      });
-      connectionsState.modalModels = preview.models;
-      connectionsState.modalModelsSelection = preview.selection;
-      connectionsState.modalModelsOriginal = preview.original;
-    } catch (err) {
-      connectionsState.modalModelsError = parseModelFetchError(err);
-    } finally {
-      connectionsState.modalModelsLoading = false;
-      renderModalModels(connectionsState, scope);
-    }
-  };
-
-  const refreshModalModels = async (scope = container) => {
-    const testable = buildTestableConnectionPayload(scope, connectionsState.selectedConnection);
-    if (!testable) {
-      setTestStatus('error', 'URL is required for compatible providers', scope);
-      return;
-    }
-    const { modalRoot, payload } = testable;
-    connectionsState.modalModelsLoading = true;
-    connectionsState.modalModelsError = null;
-    renderModalModels(connectionsState, modalRoot);
-    setTestStatus('testing', 'Verifying connection and loading models...', modalRoot);
-    try {
-      const res = await apiFetch('/api/admin/openai/connections/test', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const responsePayload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(parseConnectionTestError(responsePayload));
-      }
-      if (Array.isArray(responsePayload.models)) {
-        const preview = previewConnectionModalModels(
-          connectionsState.modalModels,
-          connectionsState.modalModelsSelection,
-          responsePayload.models,
-          connectionsState.selectedConnection
-        );
-        connectionsState.modalModels = preview.models;
-        connectionsState.modalModelsSelection = preview.selection;
-        connectionsState.modalModelsOriginal = preview.original;
-        renderModalModels(connectionsState, modalRoot);
-        mergeRefreshedManualModels(connectionsState, responsePayload);
-      } else {
-        resetModalModelsState(connectionsState);
-      }
-      setTestStatus('success', getRefreshModelStatusMessage(responsePayload), modalRoot);
-      renderModalModels(connectionsState, modalRoot);
-    } catch (err) {
-      resetModalModelsState(connectionsState);
-      connectionsState.modalModelsError = err.message || 'Failed to load models';
-      renderModalModels(connectionsState, modalRoot);
-      setTestStatus('error', err.message || 'Connection failed', modalRoot);
-    } finally {
-      connectionsState.modalModelsLoading = false;
-      renderModalModels(connectionsState, modalRoot);
-    }
-  };
-
-  const updateModalSaveButton = (scope = container) => {
-    const btn = scope.querySelector('#save-modal');
-    if (!btn) return;
-    const saving = connectionsState.modalSaving;
-    btn.disabled = saving;
-    btn.textContent = saving ? 'Saving...' : 'Save';
-    btn.classList.toggle('opacity-60', saving);
-    btn.classList.toggle('cursor-not-allowed', saving);
-  };
+  const addManualModalModel = (scope = container) => addManualModalModelOp(deps, scope);
+  const removeManualModalModel = (modelId, scope = container) =>
+    removeManualModalModelOp(deps, modelId, scope);
+  const loadModalModels = (connection, scope = container) =>
+    loadModalModelsOp(deps, connection, scope);
+  const refreshModalModels = (scope = container) => refreshModalModelsOp(deps, scope);
+  const updateModalSaveButton = (scope = container) =>
+    updateModalSaveButtonInternal(connectionsState, scope);
 
   return {
     fillModalFields,
