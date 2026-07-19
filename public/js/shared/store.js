@@ -5,6 +5,9 @@ import {
   writeStoredString,
 } from './utils/storage.js';
 
+const TABLET_BREAKPOINT_PX = 768;
+const DEFAULT_SIDEBAR_WIDTH_PX = 260;
+
 export const state = {
   // App Core
   chats: [],
@@ -27,10 +30,12 @@ export const state = {
   toolServersLoaded: false,
 
   // UI Layout
-  showSidebar: window.innerWidth >= 768,
+  showSidebar: window.innerWidth >= TABLET_BREAKPOINT_PX,
   sidebarCollapsed: readStoredString(localStorage, 'sidebarCollapsed', 'false') === 'true',
-  sidebarWidth: Number.parseInt(readStoredString(localStorage, 'sidebarWidth', ''), 10) || 260,
-  isMobile: window.innerWidth < 768,
+  sidebarWidth:
+    Number.parseInt(readStoredString(localStorage, 'sidebarWidth', ''), 10) ||
+    DEFAULT_SIDEBAR_WIDTH_PX,
+  isMobile: window.innerWidth < TABLET_BREAKPOINT_PX,
 
   // Search Modal State
   showSearch: false,
@@ -203,7 +208,7 @@ function notifyListeners() {
 }
 
 window.addEventListener('resize', () => {
-  const isMobile = window.innerWidth < 768;
+  const isMobile = window.innerWidth < TABLET_BREAKPOINT_PX;
   if (state.isMobile !== isMobile) {
     setState({
       isMobile,
