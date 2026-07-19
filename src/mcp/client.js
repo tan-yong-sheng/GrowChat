@@ -1,6 +1,21 @@
 const MCP_PROTOCOL_VERSION = '2025-11-25';
-const MCP_RETRY_STATUSES = new Set([429, 500, 503, 504]);
+const SSE_DATA_PREFIX = 'data:';
+const SSE_DATA_PREFIX_LENGTH = SSE_DATA_PREFIX.length;
+const HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
+const HTTP_STATUS_SERVICE_UNAVAILABLE = 503;
+const HTTP_STATUS_GATEWAY_TIMEOUT = 504;
+const HTTP_STATUS_ACCEPTED = 202;
+const HTTP_STATUS_NO_CONTENT = 204;
+const MCP_RETRY_STATUSES = new Set([
+  HTTP_STATUS_TOO_MANY_REQUESTS,
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_SERVICE_UNAVAILABLE,
+  HTTP_STATUS_GATEWAY_TIMEOUT,
+]);
 const MCP_MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 500;
+const RETRY_JITTER_MAX_MS = 250;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export { MCP_PROTOCOL_VERSION };
@@ -26,8 +41,8 @@ export function parseSseMessages(body) {
       .filter(Boolean);
     let data = '';
     for (const line of lines) {
-      if (line.startsWith('data:')) {
-        data += line.slice(5).trim();
+      if (line.startsWith(SSE_DATA_PREFIX)) {
+        data += line.slice(SSE_DATA_PREFIX_LENGTH).trim();
       }
     }
     if (!data) continue;
@@ -58,8 +73,8 @@ export async function mcpFetchWithRetry({ url, headers, sessionId, body }) {
     const baseDelay =
       Number.isFinite(retryAfter) && retryAfter > 0
         ? retryAfter * 1000
-        : 500 * Math.pow(2, attempt - 1);
-    const jitter = Math.floor(Math.random() * 250);
+        : RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+    const jitter = Math.floor(Math.random() * RETRY_JITTER_MAX_MS);
     await sleep(baseDelay + jitter);
   }
 }
@@ -108,7 +123,7 @@ function handleMcpResponseByContentType(response, id, nextSessionId) {
 }
 
 function handleMcpResponse(response, id, nextSessionId) {
-  if (response.status === 202) {
+  if (response.status === HTTP_STATUS_ACCEPTED) {
     return { result: null, sessionId: nextSessionId };
   }
   if (!response.ok) {
@@ -146,7 +161,7 @@ export async function mcpNotify({ url, headers, sessionId, method, params }) {
     }),
   });
   const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
-  if (response.status === 202 || response.status === 204) {
+  if (response.status === HTTP_STATUS_ACCEPTED || response.status === HTTP_STATUS_NO_CONTENT) {
     return { sessionId: nextSessionId };
   }
   if (!response.ok) {
