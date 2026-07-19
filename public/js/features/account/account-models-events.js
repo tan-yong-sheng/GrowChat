@@ -1,10 +1,7 @@
 /**
  * Event binding for the account models section.
  */
-import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { buildProviderOptions } from '../../shared/utils/model-filters.js';
-import { renderModelRow } from './account-models-helpers.js';
-import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
 import {
   initModelsSearchGuard,
