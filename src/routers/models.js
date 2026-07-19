@@ -36,7 +36,7 @@ export async function modelsRouter({
 
   // Delegate to domain-specific sub-handlers.
   const handlers = [
-    () => handlePublicModelsList(req, env, ctx, user, path, deps),
+    () => handlePublicModelsList({ req, env, ctx, user, path, deps }),
     () => handlePublicModelsCrud(req, env, ctx, user, path, deps),
     () => handleAdminModelsAccess(req, env, ctx, user, path, deps),
     () => handleAdminModelsSettings(req, env, ctx, user, path, deps),

@@ -4,7 +4,6 @@
 import { jsonCached, createWeakEtag, error } from '../../utils/response.js';
 import { createDB } from '../../db.js';
 import { getConfigBool } from '../../utils/app-config.js';
-import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../llm/model-state.js';
 import { loadUserResourceOverrides } from '../../../public/js/shared/utils/user-resource-overrides.js';
 import {
@@ -15,9 +14,7 @@ import {
   parseModelListSearchParams,
 } from './models-helpers.js';
 import {
-  fetchBaseModelsFromOpenAI,
   loadModels,
-  loadCustomModels,
   toPublicModel,
   splitModelScopeByUserVisibility,
   isOpenAIProvider,
@@ -31,6 +28,12 @@ import {
 } from '../../utils/model-acl.js';
 
 const TRUE_STRINGS = ['1', 'true', 'yes'];
+const HTTP_INTERNAL_ERROR = 500;
+const PUBLIC_MODELS_PATH = '/api/models';
+const EFFECTIVE_SCOPE = 'effective';
+const GLOBAL_SCOPE = 'global';
+const PUBLIC_SCOPE = 'public';
+const MEMBER_ROLE = 'member';
 
 function parseScopeParam(searchParams) {
   return String(searchParams.get('scope') || '')
@@ -80,7 +83,7 @@ function buildConnectionLoadOptions(user, effectiveUserGroupIds) {
   return {
     includeHiddenForUser: true,
     userId: user?.sub || '',
-    userRole: user?.primary_role || 'member',
+    userRole: user?.primary_role || MEMBER_ROLE,
     userGroupIds: effectiveUserGroupIds ? Array.from(effectiveUserGroupIds) : undefined,
   };
 }
@@ -95,7 +98,14 @@ function filterModelsByQuery(models, query) {
   return models.filter((model) => matchesModelQuery(model, query));
 }
 
-async function loadAndFilterModels(env, logger, user, openaiEnabled, effectiveUserGroupIds, query) {
+async function loadAndFilterModels({
+  env,
+  logger,
+  user,
+  openaiEnabled,
+  effectiveUserGroupIds,
+  query,
+}) {
   const { baseModels, customModels } = await loadModels(
     env,
     logger,
@@ -149,14 +159,14 @@ function attachAttachmentCaps(models, attachmentCaps) {
   }));
 }
 
-function buildEffectiveEtag(limit, offset, total, visibleModels, hiddenModelIds) {
+function buildEffectiveEtag({ limit, offset, total, visibleModels, hiddenModelIds }) {
   const tagSource = `effective|${limit}|${offset}|${total}|${visibleModels.map((model) => model.id).join('|')}`;
   const visibilityTag = `|${Array.from(hiddenModelIds).join(',')}`;
   return createWeakEtag(`${tagSource}|${visibilityTag}`);
 }
 
-function buildPublicEtag(scope, limit, offset, total, paginatedModels, visibility) {
-  const tagSource = `${scope === 'global' ? 'global' : 'public'}|${limit}|${offset}|${total}|${paginatedModels.map((model) => model.id).join('|')}`;
+function buildPublicEtag({ scope, limit, offset, total, paginatedModels, visibility }) {
+  const tagSource = `${scope === GLOBAL_SCOPE ? GLOBAL_SCOPE : PUBLIC_SCOPE}|${limit}|${offset}|${total}|${paginatedModels.map((model) => model.id).join('|')}`;
   const visibilityTag = `${visibility.disabled_model_ids.join(',')}|${visibility.hidden_model_ids.join(',')}`;
   return createWeakEtag(`${tagSource}|${visibilityTag}`);
 }
@@ -189,7 +199,13 @@ async function buildEffectiveScopeResponse(ctx) {
   const attachmentCaps = await loadModelAttachmentCaps(db);
   const visibleWithCaps = attachAttachmentCaps(paginatedModels, attachmentCaps);
   const hiddenWithCaps = attachAttachmentCaps(hiddenModels, attachmentCaps);
-  const etag = buildEffectiveEtag(limit, offset, total, visibleWithCaps, hiddenModelIds);
+  const etag = buildEffectiveEtag({
+    limit,
+    offset,
+    total,
+    visibleModels: visibleWithCaps,
+    hiddenModelIds,
+  });
 
   return jsonCached(
     ctx.req,
@@ -238,7 +254,14 @@ async function buildPublicScopeResponse(ctx) {
     paginatedModels = attachAttachmentCaps(paginatedModels, attachmentCaps);
   }
 
-  const etag = buildPublicEtag(scope, limit, offset, total, paginatedModels, visibility);
+  const etag = buildPublicEtag({
+    scope,
+    limit,
+    offset,
+    total,
+    paginatedModels,
+    visibility,
+  });
   return jsonCached(
     ctx.req,
     {
@@ -257,43 +280,35 @@ async function buildPublicScopeResponse(ctx) {
  * Handle handlePublicModelsList routes.
  * Returns Response if handled, null if path doesn't match.
  */
-export async function handlePublicModelsList(
-  req,
-  env,
-  ctx,
-  user,
-  path,
-  { _db, logger, _requestContext }
-) {
-  if (req.method !== 'GET' || path !== '/api/models') {
+async function executePublicModelsList({ req, env, user, params, logger }) {
+  const { db, openaiEnabled } = await resolveDbAndOpenAI(env, logger);
+  const effectiveUserGroupIds = await resolveEffectiveUserGroupIds(db, user, params.scope, logger);
+  const publicModels = await loadAndFilterModels({
+    env,
+    logger,
+    user,
+    openaiEnabled,
+    effectiveUserGroupIds,
+    query: params.query,
+  });
+  const effectiveCtx = { req, db, logger, user, ...params, publicModels, effectiveUserGroupIds };
+  if (db && params.scope === EFFECTIVE_SCOPE && user?.sub) {
+    return buildEffectiveScopeResponse(effectiveCtx);
+  }
+  return buildPublicScopeResponse(effectiveCtx);
+}
+
+export async function handlePublicModelsList({ req, env, _ctx, user, path, deps = {} }) {
+  if (req.method !== 'GET' || path !== PUBLIC_MODELS_PATH) {
     return null;
   }
+  const { logger } = deps;
 
   try {
     const params = parseRequestParams(req);
-    const { db, openaiEnabled } = await resolveDbAndOpenAI(env, logger);
-    const effectiveUserGroupIds = await resolveEffectiveUserGroupIds(
-      db,
-      user,
-      params.scope,
-      logger
-    );
-    const publicModels = await loadAndFilterModels(
-      env,
-      logger,
-      user,
-      openaiEnabled,
-      effectiveUserGroupIds,
-      params.query
-    );
-
-    const ctx = { req, db, logger, user, ...params, publicModels, effectiveUserGroupIds };
-    if (db && params.scope === 'effective' && user?.sub) {
-      return buildEffectiveScopeResponse(ctx);
-    }
-    return buildPublicScopeResponse(ctx);
+    return await executePublicModelsList({ req, env, user, params, logger });
   } catch (err) {
     logger.error('Unexpected error listing models', { error: err?.message || err });
-    return error(req, 'Failed to list models', 500);
+    return error(req, 'Failed to list models', HTTP_INTERNAL_ERROR);
   }
 }
