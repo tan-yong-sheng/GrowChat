@@ -1,4 +1,4 @@
-import { normalizeServer } from '../../utils/servers.js';
+import { normalizeServer } from './account-integrations-helpers.js';
 
 // Source order matches original behavior: id/headers skip 'payload'; name/url use
 // saved → payload → existing; auth fields use saved → payload → existing.

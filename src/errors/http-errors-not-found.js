@@ -1,5 +1,5 @@
 import { HTTP_STATUS } from '../shared/http-status.js';
-import { HttpError } from './http-errors.js';
+import { HttpError } from './http-error-base.js';
 
 export class NotFoundError extends HttpError {
   constructor(message = 'Not found', details = null) {

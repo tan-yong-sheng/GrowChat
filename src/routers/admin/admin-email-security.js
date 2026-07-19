@@ -13,11 +13,18 @@ const STATUS_CODE_MAP = {
   not_found: 404,
 };
 
+const HTTP_STATUS_FORBIDDEN = 403;
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_SERVER_ERROR = 500;
+const SECONDS_PER_DAY = 86400;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
+
 function resolveAccessStatusCode(code) {
-  return STATUS_CODE_MAP[code] || 403;
+  return STATUS_CODE_MAP[code] || HTTP_STATUS_FORBIDDEN;
 }
 
-async function handleGetEmailConfig(req, _env, _ctx, _user, _path, { db, logger }) {
+async function handleGetEmailConfig({ req, db, logger }) {
   try {
     const resendApiKeyConfigured = await getConfigValue(db, 'resend_api_key', null);
     return json(req, {
@@ -26,7 +33,7 @@ async function handleGetEmailConfig(req, _env, _ctx, _user, _path, { db, logger 
     });
   } catch (err) {
     logger.error('Email config fetch failed', { error: err?.message || err });
-    return error(req, 'Failed to fetch email config', 500);
+    return error(req, 'Failed to fetch email config', HTTP_STATUS_SERVER_ERROR);
   }
 }
 
@@ -54,16 +61,16 @@ async function checkWriteAccess(env, user, req) {
 
 function validateApiKey(body, req) {
   if (!body.resend_api_key) {
-    return error(req, 'resend_api_key is required', 400);
+    return error(req, 'resend_api_key is required', HTTP_STATUS_BAD_REQUEST);
   }
   const apiKey = String(body.resend_api_key).trim();
   if (!apiKey) {
-    return error(req, 'resend_api_key cannot be empty', 400);
+    return error(req, 'resend_api_key cannot be empty', HTTP_STATUS_BAD_REQUEST);
   }
   return null;
 }
 
-async function saveApiKey(db, apiKey, env, user, logger, req) {
+async function saveApiKey({ db, apiKey, env, user, logger, req }) {
   try {
     await setConfigValue(db, 'resend_api_key', apiKey);
     await logAuditEvent(
@@ -79,14 +86,14 @@ async function saveApiKey(db, apiKey, env, user, logger, req) {
     return json(req, { message: 'Email configuration updated' });
   } catch (err) {
     logger.error('Email config update failed', { error: err?.message || err });
-    return error(req, 'Failed to update email config', 500);
+    return error(req, 'Failed to update email config', HTTP_STATUS_SERVER_ERROR);
   }
 }
 
-async function handlePutEmailConfig(req, env, ctx, user, path, deps) {
+async function handlePutEmailConfig({ req, env, user, deps }) {
   const { db, logger } = deps;
   const body = await parseJsonBody(req);
-  if (!body) return error(req, 'Invalid JSON body', 400);
+  if (!body) return error(req, 'Invalid JSON body', HTTP_STATUS_BAD_REQUEST);
 
   const accessError = await checkWriteAccess(env, user, req);
   if (accessError) return accessError;
@@ -95,7 +102,7 @@ async function handlePutEmailConfig(req, env, ctx, user, path, deps) {
   if (validationError) return validationError;
 
   const apiKey = String(body.resend_api_key).trim();
-  return saveApiKey(db, apiKey, env, user, logger, req);
+  return saveApiKey({ db, apiKey, env, user, logger, req });
 }
 
 function isValidEmailShape(email) {
@@ -128,28 +135,28 @@ async function sendTestEmailViaResend(testEmail, resendApiKey, logger) {
   return response;
 }
 
-async function handlePostEmailConfigTest(req, env, ctx, user, path, deps) {
+async function handlePostEmailConfigTest({ req, env, user, deps }) {
   const { db, logger } = deps;
   const body = await parseJsonBody(req);
-  if (!body) return error(req, 'Invalid JSON body', 400);
+  if (!body) return error(req, 'Invalid JSON body', HTTP_STATUS_BAD_REQUEST);
 
   if (!body.email) {
-    return error(req, 'email is required', 400);
+    return error(req, 'email is required', HTTP_STATUS_BAD_REQUEST);
   }
   const testEmail = String(body.email).trim().toLowerCase();
   if (!isValidEmailShape(testEmail)) {
-    return error(req, 'Invalid email address', 400);
+    return error(req, 'Invalid email address', HTTP_STATUS_BAD_REQUEST);
   }
 
   try {
     const resendApiKey = await getConfigValue(db, 'resend_api_key', null);
     if (!resendApiKey) {
-      return error(req, 'Resend API key not configured', 400);
+      return error(req, 'Resend API key not configured', HTTP_STATUS_BAD_REQUEST);
     }
 
     const response = await sendTestEmailViaResend(testEmail, resendApiKey, logger);
     if (!response) {
-      return error(req, 'Failed to send test email', 400);
+      return error(req, 'Failed to send test email', HTTP_STATUS_BAD_REQUEST);
     }
 
     await logAuditEvent(
@@ -166,24 +173,24 @@ async function handlePostEmailConfigTest(req, env, ctx, user, path, deps) {
     return json(req, { message: 'Test email sent' });
   } catch (err) {
     logger.error('Email test failed', { error: err?.message || err });
-    return error(req, 'Failed to send test email', 500);
+    return error(req, 'Failed to send test email', HTTP_STATUS_SERVER_ERROR);
   }
 }
 
 function formatTTL(seconds) {
-  if (seconds >= 86400) {
-    const days = Math.round(seconds / 86400);
+  if (seconds >= SECONDS_PER_DAY) {
+    const days = Math.round(seconds / SECONDS_PER_DAY);
     return `${days} day${days !== 1 ? 's' : ''}`;
   }
-  if (seconds >= 3600) {
-    const hours = Math.round(seconds / 3600);
+  if (seconds >= SECONDS_PER_HOUR) {
+    const hours = Math.round(seconds / SECONDS_PER_HOUR);
     return `${hours} hour${hours !== 1 ? 's' : ''}`;
   }
-  const minutes = Math.round(seconds / 60);
+  const minutes = Math.round(seconds / SECONDS_PER_MINUTE);
   return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
 }
 
-async function handleGetSecurityConfig(req, _env, _ctx, _user, _path, { db, logger }) {
+async function handleGetSecurityConfig({ req, logger }) {
   try {
     return json(req, {
       rate_limits: {
@@ -201,7 +208,7 @@ async function handleGetSecurityConfig(req, _env, _ctx, _user, _path, { db, logg
     });
   } catch (err) {
     logger.error('Security config fetch failed', { error: err?.message || err });
-    return error(req, 'Failed to fetch security config', 500);
+    return error(req, 'Failed to fetch security config', HTTP_STATUS_SERVER_ERROR);
   }
 }
 
@@ -209,18 +216,18 @@ async function handleGetSecurityConfig(req, _env, _ctx, _user, _path, { db, logg
  * Handle handleAdminEmailSecurity routes.
  * Returns Response if handled, null if path doesn't match.
  */
-export async function handleAdminEmailSecurity(req, env, ctx, user, path, deps) {
+export async function handleAdminEmailSecurity({ req, env, user, path, deps }) {
   if (req.method === 'GET' && path === '/api/admin/email-config') {
-    return handleGetEmailConfig(req, env, ctx, user, path, deps);
+    return handleGetEmailConfig({ req, db: deps.db, logger: deps.logger });
   }
   if (req.method === 'PUT' && path === '/api/admin/email-config') {
-    return handlePutEmailConfig(req, env, ctx, user, path, deps);
+    return handlePutEmailConfig({ req, env, user, deps });
   }
   if (req.method === 'POST' && path === '/api/admin/email-config/test') {
-    return handlePostEmailConfigTest(req, env, ctx, user, path, deps);
+    return handlePostEmailConfigTest({ req, env, user, deps });
   }
   if (req.method === 'GET' && path === '/api/admin/security-config') {
-    return handleGetSecurityConfig(req, env, ctx, user, path, deps);
+    return handleGetSecurityConfig({ req, logger: deps.logger });
   }
   return null;
 }

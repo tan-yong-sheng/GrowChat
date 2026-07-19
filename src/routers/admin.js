@@ -93,7 +93,7 @@ export async function adminRouter({
     () => handleAdminToolServersCrud(req, env, ctx, user, path, deps),
     () => handleAdminToolServersOAuth(req, env, ctx, user, path, deps),
     () => handleAdminConfig(req, env, ctx, user, path, deps),
-    () => handleAdminEmailSecurity(req, env, ctx, user, path, deps),
+    () => handleAdminEmailSecurity({ req, env, user, path, deps }),
   ];
 
   for (const handler of handlers) {
