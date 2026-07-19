@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { createRootLogger } from '../services/logger.js';
+import { createRootLogger } from '../utils/logger.js';
 
 import { normalizeUserConnectionRow, normalizeUserConnectionInput } from './connections-utils.js';
 
