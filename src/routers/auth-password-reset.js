@@ -11,72 +11,120 @@ import { bufferToHex } from '../utils/encoding.js';
 
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 const PASSWORD_RESET_TTL_DISPLAY = '1 hour';
+const HTTP_TOO_MANY_REQUESTS = 429;
+const RESET_TOKEN_BYTES = 32;
+const MIN_PASSWORD_LENGTH = 8;
 
-export async function handleForgotPassword(req, env, db, users, requestContext = {}) {
+export async function handleForgotPassword(opts) {
+  const { req, env, db, users, requestContext = {} } = opts ?? {};
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return error(req, 'Invalid JSON body', 400);
-  }
+  const emailResult = await parseForgotPasswordEmail(req);
+  if (emailResult.error) return emailResult.error;
 
-  let email;
-  try {
-    email = validateEmail(requireString(body.email, 'email is required').toLowerCase());
-  } catch (err) {
-    return handleValidationErrorCatch(err, req);
-  }
+  const rateLimit = await checkForgotRateLimit(env, req);
+  if (rateLimit.error) return rateLimit.error;
 
-  const forgotLimit = await checkRateLimit(env, {
-    action: 'auth-forgot-password',
-    subject: resolveRateLimitSubject(req),
-    ...RATE_LIMITS.authForgotPassword,
-  });
-  if (!forgotLimit.allowed) {
-    return error(req, 'Too many password reset requests', 429, {
-      retry_after: Math.ceil((forgotLimit.resetAt - Date.now()) / 1000),
-    });
-  }
+  const ack = () => forgotAcknowledgement(req);
 
   const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
   if (!origin) {
     logger.error('APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown');
-    return json(req, {
-      message: 'If an account exists with this email, a reset link has been sent.',
-    });
+    return ack();
   }
 
-  const user = await users.findByEmail(email);
-  if (!user) {
-    return json(req, {
-      message: 'If an account exists with this email, a reset link has been sent.',
-    });
+  const user = await users.findByEmail(emailResult.email);
+  if (!user) return ack();
+
+  const tokenHex = generateResetToken();
+  await persistResetToken(db, user.id, tokenHex);
+
+  await sendResetEmailSafely({ env, logger, user, origin, tokenHex });
+
+  return ack();
+}
+
+export async function handleResetPassword({ req, env, db }) {
+  const body = await parseResetPasswordBody(req);
+  if (body.error) return body.error;
+
+  if (body.password.length < MIN_PASSWORD_LENGTH) {
+    return error(req, 'Password must be at least 8 characters', 400);
   }
 
-  const resetToken = crypto.getRandomValues(new Uint8Array(32));
-  const resetTokenHex = bufferToHex(resetToken);
+  const rateLimit = await checkResetRateLimit(env, req);
+  if (rateLimit.error) return rateLimit.error;
 
-  const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(resetTokenHex));
-  const tokenHashHex = bufferToHex(tokenHash);
+  const resetRecord = await findActiveResetRecord(db, body.token);
+  if (!resetRecord) {
+    return error(req, 'Invalid or expired reset token', 400);
+  }
 
+  await bumpSessionVersion(env, resetRecord.user_id, { required: true });
+  const passwordHash = await hashPassword(body.password);
+  await applyPasswordReset(db, resetRecord.user_id, passwordHash);
+
+  return json(req, {
+    message: 'Password reset successful. Please log in with your new password.',
+  });
+}
+
+async function parseForgotPasswordEmail(req) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return { error: error(req, 'Invalid JSON body', 400) };
+  }
+  try {
+    const email = validateEmail(requireString(body.email, 'email is required').toLowerCase());
+    return { email };
+  } catch (err) {
+    return { error: handleValidationErrorCatch(err, req) };
+  }
+}
+
+async function checkForgotRateLimit(env, req) {
+  const limit = await checkRateLimit(env, {
+    action: 'auth-forgot-password',
+    subject: resolveRateLimitSubject(req),
+    ...RATE_LIMITS.authForgotPassword,
+  });
+  if (limit.allowed) return { ok: true };
+  return {
+    error: error(req, 'Too many password reset requests', HTTP_TOO_MANY_REQUESTS, {
+      retry_after: Math.ceil((limit.resetAt - Date.now()) / 1000),
+    }),
+  };
+}
+
+function forgotAcknowledgement(req) {
+  return json(req, {
+    message: 'If an account exists with this email, a reset link has been sent.',
+  });
+}
+
+function generateResetToken() {
+  return bufferToHex(crypto.getRandomValues(new Uint8Array(RESET_TOKEN_BYTES)));
+}
+
+async function persistResetToken(db, userId, tokenHex) {
+  const tokenHashHex = bufferToHex(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(tokenHex))
+  );
   const expiresAt = Math.floor(Date.now() / 1000) + PASSWORD_RESET_TTL_SECONDS;
-
   await db.run(
     `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, unixepoch())`,
-    [crypto.randomUUID(), user.id, tokenHashHex, expiresAt]
+    [crypto.randomUUID(), userId, tokenHashHex, expiresAt]
   );
+}
 
-  // Create the email service inside the try/catch so that missing
-  // RESEND_API_KEY returns the safe "If an account exists…" message
-  // instead of a 500 error.
+async function sendResetEmailSafely({ env, logger, user, origin, tokenHex }) {
   try {
     const emailService = createEmailService(env);
     const userNameEscaped = escapeHtml(user.name);
-
-    const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
+    const resetLink = `${origin}/auth/reset-password?token=${tokenHex}`;
     const emailHtml = buildPasswordResetEmailHtml(userNameEscaped, resetLink);
     const fromEmail = env.EMAIL_FROM || 'noreply@resend.dev';
     await emailService.send({
@@ -88,80 +136,58 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   } catch (err) {
     logger.error('Failed to send password reset email', { error: err?.message || err });
   }
-
-  return json(req, {
-    message: 'If an account exists with this email, a reset link has been sent.',
-  });
 }
 
-export async function handleResetPassword({ req, env, db }) {
+async function parseResetPasswordBody(req) {
   let body;
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', 400);
+    return { error: error(req, 'Invalid JSON body', 400) };
   }
-
-  let token;
-  let password;
   try {
-    token = requireString(body.token, 'token and password are required', { trim: false });
-    password = requireString(body.password, 'token and password are required', { trim: false });
+    const token = requireString(body.token, 'token and password are required', { trim: false });
+    const password = requireString(body.password, 'token and password are required', {
+      trim: false,
+    });
+    return { token, password };
   } catch (err) {
-    return handleValidationErrorCatch(err, req);
+    return { error: handleValidationErrorCatch(err, req) };
   }
+}
 
-  if (password.length < 8) {
-    return error(req, 'Password must be at least 8 characters', 400);
-  }
-
-  const resetLimit = await checkRateLimit(env, {
+async function checkResetRateLimit(env, req) {
+  const limit = await checkRateLimit(env, {
     action: 'auth-reset-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authResetPassword,
   });
-  if (!resetLimit.allowed) {
-    return error(req, 'Too many password reset attempts', 429, {
-      retry_after: Math.ceil((resetLimit.resetAt - Date.now()) / 1000),
-    });
-  }
+  if (limit.allowed) return { ok: true };
+  return {
+    error: error(req, 'Too many password reset attempts', HTTP_TOO_MANY_REQUESTS, {
+      retry_after: Math.ceil((limit.resetAt - Date.now()) / 1000),
+    }),
+  };
+}
 
-  const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
-  const tokenHashHex = bufferToHex(tokenHash);
-
-  const resetRecord = await db.first(
+async function findActiveResetRecord(db, token) {
+  const tokenHashHex = bufferToHex(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  );
+  return db.first(
     `SELECT user_id FROM password_reset_tokens WHERE token_hash = ? AND expires_at > unixepoch()`,
     [tokenHashHex]
   );
+}
 
-  if (!resetRecord) {
-    return error(req, 'Invalid or expired reset token', 400);
-  }
-
-  // Invalidate all KV-backed refresh tokens before mutating the password.
-  // consumeRefreshToken() checks session-version and rejects tokens with an
-  // older version, so this effectively revokes all existing sessions.
-  // This must succeed before any DB mutation so we don't burn the user's
-  // reset token on a transient KV failure.
-  await bumpSessionVersion(env, resetRecord.user_id, { required: true });
-
-  // Hash the password before any destructive DB writes so a crypto failure
-  // doesn't consume the user's reset token.
-  const passwordHash = await hashPassword(password);
-
-  // Batch the token deletion and password update so they succeed or fail
-  // together. This also closes the concurrent-reset-token reuse window.
+async function applyPasswordReset(db, userId, passwordHash) {
   await db.batch([
-    db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]),
+    db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [userId]),
     db.prepare(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`, [
       passwordHash,
-      resetRecord.user_id,
+      userId,
     ]),
   ]);
-
-  return json(req, {
-    message: 'Password reset successful. Please log in with your new password.',
-  });
 }
 
 function buildPasswordResetEmailHtml(userNameEscaped, resetLink) {
