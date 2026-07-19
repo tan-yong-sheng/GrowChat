@@ -110,7 +110,7 @@ export function setupWireChatFeatures(ctx, deps) {
   try {
     pinnedSectionCollapsed = localStorage.getItem(PINNED_COLLAPSED_KEY) === '1';
   } catch {
-    pinnedSectionCollapsed = false;
+    /* ignore */
   }
   const destroySidebar = renderSidebar(sidebar, ctx.root);
   const messageIdentityTracker = createChatMessageIdentityTracker({

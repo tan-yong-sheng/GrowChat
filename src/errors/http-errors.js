@@ -1,4 +1,5 @@
 import { HTTP_STATUS } from '../shared/http-status.js';
+
 export class HttpError extends Error {
   constructor(
     message,
@@ -11,30 +12,6 @@ export class HttpError extends Error {
     this.statusCode = statusCode;
     this.code = code;
     this.details = details;
-  }
-}
-
-export class ValidationError extends HttpError {
-  constructor(message, details = null) {
-    super(message, HTTP_STATUS.BAD_REQUEST, 'validation_error', details);
-  }
-}
-
-export class UnauthorizedError extends HttpError {
-  constructor(message = 'Unauthorized', details = null) {
-    super(message, HTTP_STATUS.UNAUTHORIZED, 'unauthorized', details);
-  }
-}
-
-export class ForbiddenError extends HttpError {
-  constructor(message = 'Forbidden', details = null) {
-    super(message, HTTP_STATUS.FORBIDDEN, 'forbidden', details);
-  }
-}
-
-export class NotFoundError extends HttpError {
-  constructor(message = 'Not found', details = null) {
-    super(message, HTTP_STATUS.NOT_FOUND, 'not_found', details);
   }
 }
 
@@ -62,3 +39,8 @@ export function toHttpErrorPayload(error) {
     },
   };
 }
+
+export { ValidationError } from './http-errors-validation.js';
+export { UnauthorizedError } from './http-errors-unauthorized.js';
+export { ForbiddenError } from './http-errors-forbidden.js';
+export { NotFoundError } from './http-errors-not-found.js';
