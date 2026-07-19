@@ -3,7 +3,6 @@ import { buildProviderOptions } from '../../shared/utils/model-filters.js';
 import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
-import { renderModelAccessBadgeForModel } from '../../shared/components/model-access-badge.js';
 import {
   renderModelsHeaderHtml,
   renderModelsPaginationHtml,
@@ -12,7 +11,6 @@ import {
   syncModelsPaginationState,
   syncModelsTableState,
 } from '../../shared/components/models-section.js';
-import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
 import {
@@ -205,12 +203,6 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
     bindModelsEvents({ container, sectionState, persistModelSettings, syncUi, loadModels });
   };
 
-  function resolveProviderOptionsForRender() {
-    return sectionState.providerOptions.length
-      ? sectionState.providerOptions
-      : buildProviderOptions(sectionState.models, { includeAll: true });
-  }
-
   function resolveActiveTotal() {
     return Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : 0;
   }
@@ -271,7 +263,6 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
   }
 
   function render() {
-    const providerOptions = resolveProviderOptionsForRender();
     const activeTotal = resolveActiveTotal();
     const pageTotal = resolvePageTotal();
     const totalPages = resolveTotalPages(pageTotal);
