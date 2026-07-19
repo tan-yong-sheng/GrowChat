@@ -13,15 +13,12 @@ import {
   syncModelsPaginationState,
   syncModelsTableState,
 } from '../../../shared/components/models-section.js';
-import { getAttachmentCapTooltip, getAttachmentCapValue } from './models-helpers.js';
-import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
 export function createModelsSyncUi(deps) {
   const {
     container,
     modelsState,
     canManageAcls,
-    isActiveTab,
     getLocalModels,
     getActiveModelCount,
     _updateModelToggle,
@@ -36,8 +33,6 @@ export function createModelsSyncUi(deps) {
 
     const {
       usingFilter,
-      enabledProviders,
-      allOption,
       mergedProviders,
       filteredModels,
       pageTotal,
