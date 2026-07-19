@@ -1,10 +1,7 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
-import {
-  createSseStreamHandlers,
-  finalizeStreamThinking,
-} from '../../shared/utils/sse-event-handler.js';
-import { buildStreamingCallback, buildSseStreamHandlersContext } from './chat-message-params.js';
+import { finalizeStreamThinking } from '../../shared/utils/sse-event-handler.js';
+import { buildSseStreamHandlersContext } from './chat-message-params.js';
 
 export function bindChatMessageRetryActions({
   messagesList,
@@ -82,7 +79,7 @@ export function bindChatMessageRetryActions({
     if (state.activeChatId === chatId) drawMessages(localMessages);
   }
 
-  function createLoadBranchFallback(branchParentId, tempAssistantId) {
+  function createLoadBranchFallback(branchParentId, _tempAssistantId) {
     return async ({ assistantMessageId, assistantText, errorActive, errorMessage }) => {
       const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
         content: assistantText,
@@ -200,7 +197,7 @@ export function bindChatMessageRetryActions({
     });
   }
 
-  function cleanupRetryStream(controller) {
+  function cleanupRetryStream(_controller) {
     streamingOverrideByChat.delete(chatId);
     clearGlobalStreamAbort(getActiveStreamAbort());
     setActiveStreamAbort(null);
