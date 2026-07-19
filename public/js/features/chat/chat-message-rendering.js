@@ -2,6 +2,10 @@ import { escapeHtml, renderMessageContent } from '../../shared/utils.js';
 import { ensureBlocksFromContent } from './chat-message-blocks.js';
 import { formatThoughtDuration, buildToolToggleKey } from './chat-message-utils.js';
 
+const TOOL_BLOCK_ID_PREFIX = 'tool:';
+const TOOL_BLOCK_ID_PREFIX_LENGTH = TOOL_BLOCK_ID_PREFIX.length;
+const ERROR_TOGGLE_LENGTH_THRESHOLD = 240;
+
 export function renderAssistantContent(content, options = {}) {
   if (options.streaming) {
     return `<div class="whitespace-pre-wrap break-words">${escapeHtml(String(content ?? '')).replace(/\n/g, '<br/>')}</div>`;
@@ -90,36 +94,61 @@ export function renderThinkingBlock({
   `;
 }
 
+function resolveToolStatus(call) {
+  const status = String(call?.status || '').toLowerCase();
+  return {
+    status,
+    isRunning: status === 'running',
+    isError: status === 'error',
+  };
+}
+
+function resolveToolLabel(call, { isRunning, isError }) {
+  if (isRunning) return `Executing ${call.name}...`;
+  if (isError) return `Tool error from ${call.name}`;
+  return `View Result from ${call.name}`;
+}
+
+function resolveDotClass({ isError, isRunning }) {
+  if (isError) return 'bg-red-500';
+  if (isRunning) return 'bg-gray-400';
+  return 'bg-green-500';
+}
+
+function resolveInputValue(input) {
+  if (input) return escapeHtml(input);
+  return '<span class="text-gray-400">No input.</span>';
+}
+
+function resolveOutputValue(output, isRunning) {
+  if (output) return escapeHtml(output);
+  if (isRunning) return '<span class="text-gray-400">Waiting for result...</span>';
+  return '<span class="text-gray-400">No output.</span>';
+}
+
+function resolveStatusIcon(isRunning, dotClass) {
+  if (isRunning) {
+    return `<svg class="h-3.5 w-3.5 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25"></circle>
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor"></path>
+      </svg>`;
+  }
+  return `<span class="inline-flex h-2 w-2 rounded-full ${dotClass}"></span>`;
+}
+
 export function renderToolCallItem(messageId, call, toolExpandedByKey) {
   if (!call) return '';
   const key = buildToolToggleKey(messageId, call.id);
   const expanded = toolExpandedByKey?.get(key) === true;
   const collapsed = !expanded;
-  const status = String(call.status || '').toLowerCase();
-  const isRunning = status === 'running';
-  const isError = status === 'error';
-  const label = isRunning
-    ? `Executing ${call.name}...`
-    : isError
-      ? `Tool error from ${call.name}`
-      : `View Result from ${call.name}`;
-  const dotClass = isError ? 'bg-red-500' : isRunning ? 'bg-gray-400' : 'bg-green-500';
+  const status = resolveToolStatus(call);
+  const label = resolveToolLabel(call, status);
+  const dotClass = resolveDotClass(status);
   const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
   const bodyClass = collapsed ? 'hidden' : '';
-  const inputValue = call.input
-    ? escapeHtml(call.input)
-    : '<span class="text-gray-400">No input.</span>';
-  const outputValue = call.output
-    ? escapeHtml(call.output)
-    : isRunning
-      ? '<span class="text-gray-400">Waiting for result...</span>'
-      : '<span class="text-gray-400">No output.</span>';
-  const statusIcon = isRunning
-    ? `<svg class="h-3.5 w-3.5 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25"></circle>
-        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor"></path>
-      </svg>`
-    : `<span class="inline-flex h-2 w-2 rounded-full ${dotClass}"></span>`;
+  const inputValue = resolveInputValue(call.input);
+  const outputValue = resolveOutputValue(call.output, status.isRunning);
+  const statusIcon = resolveStatusIcon(status.isRunning, dotClass);
   return `
     <div class="mt-2 rounded-xl border border-gray-200 bg-surface px-3 py-2 shadow-sm">
       <button type="button" data-tool-toggle="${key}" class="w-full flex items-center justify-between text-xs font-semibold text-gray-600 hover:text-gray-900 transition">
@@ -170,8 +199,8 @@ function buildDisplayBlocks(blocks, toolCalls) {
  * Render error content with toggle support — extracted from renderAssistantMessageBody
  * to reduce its cyclomatic complexity.
  */
-function renderErrorContent(raw, key, errorExpandedByKey, chatId, asyncNotice) {
-  const shouldToggle = raw.length > 240 || raw.includes('\n');
+function renderErrorContent({ raw, key, errorExpandedByKey, chatId, asyncNotice }) {
+  const shouldToggle = raw.length > ERROR_TOGGLE_LENGTH_THRESHOLD || raw.includes('\n');
   const expanded = errorExpandedByKey?.get(key) ?? false;
   const bodyClass = expanded ? '' : 'max-h-24 overflow-hidden';
   const overlayClass = expanded ? 'hidden' : '';
@@ -195,10 +224,119 @@ function renderErrorContent(raw, key, errorExpandedByKey, chatId, asyncNotice) {
  * Resolve the text answer from block content — extracted to reduce
  * renderAssistantMessageBody cyclomatic complexity.
  */
-function resolveDisplayAnswer(text, blocks, isStreaming, chatId) {
+function resolveDisplayAnswer(text, blocks, isStreaming) {
   const textBlocks = blocks.filter((block) => block?.type === 'text');
   const hasTextBlocks = textBlocks.length > 0;
   return hasTextBlocks ? '' : text ? renderAssistantContent(text, { streaming: isStreaming }) : '';
+}
+
+function renderToolDisplayBlock(block, opts) {
+  const { key, toolMap, toolExpandedByKey } = opts;
+  const toolCallId = block.toolCallId || String(block.id || '').slice(TOOL_BLOCK_ID_PREFIX_LENGTH);
+  return renderToolCallItem(key, toolMap.get(toolCallId), toolExpandedByKey);
+}
+
+function renderThinkingDisplayBlock(block, opts) {
+  const { key, label, chatId, thinkingCollapsedByKey } = opts;
+  if (!label) return '';
+  const toggleKey = `${key}:${block.id}`;
+  const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
+  return renderThinkingBlock({
+    label,
+    thinking: block.content,
+    collapsed,
+    toggleKey,
+    specialBlockScope: chatId,
+  });
+}
+
+function renderTextDisplayBlock(block, opts) {
+  const { isStreaming, chatId } = opts;
+  if (!block.content) return '';
+  return renderAssistantContent(block.content, {
+    streaming: isStreaming,
+    specialBlockScope: chatId,
+  });
+}
+
+function renderDisplayBlock(block, opts) {
+  if (!block) return '';
+  if (block.type === 'tool') return renderToolDisplayBlock(block, opts);
+  if (block.type === 'thinking') return renderThinkingDisplayBlock(block, opts);
+  if (block.type === 'text') return renderTextDisplayBlock(block, opts);
+  return '';
+}
+
+function resolveThinkingLabel({
+  isStreaming,
+  hasThinking,
+  isThinkingActive,
+  duration,
+  formatDuration,
+}) {
+  if (!isStreaming) return hasThinking ? formatDuration(duration) : '';
+  if (hasThinking || isThinkingActive) return 'Thinking…';
+  return '';
+}
+
+function buildAsyncNotice(isStreaming, hasRunningTools) {
+  if (isStreaming || !hasRunningTools) return '';
+  return `<div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+        Tools are still running in the background. Results will appear when ready.
+      </div>`;
+}
+
+function hasRunningToolCalls(toolCalls) {
+  return toolCalls.some((call) => String(call?.status || '').toLowerCase() === 'running');
+}
+
+function extractAssistantStateMaps(stateMaps) {
+  return stateMaps || {};
+}
+
+function resolveAssistantBlocks({ isError, messageBlocksById, key, content }) {
+  if (isError || !messageBlocksById) return [];
+  return ensureBlocksFromContent(messageBlocksById, key, content);
+}
+
+function renderAssistantBodyContent({
+  key,
+  content,
+  isStreaming,
+  blocks,
+  toolCalls,
+  chatId,
+  thinkingActiveByMessageId,
+  thinkingDurationByMessageId,
+  thinkingCollapsedByKey,
+  toolExpandedByKey,
+  formatDuration,
+}) {
+  const displayBlocks = buildDisplayBlocks(blocks, toolCalls);
+  const toolMap = new Map(toolCalls.map((call) => [String(call.id), call]));
+  const isThinkingActive = thinkingActiveByMessageId?.get(key) === true;
+  const hasThinking = isThinkingActive || blocks.some((block) => block?.type === 'thinking');
+  const duration = thinkingDurationByMessageId?.get(key);
+  const label = resolveThinkingLabel({
+    isStreaming,
+    hasThinking,
+    isThinkingActive,
+    duration,
+    formatDuration,
+  });
+
+  const renderOpts = {
+    key,
+    toolMap,
+    toolExpandedByKey,
+    isStreaming,
+    chatId,
+    thinkingCollapsedByKey,
+    label,
+  };
+  const blocksHtml = displayBlocks.map((block) => renderDisplayBlock(block, renderOpts)).join('');
+  const renderedAnswer = resolveDisplayAnswer(String(content || ''), displayBlocks, isStreaming);
+  return `${blocksHtml}${renderedAnswer}`;
 }
 
 export function renderAssistantMessageBody({
@@ -211,6 +349,7 @@ export function renderAssistantMessageBody({
   stateMaps,
   formatDuration = formatThoughtDuration,
 }) {
+  const maps = extractAssistantStateMaps(stateMaps);
   const {
     errorExpandedByMessageId,
     thinkingActiveByMessageId,
@@ -219,87 +358,35 @@ export function renderAssistantMessageBody({
     thinkingCollapsedByKey,
     toolExpandedByKey,
     messageBlocksById,
-  } = stateMaps || {};
+  } = maps;
   const key = String(messageId || '');
-  const isThinkingActive = thinkingActiveByMessageId?.get(key) === true;
-  const duration = thinkingDurationByMessageId?.get(key);
   const toolCalls = toolCallsByMessageId?.get(key) || [];
-  const blocks = isError
-    ? []
-    : messageBlocksById
-      ? ensureBlocksFromContent(messageBlocksById, key, content)
-      : [];
-  const text = String(content || '');
-  const hasThinking = isThinkingActive || blocks.some((block) => block?.type === 'thinking');
-  const hasRunningTools = toolCalls.some(
-    (call) => String(call?.status || '').toLowerCase() === 'running'
-  );
-  const asyncNotice =
-    !isStreaming && hasRunningTools
-      ? `<div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
-        Tools are still running in the background. Results will appear when ready.
-      </div>`
-      : '';
+  const blocks = resolveAssistantBlocks({ isError, messageBlocksById, key, content });
+  const asyncNotice = buildAsyncNotice(isStreaming, hasRunningToolCalls(toolCalls));
 
   if (!isError) {
-    const displayBlocks = buildDisplayBlocks(blocks, toolCalls);
-    const toolMap = new Map(toolCalls.map((call) => [String(call.id), call]));
-    const renderToolBlock = (block) => {
-      return renderToolCallItem(
-        key,
-        toolMap.get(block.toolCallId || String(block.id || '').slice(5)),
-        toolExpandedByKey
-      );
-    };
-
-    const getThinkingLabel = () => {
-      if (!isStreaming) return hasThinking ? formatDuration(duration) : '';
-      if (hasThinking || isThinkingActive) return 'Thinking…';
-      return '';
-    };
-
-    const renderThinkingBlockFn = (block) => {
-      const label = getThinkingLabel();
-      if (!label) return '';
-      const toggleKey = `${key}:${block.id}`;
-      const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
-      return renderThinkingBlock({
-        label,
-        thinking: block.content,
-        collapsed,
-        toggleKey,
-        specialBlockScope: chatId,
-      });
-    };
-
-    const renderTextBlock = (block) => {
-      if (!block.content) return '';
-      return renderAssistantContent(block.content, {
-        streaming: isStreaming,
-        specialBlockScope: chatId,
-      });
-    };
-
-    const blocksHtml = displayBlocks
-      .map((block) => {
-        if (!block) return '';
-        if (block.type === 'tool') {
-          return renderToolBlock(block);
-        }
-        if (block.type === 'thinking') {
-          return renderThinkingBlockFn(block);
-        }
-        if (block.type === 'text') {
-          return renderTextBlock(block);
-        }
-        return '';
-      })
-      .join('');
-    const textBlocks = displayBlocks.filter((block) => block?.type === 'text');
-    const renderedAnswer = resolveDisplayAnswer(text, displayBlocks, isStreaming, chatId);
-    return `${asyncNotice}${blocksHtml}${renderedAnswer}`;
+    const bodyContent = renderAssistantBodyContent({
+      key,
+      content,
+      isStreaming,
+      blocks,
+      toolCalls,
+      chatId,
+      thinkingActiveByMessageId,
+      thinkingDurationByMessageId,
+      thinkingCollapsedByKey,
+      toolExpandedByKey,
+      formatDuration,
+    });
+    return `${asyncNotice}${bodyContent}`;
   }
 
   const raw = String(errorMessage || content || '');
-  return renderErrorContent(raw, key, errorExpandedByMessageId, chatId, asyncNotice);
+  return renderErrorContent({
+    raw,
+    key,
+    errorExpandedByKey: errorExpandedByMessageId,
+    chatId,
+    asyncNotice,
+  });
 }
