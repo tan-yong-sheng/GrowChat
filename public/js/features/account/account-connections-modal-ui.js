@@ -4,14 +4,11 @@
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import {
   isCompatibleProviderType,
-  normalizeModelRecord,
-  providerDisplayLabel as adminProviderDisplayLabel,
-  resolveUrlLabel,
+  normalizeModelRecord
 } from '../../shared/utils/connection-helpers.js';
 import {
   previewConnectionModalModels,
-  buildSelectedConnectionModels,
-  updateApiTypeDisplay,
+  buildSelectedConnectionModels
 } from '../admin/settings/connections-helpers-modal-models.js';
 import {
   normalizeConnectionModelSelectionMode,
@@ -27,18 +24,6 @@ import { syncProviderUi } from './account-connections-modal-ui-sync-provider.js'
  * Equivalent to String(v || '').trim() with explicit || semantics.
  */
 const sanitizeString = (v) => String(v == null ? '' : v).trim();
-
-/**
- * Resolve a property from an object with a fallback chain.
- * Used for legacy property name resolution.
- */
-const resolveProperty = (obj, ...keys) => {
-  for (const key of keys) {
-    const v = obj?.[key];
-    if (v != null && v !== '') return v;
-  }
-  return '';
-};
 
 /**
  * Strip empty optional fields from a payload object.
@@ -85,13 +70,11 @@ export function createModalUi(ctx) {
     render,
     upsertPersonalConnection,
     mergeSavedConnection,
-    canManageConnections,
-    container,
     headersInput,
     closeBtn,
     overlay,
     testBtn,
-    removePersonalConnection,
+    removePersonalConnection
   } = ctx;
 
   const updateToggleLabel = () => {
@@ -414,6 +397,6 @@ export function createModalUi(ctx) {
     testConnection,
     saveConnection,
     finishAndRender,
-    bindEvents: () => {},
+    bindEvents: () => {}
   };
 }
