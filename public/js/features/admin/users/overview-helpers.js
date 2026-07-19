@@ -3,6 +3,12 @@
  */
 import { fetchAdminRbacRoles } from '../../../shared/api.js';
 
+// ── Time constants (seconds) ──
+const SECONDS_PER_YEAR = 31536000;
+const SECONDS_PER_MONTH = 2592000;
+const SECONDS_PER_DAY = 86400;
+const SECONDS_PER_MINUTE = 60;
+
 const escapeHtml = (value) =>
   String(value || '')
     .replace(/&/g, '&amp;')
@@ -85,11 +91,11 @@ export function timeSince(timestampMs) {
   if (!timestampMs) return 'N/A';
   const seconds = Math.floor((Date.now() - timestampMs) / 1000);
   const buckets = [
-    [31536000, 'year'],
-    [2592000, 'month'],
-    [86400, 'day'],
+    [SECONDS_PER_YEAR, 'year'],
+    [SECONDS_PER_MONTH, 'month'],
+    [SECONDS_PER_DAY, 'day'],
     [3600, 'hour'],
-    [60, 'minute'],
+    [SECONDS_PER_MINUTE, 'minute'],
   ];
   for (const [size, label] of buckets) {
     const value = Math.floor(seconds / size);
