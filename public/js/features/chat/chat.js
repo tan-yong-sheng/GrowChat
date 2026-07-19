@@ -23,13 +23,11 @@ function wireChat(root) {
   // prettier-ignore
   const {
     PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener,  buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
-    currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureChatListHandlers, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
-    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
-    loadMessagesImpl, maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, newChatBtn, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openArchivedModal, openCitation, openSearchBtn,
-    pruneTempChats, recentChatIds, refreshChatListObserver, refreshChatListObserverImpl, refreshShareState, refreshShareStateImpl, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
-    destroyShellEvents, setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
-    startNewChatImpl, streamSession, streamingOverrideByChat, syncChatUrl, syncChatUrlImpl, thinkingActiveByMessageId, thinkingCollapsedByKey, thinkingDurationByMessageId, thinkingStartByMessageId, toggleChatsBtn, toggleChatsIcon, toggleSidebarDesktop,
-    toggleSidebarMobile, toolCallsByMessageId, toolExpandedByKey, uiResources, unbindToolServersInvalidationListener, updateChatTitleLocal, updateMessageContentDom, welcomeScreenContainer
+    currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
+    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadMessages,
+    maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openCitation,     pruneTempChats, recentChatIds, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
+    destroyShellEvents, setBranchSelection, setDraftAttachments, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebarBackdrop, startNewChat,
+    streamSession, streamingOverrideByChat, syncChatUrl, thinkingActiveByMessageId, thinkingCollapsedByKey, thinkingDurationByMessageId, thinkingStartByMessageId,     toolCallsByMessageId, toolExpandedByKey, uiResources, unbindToolServersInvalidationListener, updateChatTitleLocal, updateMessageContentDom, welcomeScreenContainer
   } = ctx;
   let activeStreamAbort = ctx.activeStreamAbort;
   let chatMessageFlow = ctx.chatMessageFlow;
@@ -37,9 +35,9 @@ function wireChat(root) {
   let sidebarHydrationWarmupTimer = ctx.sidebarHydrationWarmupTimer;
   // prettier-ignore
   const {
-    apiFetch, appendBlock, createChatDataController, createChatMessageStream, createChatShellController, ensureThinkingBlock, extractThinkingBlocks, formatApiErrorMessage,
+    apiFetch, appendBlock, createChatDataController, createChatMessageStream, ensureThinkingBlock, extractThinkingBlocks, formatApiErrorMessage,
     renderMessageInput, renderModelSelector, renderPlaceholder, setState, state, subscribe, touchRecentChat, updateToolCallState,
-    toggleArchiveChat, fetchChats, fetchSharedChats
+    fetchChats, fetchSharedChats
   } = deps;
 
   const dataController = createChatDataController({
