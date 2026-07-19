@@ -8,14 +8,14 @@ import {
 } from '../chat-message-helpers.js';
 
 async function validateRegenerateAccess({ req, env, db, user, chatId, msgId }) {
-  const { chat, error: denied } = await requireOwnedChatWithPermission(
+  const { chat, error: denied } = await requireOwnedChatWithPermission({
     req,
     env,
     db,
     user,
-    'chat.write',
-    chatId
-  );
+    action: 'chat.write',
+    chatId,
+  });
   if (denied) return { denied };
 
   const sourceMsg = await db.first(
@@ -82,7 +82,7 @@ export async function handleRegenerateMessage({
   if (accessResult.denied) return accessResult.denied;
 
   const { chat, sourceMsg } = accessResult;
-  const modelResult = await resolveChatModel(req, env, db, user, chat);
+  const modelResult = await resolveChatModel({ req, env, db, user, modelOrChat: chat });
   if (modelResult?.error) return modelResult.error;
 
   const { model, providerInfo } = modelResult;

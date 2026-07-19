@@ -4,7 +4,13 @@ import { requireOwnedChat } from '../chat-core.js';
 import { requireChatPermission } from '../chat-message-helpers.js';
 
 export async function handleMessageStatus({ req, env, db, user, chatId, msgId }) {
-  const permissionError = await requireChatPermission(req, env, user, 'chat.read', chatId);
+  const permissionError = await requireChatPermission({
+    req,
+    env,
+    user,
+    action: 'chat.read',
+    chatId,
+  });
   if (permissionError) return permissionError;
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);

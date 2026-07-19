@@ -16,7 +16,13 @@ async function deleteMessageSubtree(db, chatId, nodeId) {
 }
 
 export async function handleDeleteMessage({ req, env, db, user, chatId, msgId, originSessionId }) {
-  const permissionError = await requireChatPermission(req, env, user, 'chat.delete', chatId);
+  const permissionError = await requireChatPermission({
+    req,
+    env,
+    user,
+    action: 'chat.delete',
+    chatId,
+  });
   if (permissionError) return permissionError;
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);

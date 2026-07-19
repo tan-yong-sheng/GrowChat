@@ -5,7 +5,13 @@ import { requireOwnedChat } from '../chat-core.js';
 import { publishRealtimeNow, requireChatPermission } from '../chat-message-helpers.js';
 
 export async function handleUpdateMessage({ req, env, db, user, chatId, msgId, originSessionId }) {
-  const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
+  const permissionError = await requireChatPermission({
+    req,
+    env,
+    user,
+    action: 'chat.write',
+    chatId,
+  });
   if (permissionError) return permissionError;
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);

@@ -1,5 +1,4 @@
 import { error } from '../utils/response.js';
-import { createLogger } from '../utils/logger.js';
 import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { buildMetadataSystemPrompt } from '../llm/system-prompt.js';
@@ -14,6 +13,13 @@ import {
   requireOwnedChatWithPermission,
 } from './chat-message-helpers.js';
 
+const HTTP_TOO_MANY_REQUESTS = 429;
+const HTTP_BAD_REQUEST = 400;
+const ROLE_USER = 'user';
+const MENTION_ATTACHMENT = 'attachment';
+const MS_PER_SECOND = 1000;
+const APP_NAME_DEFAULT = 'GrowChat';
+
 export async function handleSendMessage({
   req,
   env,
@@ -23,92 +29,59 @@ export async function handleSendMessage({
   chatId,
   originSessionId,
   assistantStreamRunner,
-  requestContext = {},
 }) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-
-  const { chat, error: denied } = await requireOwnedChatWithPermission(
+  const accessResult = await acquireSendAccess({
     req,
     env,
     db,
     user,
-    'chat.write',
-    chatId
-  );
-  if (denied) return denied;
-
-  const sendLimit = await checkRateLimit(env, {
-    action: 'chat-send',
-    subject: user.sub,
-    ...RATE_LIMITS.chatSend,
+    chatId,
   });
-  if (!sendLimit.allowed) {
-    return error(req, 'Too many messages sent', 429, {
-      retry_after: Math.ceil((sendLimit.resetAt - Date.now()) / 1000),
-    });
-  }
+  if (accessResult.error) return accessResult.error;
+  const { chat } = accessResult;
 
   const parsed = await parseSendBody({ req, env, db, user, chat });
   if (parsed.error) return parsed.error;
   const { content, selectedToolNames, model } = parsed;
 
-  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
-  if (modelDecision?.error) return modelDecision.error;
-  const providerInfo = modelDecision.providerInfo;
-
-  const attachmentResult = await loadAndValidateAttachments({
+  const preparation = await prepareSendExecution({
     req,
     env,
     db,
     user,
-    attachmentIds: parsed.attachmentIds,
     model,
+    attachmentIds: parsed.attachmentIds,
   });
-  if (attachmentResult.error) return attachmentResult.error;
-  const { attachmentDocs, attachmentParts, attachmentKinds } = attachmentResult;
+  if (preparation.error) return preparation.error;
+  const { attachmentDocs, attachmentParts, attachmentKinds, resolvedProvider } = preparation;
 
-  const userMsgId = crypto.randomUUID();
-  const parentId = chat.current_message_id || null;
-
-  await insertUserMessageWithAttachments(
+  const persistence = await persistUserMessage({
     db,
     chatId,
-    user.sub,
-    userMsgId,
-    parentId,
+    user,
+    chat,
     content,
     model,
-    attachmentDocs
-  );
+    attachmentDocs,
+  });
 
-  const createdUserMessage = await getMessageSnapshot(db, userMsgId);
-  const updatedChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
-  attachDocMetadata(createdUserMessage, attachmentDocs);
-
-  await publishRealtimeNow(
+  await publishUserMessageCreated({
     env,
-    createRealtimeEvent({
-      type: 'message.created',
-      userId: user.sub,
-      chatId,
-      messageId: userMsgId,
-      originSessionId,
-      data: {
-        role: 'user',
-        model,
-        message: createdUserMessage,
-        chat: updatedChat,
-      },
-    })
-  );
+    user,
+    chatId,
+    userMsgId: persistence.userMsgId,
+    originSessionId,
+    model,
+    createdUserMessage: persistence.createdUserMessage,
+    updatedChat: persistence.updatedChat,
+  });
 
   const enhancedHistory = await buildEnhancedHistory({
     db,
     chatId,
     content,
     model,
-    providerFamily: providerInfo.providerFamily,
+    providerFamily: resolvedProvider.providerFamily,
     env,
     attachmentParts,
   });
@@ -120,17 +93,119 @@ export async function handleSendMessage({
     db,
     user,
     chatId,
-    userMsgId,
-    parentId: userMsgId,
+    userMsgId: persistence.userMsgId,
+    parentId: persistence.userMsgId,
     model,
     history: enhancedHistory,
     citations: null,
     attachmentKinds,
-    providerFamily: providerInfo.providerFamily,
+    providerFamily: resolvedProvider.providerFamily,
     selectedToolNames,
   });
 
   return response;
+}
+
+async function acquireSendAccess({ req, env, db, user, chatId }) {
+  const { chat, error: denied } = await requireOwnedChatWithPermission({
+    req,
+    env,
+    db,
+    user,
+    action: 'chat.write',
+    chatId,
+  });
+  if (denied) return { error: denied };
+
+  const limited = await enforceSendRateLimit({ req, env, user });
+  if (limited) return { error: limited };
+
+  return { chat };
+}
+
+async function enforceSendRateLimit({ req, env, user }) {
+  const sendLimit = await checkRateLimit(env, {
+    action: 'chat-send',
+    subject: user.sub,
+    ...RATE_LIMITS.chatSend,
+  });
+  if (sendLimit.allowed) return null;
+  return error(req, 'Too many messages sent', HTTP_TOO_MANY_REQUESTS, {
+    retry_after: Math.ceil((sendLimit.resetAt - Date.now()) / MS_PER_SECOND),
+  });
+}
+
+async function prepareSendExecution({ req, env, db, user, model, attachmentIds }) {
+  const modelDecision = await ensureModelAllowed({ req, env, db, user, model });
+  if (modelDecision?.error) return { error: modelDecision.error };
+  const resolvedProvider = modelDecision.providerInfo;
+
+  const attachmentResult = await loadAndValidateAttachments({
+    req,
+    env,
+    db,
+    user,
+    attachmentIds,
+    model,
+  });
+  if (attachmentResult.error) return { error: attachmentResult.error };
+
+  return {
+    attachmentDocs: attachmentResult.attachmentDocs,
+    attachmentParts: attachmentResult.attachmentParts,
+    attachmentKinds: attachmentResult.attachmentKinds,
+    resolvedProvider,
+  };
+}
+
+async function persistUserMessage({ db, chatId, user, chat, content, model, attachmentDocs }) {
+  const userMsgId = crypto.randomUUID();
+  const parentId = chat.current_message_id || null;
+
+  await insertUserMessageWithAttachments({
+    db,
+    chatId,
+    userId: user.sub,
+    messageId: userMsgId,
+    parentId,
+    content,
+    model,
+    attachmentDocs,
+  });
+
+  const createdUserMessage = await getMessageSnapshot(db, userMsgId);
+  const updatedChat = (await requireOwnedChat(db, chatId, user.sub)).chat || null;
+  attachDocMetadata(createdUserMessage, attachmentDocs);
+
+  return { userMsgId, parentId, createdUserMessage, updatedChat };
+}
+
+async function publishUserMessageCreated({
+  env,
+  user,
+  chatId,
+  userMsgId,
+  originSessionId,
+  model,
+  createdUserMessage,
+  updatedChat,
+}) {
+  await publishRealtimeNow(
+    env,
+    createRealtimeEvent({
+      type: 'message.created',
+      userId: user.sub,
+      chatId,
+      messageId: userMsgId,
+      originSessionId,
+      data: {
+        role: ROLE_USER,
+        model,
+        message: createdUserMessage,
+        chat: updatedChat,
+      },
+    })
+  );
 }
 
 async function parseJsonBody(req) {
@@ -151,7 +226,7 @@ function resolveSendToolNames(body) {
   return normalizeSelectedToolNames(body.selected_tool_names || body.tool_names || body.tools);
 }
 
-async function resolveSendModel(body, chat, env, db, userSub) {
+async function resolveSendModel({ body, chat, env, db, userSub }) {
   const model = String(body.model || chat.model || '').trim();
   if (model) return model;
   return resolveDefaultModel(env, db, userSub);
@@ -163,23 +238,23 @@ function normalizeSendAttachmentIds(body) {
 
 function validateAttachmentCount(rawAttachmentIds, req) {
   if (rawAttachmentIds.length <= MAX_ATTACHMENTS) return { ok: true };
-  return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400) };
+  return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, HTTP_BAD_REQUEST) };
 }
 
 async function parseSendBody({ req, env, db, user, chat }) {
   const parseResult = await parseJsonBody(req);
   if (!parseResult.ok) {
-    return { error: error(req, 'Invalid JSON body', 400) };
+    return { error: error(req, 'Invalid JSON body', HTTP_BAD_REQUEST) };
   }
   const body = parseResult.body;
 
   const contentResult = extractMessageContent(body);
   if (!contentResult.ok) {
-    return { error: error(req, 'message is required', 400) };
+    return { error: error(req, 'message is required', HTTP_BAD_REQUEST) };
   }
 
   const selectedToolNames = resolveSendToolNames(body);
-  const model = await resolveSendModel(body, chat, env, db, user.sub);
+  const model = await resolveSendModel({ body, chat, env, db, userSub: user.sub });
   const rawAttachmentIds = normalizeSendAttachmentIds(body);
   const attachmentResult = validateAttachmentCount(rawAttachmentIds, req);
   if (attachmentResult.error) return attachmentResult;
@@ -192,7 +267,7 @@ async function parseSendBody({ req, env, db, user, chat }) {
   };
 }
 
-async function insertUserMessageWithAttachments(
+async function insertUserMessageWithAttachments({
   db,
   chatId,
   userId,
@@ -200,14 +275,14 @@ async function insertUserMessageWithAttachments(
   parentId,
   content,
   model,
-  attachmentDocs
-) {
+  attachmentDocs,
+}) {
   const statements = [
     db
       .prepare(
         'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
       )
-      .bind(messageId, chatId, 'user', content, model, parentId),
+      .bind(messageId, chatId, ROLE_USER, content, model, parentId),
     db
       .prepare(
         'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
@@ -220,7 +295,7 @@ async function insertUserMessageWithAttachments(
         .prepare(
           'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
         )
-        .bind(crypto.randomUUID(), messageId, doc.id, 'attachment')
+        .bind(crypto.randomUUID(), messageId, doc.id, MENTION_ATTACHMENT)
     );
   }
   await db.batch(statements);
@@ -252,7 +327,7 @@ async function buildEnhancedHistory({
   );
 
   const metadataPrompt = buildMetadataSystemPrompt({
-    appName: env.APP_NAME || 'GrowChat',
+    appName: env.APP_NAME || APP_NAME_DEFAULT,
     model,
     providerFamily,
     timeZone: env.TIME_ZONE || env.TZ,
@@ -262,7 +337,7 @@ async function buildEnhancedHistory({
 
   if (attachmentParts.length > 0) {
     const lastIdx = enhancedHistory.length - 1;
-    if (lastIdx >= 0 && enhancedHistory[lastIdx]?.role === 'user') {
+    if (lastIdx >= 0 && enhancedHistory[lastIdx]?.role === ROLE_USER) {
       enhancedHistory[lastIdx] = buildUserMessageContent(content, attachmentParts);
     }
   }

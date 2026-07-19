@@ -35,7 +35,13 @@ function resolveSleepMs(idleRounds) {
 }
 
 export async function handleResumeMessage({ req, env, db, user, chatId, msgId }) {
-  const permissionError = await requireChatPermission(req, env, user, 'chat.read', chatId);
+  const permissionError = await requireChatPermission({
+    req,
+    env,
+    user,
+    action: 'chat.read',
+    chatId,
+  });
   if (permissionError) return permissionError;
 
   const url = new URL(req.url);

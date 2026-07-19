@@ -5,14 +5,14 @@ import { getMessageSnapshot } from '../chat-core.js';
 import { publishRealtimeNow, requireOwnedChatWithPermission } from '../chat-message-helpers.js';
 
 export async function handleCancelMessage({ req, env, db, user, chatId, msgId, originSessionId }) {
-  const { chat, error: denied } = await requireOwnedChatWithPermission(
+  const { chat, error: denied } = await requireOwnedChatWithPermission({
     req,
     env,
     db,
     user,
-    'chat.write',
-    chatId
-  );
+    action: 'chat.write',
+    chatId,
+  });
   if (denied) return denied;
 
   const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [
