@@ -4,15 +4,16 @@
  */
 
 import { handleGroupMemberOperation } from './groups-helpers.js';
-export async function handleGroupsRemoveUsers(
+export async function handleGroupsRemoveUsers({
   req,
   env,
-  _ctx,
+  ctx: _ctx,
   user,
   groupId,
-  path,
-  { db, logger } = {}
-) {
+  path: _path,
+  db,
+  logger,
+} = {}) {
   return handleGroupMemberOperation(
     { req, env, user },
     groupId,

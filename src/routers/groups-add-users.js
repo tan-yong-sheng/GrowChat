@@ -4,15 +4,16 @@
  */
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { handleGroupMemberOperation } from './groups-helpers.js';
-export async function handleGroupsAddUsers(
+export async function handleGroupsAddUsers({
   req,
   env,
-  _ctx,
+  ctx: _ctx,
   user,
   groupId,
-  path,
-  { db, logger } = {}
-) {
+  path: _path,
+  db,
+  logger,
+} = {}) {
   return handleGroupMemberOperation(
     { req, env, user },
     groupId,

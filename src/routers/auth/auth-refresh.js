@@ -11,7 +11,7 @@ import {
 } from './auth-helpers.js';
 
 // handler receives (req, env, db, users, jwtSecret) for router dispatch
-export async function handleRefresh(req, env, db, users, jwtSecret) {
+export async function handleRefresh({ req, env, db, users, jwtSecret } = {}) {
   let body;
   try {
     body = await req.json();
@@ -39,14 +39,14 @@ export async function handleRefresh(req, env, db, users, jwtSecret) {
 
   const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
   await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
-  const tokenResult = await checkActiveAccountAndGenerateTokens(
+  const tokenResult = await checkActiveAccountAndGenerateTokens({
     req,
     db,
     env,
     users,
     user,
-    jwtSecret
-  );
+    jwtSecret,
+  });
   if (tokenResult instanceof Response) return tokenResult;
   return json(req, {
     user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),

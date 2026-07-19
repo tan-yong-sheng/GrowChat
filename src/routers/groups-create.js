@@ -62,7 +62,7 @@ async function createGroupInDb(db, name, description, memberIds) {
     },
   };
 }
-export async function handleGroupsCreate(req, env, _ctx, user, path, { db, logger } = {}) {
+export async function handleGroupsCreate({ req, env, ctx: _ctx, user, path, db, logger } = {}) {
   if (path !== '/api/admin/groups') return null;
 
   let body;

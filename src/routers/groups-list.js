@@ -4,7 +4,15 @@
  */
 import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-export async function handleGroupsList(req, env, _ctx, user, path, { db, logger } = {}) {
+export async function handleGroupsList({
+  req,
+  env: _env,
+  ctx: _ctx,
+  user: _user,
+  path,
+  db,
+  logger,
+} = {}) {
   if (path !== '/api/admin/groups') return null;
 
   try {

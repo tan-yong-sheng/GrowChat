@@ -26,7 +26,15 @@ async function validateCreateRoleInput(body) {
   }
   return { name, desiredPermissions: normalizeStringList(body.permissions) };
 }
-export async function handleRbacRolesCreate(req, env, _ctx, user, path, { db, logger } = {}) {
+export async function handleRbacRolesCreate({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   const body = await parseCreateRoleBody(req);
   if (body.error) {
     return error(req, body.error, HTTP_STATUS.BAD_REQUEST);

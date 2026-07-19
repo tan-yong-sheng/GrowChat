@@ -29,7 +29,15 @@ function buildAuditFilters(actorId, resourceType, action) {
     action: action && action.length <= MAX_RESOURCE_FILTER_LENGTH ? action : undefined,
   };
 }
-export async function handleRbacAuditList(req, env, _ctx, user, path, { db: _db, logger } = {}) {
+export async function handleRbacAuditList({
+  req,
+  env,
+  ctx: _ctx,
+  user: _user,
+  path: _path,
+  db: _db,
+  logger,
+} = {}) {
   const { limit, offset, actorId, resourceType, action } = parseAuditQueryParams(req);
 
   try {

@@ -59,7 +59,7 @@ export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}
   // Exact path match
   for (const route of ROUTE_MAP) {
     if (route.method === req.method && route.path === path) {
-      return route.handler(req, env, _ctx, user, path, { db, logger });
+      return route.handler({ req, env, ctx: _ctx, user, path, db, logger });
     }
   }
 
@@ -67,7 +67,7 @@ export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}
   for (const route of PATH_PATTERN_MAP) {
     const match = path.match(route.pattern);
     if (match && req.method === route.method) {
-      return route.handler(req, env, _ctx, user, match[1], path, { db, logger });
+      return route.handler({ req, env, ctx: _ctx, user, roleId: match[1], path, db, logger });
     }
   }
 

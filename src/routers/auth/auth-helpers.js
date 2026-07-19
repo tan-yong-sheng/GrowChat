@@ -105,7 +105,14 @@ export async function createAccessToken(secret, user, primaryRole) {
     APP_TTLS.accessTokenSeconds
   );
 }
-export async function checkActiveAccountAndGenerateTokens(req, db, env, users, user, jwtSecret) {
+export async function checkActiveAccountAndGenerateTokens({
+  req,
+  db,
+  env,
+  users,
+  user,
+  jwtSecret,
+} = {}) {
   if (!isActiveAccount(user)) {
     return json(
       req,

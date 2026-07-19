@@ -89,7 +89,16 @@ export async function groupsRouter(req, env, _ctx, user, path, requestContext = 
   const db = createDB(env.DB);
   const context = { db, logger };
   if (route.groupId) {
-    return route.handler(req, env, _ctx, user, route.groupId, path, context);
+    return route.handler({
+      req,
+      env,
+      ctx: _ctx,
+      user,
+      groupId: route.groupId,
+      path,
+      db: context.db,
+      logger: context.logger,
+    });
   }
-  return route.handler(req, env, _ctx, user, path, context);
+  return route.handler({ req, env, ctx: _ctx, user, path, db: context.db, logger: context.logger });
 }

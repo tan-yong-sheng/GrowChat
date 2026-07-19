@@ -12,7 +12,15 @@ import {
   resolvePermissionForBinding,
   resolveRoleForBinding,
 } from './rbac-helpers.js';
-export async function handleRbacBindingsCreate(req, env, _ctx, user, _path, { db, logger } = {}) {
+export async function handleRbacBindingsCreate({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   const parsed = await parseBindingBody(req);
   if (parsed.error) {
     return error(req, parsed.error, HTTP_STATUS.BAD_REQUEST);

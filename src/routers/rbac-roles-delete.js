@@ -7,15 +7,16 @@ import { logAuditEvent } from '../utils/authorize.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 
 // admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
-export async function handleRbacRolesDelete(
+export async function handleRbacRolesDelete({
   req,
   env,
-  _ctx,
+  ctx: _ctx,
   user,
   roleId,
-  path,
-  { db, logger } = {}
-) {
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
     if (!role) return error(req, 'Role not found', HTTP_STATUS.NOT_FOUND);

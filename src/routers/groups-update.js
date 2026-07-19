@@ -42,7 +42,16 @@ function validateUpdate(body, group) {
     memberIds,
   };
 }
-export async function handleGroupsUpdate(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
+export async function handleGroupsUpdate({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  groupId,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   const body = await parseBody(req);
   if (body === null) return error(req, 'Invalid JSON', HTTP_STATUS.BAD_REQUEST);
 

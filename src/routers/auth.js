@@ -28,18 +28,27 @@ const ROUTE_MAP = [
   {
     method: 'POST',
     path: '/api/auth/login',
-    handler: (c) => handleLogin(c.req, c.env, c.db, c.users, c.jwtSecret),
+    handler: (c) =>
+      handleLogin({ req: c.req, env: c.env, db: c.db, users: c.users, jwtSecret: c.jwtSecret }),
   },
   {
     method: 'POST',
     path: '/api/auth/refresh',
-    handler: (c) => handleRefresh(c.req, c.env, c.db, c.users, c.jwtSecret),
+    handler: (c) =>
+      handleRefresh({ req: c.req, env: c.env, db: c.db, users: c.users, jwtSecret: c.jwtSecret }),
   },
   { method: 'POST', path: '/api/auth/logout', handler: (c) => handleLogout(c.req, c.env) },
   {
     method: 'POST',
     path: '/api/auth/forgot-password',
-    handler: (c) => handleForgotPassword(c.req, c.env, c.db, c.users, c.requestContext),
+    handler: (c) =>
+      handleForgotPassword({
+        req: c.req,
+        env: c.env,
+        db: c.db,
+        users: c.users,
+        requestContext: c.requestContext,
+      }),
   },
   {
     method: 'POST',
@@ -60,7 +69,8 @@ const ROUTE_MAP = [
   {
     method: 'GET',
     path: '/api/auth/me',
-    handler: (c) => handleMe(c.req, c.env, c.db, c.users, c.authUser),
+    handler: (c) =>
+      handleMe({ req: c.req, env: c.env, db: c.db, users: c.users, authUser: c.authUser }),
   },
 ];
 

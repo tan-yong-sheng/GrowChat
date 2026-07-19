@@ -5,7 +5,16 @@
 import { error } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { logAuditEvent } from '../utils/authorize.js';
-export async function handleGroupsDelete(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
+export async function handleGroupsDelete({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  groupId,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const group = await db.first('SELECT * FROM groups WHERE id = ?', [groupId]);
     if (!group) return error(req, 'Group not found', HTTP_STATUS.NOT_FOUND);

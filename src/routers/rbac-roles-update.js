@@ -31,15 +31,16 @@ async function validateRoleUpdateInput(db, roleId, body) {
 }
 
 // admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
-export async function handleRbacRolesUpdate(
+export async function handleRbacRolesUpdate({
   req,
   env,
-  _ctx,
+  ctx: _ctx,
   user,
   roleId,
-  path,
-  { db, logger } = {}
-) {
+  path: _path,
+  db,
+  logger,
+} = {}) {
   const body = await parseBody(req);
   if (body === null) return error(req, 'Invalid JSON', HTTP_STATUS.BAD_REQUEST);
 

@@ -5,7 +5,15 @@
 import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { loadRolesWithPermissions } from './rbac-helpers.js';
-export async function handleRbacRolesList(req, env, _ctx, user, path, { db, logger } = {}) {
+export async function handleRbacRolesList({
+  req,
+  env: _env,
+  ctx: _ctx,
+  user: _user,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const roles = await loadRolesWithPermissions(db);
     return json(req, { roles });

@@ -4,7 +4,16 @@
  */
 import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-export async function handleGroupsGet(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
+export async function handleGroupsGet({
+  req,
+  env: _env,
+  ctx: _ctx,
+  user: _user,
+  groupId,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const group = await db.first(
       `SELECT id, name, description, is_system, created_at, updated_at

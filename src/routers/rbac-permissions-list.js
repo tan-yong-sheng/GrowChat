@@ -4,7 +4,15 @@
  */
 import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-export async function handleRbacPermissionsList(req, env, _ctx, user, path, { db, logger } = {}) {
+export async function handleRbacPermissionsList({
+  req,
+  env: _env,
+  ctx: _ctx,
+  user: _user,
+  path: _path,
+  db,
+  logger,
+} = {}) {
   try {
     const permissions = await db.all(
       `SELECT id, key, description, created_at

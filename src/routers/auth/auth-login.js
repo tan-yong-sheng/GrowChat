@@ -92,7 +92,7 @@ async function prepareUserForLogin(db, user) {
 }
 
 // auth dispatcher pattern (req, env, db, users, jwtSecret)
-export async function handleLogin(req, env, db, users, jwtSecret) {
+export async function handleLogin({ req, env, db, users, jwtSecret } = {}) {
   const parsed = await parseLoginBody(req);
   if (parsed instanceof Response) return parsed;
 
@@ -116,14 +116,14 @@ export async function handleLogin(req, env, db, users, jwtSecret) {
     return handleFailedLogin(req, env, email);
   }
 
-  const tokenResult = await checkActiveAccountAndGenerateTokens(
+  const tokenResult = await checkActiveAccountAndGenerateTokens({
     req,
     db,
     env,
     users,
     user,
-    jwtSecret
-  );
+    jwtSecret,
+  });
   if (tokenResult instanceof Response) return tokenResult;
 
   await clearFailedLoginAttempts(env, email);
