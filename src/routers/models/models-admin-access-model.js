@@ -20,7 +20,7 @@ import {
   loadValidGroupIds,
 } from './models-admin-access-helpers.js';
 
-function filterRulesForModel(modelId, rules, validGroupIds) {
+function filterRulesForModel({ modelId, rules, validGroupIds }) {
   return filterAclRulesByGroup({
     rules,
     resourceId: modelId,
@@ -30,7 +30,7 @@ function filterRulesForModel(modelId, rules, validGroupIds) {
     invalidTypeMessage: 'Invalid principal_type for model access',
   });
 }
-async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
+async function handleModelAccessGet({ req, env, ctx: _ctx, user: _user, path, logger }) {
   try {
     const db = createDB(env.DB);
     const groups = await loadGroups(db);
@@ -46,7 +46,7 @@ async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
     return error(req, 'Failed to load model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
-async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
+async function handleModelAccessPut({ req, env, ctx: _ctx, user, path, logger }) {
   let body;
   try {
     body = JSON.parse(await req.text());
@@ -64,7 +64,7 @@ async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
     }
 
     const validGroupIds = await loadValidGroupIds(db);
-    const filteredRules = filterRulesForModel(modelId, body.rules, validGroupIds);
+    const filteredRules = filterRulesForModel({ modelId, rules: body.rules, validGroupIds });
     const savedRules = await saveModelAclRulesForModel(db, modelId, filteredRules);
 
     await logAuditEvent(env, {
@@ -103,16 +103,16 @@ async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
     );
   }
 }
-export async function handleAdminModelsAccessByModel(req, env, ctx, user, path, deps) {
+export async function handleAdminModelsAccessByModel({ req, env, ctx, user, path, logger }) {
   const authError = await requireModelAdmin(req, env, user, extractModelIdFromAccessPath(path));
   if (authError) return authError;
 
   if (req.method === 'GET') {
-    return handleModelAccessGet(req, env, ctx, user, path, deps);
+    return handleModelAccessGet({ req, env, ctx, user, path, logger });
   }
 
   if (req.method === 'PUT') {
-    return handleModelAccessPut(req, env, ctx, user, path, deps);
+    return handleModelAccessPut({ req, env, ctx, user, path, logger });
   }
 
   return error(req, 'Method not allowed', HTTP_STATUS.METHOD_NOT_ALLOWED);

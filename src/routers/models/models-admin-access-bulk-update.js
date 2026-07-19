@@ -81,13 +81,16 @@ function buildUpdateStatements(db, updates, accessMap, validGroupIds) {
 
 /* router dispatcher needs (req, env, ctx, user, path, deps) */
 /* handler orchestrates multiple steps */
-export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _path, { logger }) {
-  const authError = await requireModelAdmin(req, env, user);
-  if (authError) return authError;
-
-  if (!env.DB) {
-    return noDatabase(req);
-  }
+export async function handleAdminModelsAccessBulkUpdate({
+  req,
+  env,
+  ctx: _ctx,
+  user,
+  path: _path,
+  logger,
+}) {
+  const earlyError = await checkBulkAccessPreconditions({ req, env });
+  if (earlyError) return earlyError;
 
   const body = await req.json().catch(() => null);
   if (body === null) {
@@ -101,31 +104,9 @@ export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _p
   }
 
   try {
-    const db = createDB(env.DB);
-    const accessMap = await getModelAccessMap(db, logger);
-    const validGroupIds = await loadValidGroupIds(db);
-    const { statements, normalizedUpdates } = buildUpdateStatements(
-      db,
-      updates,
-      accessMap,
-      validGroupIds
-    );
-
-    await chunkedBatch(db, statements);
-    await logAuditEvent(env, {
-      actor_id: user.sub,
-      action: 'model_access_updated',
-      resource_type: 'model',
-      resource_id: 'model-access',
-      metadata: {
-        updates: normalizedUpdates.length,
-      },
-    });
-
-    return json(req, {
-      ok: true,
-      updates: normalizedUpdates,
-    });
+    const ctx = await buildBulkAccessUpdateContext({ env, logger });
+    const result = await executeBulkAccessUpdate({ ...ctx, updates, env, user });
+    return json(req, { ok: true, updates: result.normalizedUpdates });
   } catch (err) {
     logger.error('Bulk model access update failed', { error: err?.message || err });
     return handleStatusError(
@@ -135,4 +116,36 @@ export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _p
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   }
+}
+
+async function checkBulkAccessPreconditions({ req, env }) {
+  const authError = await requireModelAdmin(req, env);
+  if (authError) return authError;
+  if (!env.DB) return noDatabase(req);
+  return null;
+}
+
+async function buildBulkAccessUpdateContext({ env, logger }) {
+  const db = createDB(env.DB);
+  const accessMap = await getModelAccessMap(db, logger);
+  const validGroupIds = await loadValidGroupIds(db);
+  return { db, accessMap, validGroupIds };
+}
+
+async function executeBulkAccessUpdate({ db, env, user, accessMap, validGroupIds, updates }) {
+  const { statements, normalizedUpdates } = buildUpdateStatements(
+    db,
+    updates,
+    accessMap,
+    validGroupIds
+  );
+  await chunkedBatch(db, statements);
+  await logAuditEvent(env, {
+    actor_id: user.sub,
+    action: 'model_access_updated',
+    resource_type: 'model',
+    resource_id: 'model-access',
+    metadata: { updates: normalizedUpdates.length },
+  });
+  return { statements, normalizedUpdates };
 }

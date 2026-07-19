@@ -46,7 +46,7 @@ export async function handleAdminModelsAccess(
 ) {
   for (const route of ROUTE_MAP) {
     if (routeMatches(route, req.method, path)) {
-      return route.handler(req, env, ctx, user, path, { logger });
+      return route.handler({ req, env, ctx, user, path, logger });
     }
   }
   return null;
