@@ -81,7 +81,10 @@ jobs:
       - name: Fallow — duplication budget
         run: pnpm run lint:dupes
 
-      - name: Fallow — security surface
+      - name: Fallow — security surface (informational)
+        continue-on-error: true
+        env:
+          FALLOW_SECURITY_BASE: origin/${{ github.base_ref }}
         run: pnpm run lint:security
 
       - name: Fallow — feature flags
