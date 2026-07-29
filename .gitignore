@@ -21,6 +21,7 @@ piolium/
 .qa/
 .playwright/
 .playwright-cli/
+.auto/
 .actrc
 git-worktree-spec.md
 CHANGELOG.md
