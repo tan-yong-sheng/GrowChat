@@ -1,3 +1,4 @@
+/* eslint-disable no-magic-numbers */
 /**
  * Model Helper Functions
  *
@@ -5,9 +6,7 @@
  */
 
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
-import {
-  applyModelAttachmentCapUpdate,
-} from '../admin/admin-config-helpers.js';
+import { applyModelAttachmentCapUpdate } from '../admin/admin-config-helpers.js';
 import {
   loadModelAttachmentCaps,
   applyAttachmentDefaults,

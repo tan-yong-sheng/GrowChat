@@ -1,18 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
-  "ignoreDependencies": [
-    "dompurify",
-    "@commitlint/config-conventional",
-    "autoprefixer",
-    "postcss",
-    "@lhci/cli",
-    "@stryker-mutator/core",
-    "danger",
-    "serve",
-    "wait-on",
-    "github-actionlint"
-  ],
+  "ignoreDependencies": ["dompurify", "autoprefixer", "postcss", "serve", "wait-on"],
   "ignorePatterns": [
     "**/node_modules/**",
     "**/coverage/**",

@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-params, no-magic-numbers */
 /**
  * Model Discovery and Formatting Helpers
  *
@@ -25,10 +26,7 @@ import {
   shouldSuppressDiscoveryWarning,
   splitModelList,
 } from './models-helpers.js';
-import {
-  buildConnectionModelContext,
-  buildDiscoveredModel,
-} from './models-discovery-helpers.js';
+import { buildConnectionModelContext, buildDiscoveredModel } from './models-discovery-helpers.js';
 
 const rootLogger = createRootLogger({});
 

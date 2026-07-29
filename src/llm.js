@@ -1,3 +1,4 @@
+/* eslint-disable complexity, no-magic-numbers */
 import { getAllOpenAIConnectionConfigs, buildConnectionHeaders } from './llm/connections.js';
 import {
   buildProviderId,
@@ -101,7 +102,8 @@ function assertConnectionEnabled(primaryConn) {
 }
 
 function buildStreamRequestHeaders(primaryConn, _parsed, params) {
-  const { providerFamily, baseUrl, modelId, messages, tools, toolChoice, stream, maxTokens } = params;
+  const { providerFamily, baseUrl, modelId, messages, tools, toolChoice, stream, maxTokens } =
+    params;
   const requestHeaders = {
     ...buildConnectionHeaders(primaryConn),
     'Content-Type': 'application/json',

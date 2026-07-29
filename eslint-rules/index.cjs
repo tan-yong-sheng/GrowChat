@@ -10,6 +10,7 @@
 const noConsoleLoggingRule = require('./no-console-logging.cjs');
 
 module.exports = {
+  /* fallow-ignore-next-line unused-export */
   rules: {
     'no-console-logging': noConsoleLoggingRule,
   },

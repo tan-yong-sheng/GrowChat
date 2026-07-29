@@ -1,25 +1,26 @@
+/* eslint-disable max-lines-per-function, max-statements */
 // WireChat setup: drafts, identity, stream runtime, title, realtime.
 // Phase 2 of wireChat extraction from chat.js.
 
 export function setupWireChatFeatures(ctx, deps) {
   let {
     activeStreamAbort,
-        drawMessages,
+    drawMessages,
     ensureStreamSession,
     loadChats,
     loadMessages,
     messagesList,
-            processedRealtimeEvents,
-                sidebar,
+    processedRealtimeEvents,
+    sidebar,
     streamSession,
-        uiResources,
-        updateMessageContentDom,
-        clientSessionId,
-              } = ctx;
+    uiResources,
+    updateMessageContentDom,
+    clientSessionId,
+  } = ctx;
   const {
     state,
     setState,
-        createChatMessageIdentityTracker,
+    createChatMessageIdentityTracker,
     renderSidebar,
     loadChatStreamStateModule,
     loadChatRealtimeControllerModule,

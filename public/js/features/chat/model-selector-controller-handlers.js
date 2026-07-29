@@ -23,9 +23,7 @@ export function createHandleSetDefault({ renderList }) {
 
       if (!result.ok) return;
 
-      setState((prev) =>
-        applyPersistedDefault(prev, { result, nextDefaultModelId })
-      );
+      setState((prev) => applyPersistedDefault(prev, { result, nextDefaultModelId }));
       renderList(state, { reset: true, rebuild: true });
     } catch (err) {
       console.error('Failed to set default model:', err);

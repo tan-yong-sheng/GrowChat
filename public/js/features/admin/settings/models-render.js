@@ -5,13 +5,15 @@
 import {
   computeProviderPaginationMeta,
   buildProviderOptionsMarkup,
-  renderModelRowsHtml} from './models-display-shared.js';
+  renderModelRowsHtml,
+} from './models-display-shared.js';
 
 import { buildProviderOptions } from '../../../shared/utils/model-filters.js';
 import {
   renderModelsHeaderHtml,
   renderModelsPaginationHtml,
-  renderModelsTableShellHtml} from '../../../shared/components/models-section.js';
+  renderModelsTableShellHtml,
+} from '../../../shared/components/models-section.js';
 
 export function createModelsRender(deps) {
   const {
@@ -26,7 +28,8 @@ export function createModelsRender(deps) {
     bindDelegatedEvents,
     _updateModelToggle,
     _updateCapButton,
-    _toggleModelEnabled} = deps;
+    _toggleModelEnabled,
+  } = deps;
 
   function render() {
     if (!isActiveTab()) return;
@@ -40,7 +43,8 @@ export function createModelsRender(deps) {
       totalPages,
       currentPage,
       pageStart,
-      pageEnd} = computeProviderPaginationMeta(
+      pageEnd,
+    } = computeProviderPaginationMeta(
       modelsState,
       providerOptions,
       getLocalModels(),
@@ -63,13 +67,15 @@ export function createModelsRender(deps) {
           clearButtonId: 'model-clear-search-btn',
           clearHidden: !modelsState.query,
           providerId: 'model-provider-select',
-          providerOptionsMarkup: buildProviderOptionsMarkup(mergedProviders, modelsState.provider)})}
+          providerOptionsMarkup: buildProviderOptionsMarkup(mergedProviders, modelsState.provider),
+        })}
         ${renderModelsTableShellHtml({
           loading: modelsState.loading,
           rowsHtml,
           emptyMessage: `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
           tbodyId: 'models-table-body',
-          emptyColSpan: 4})}
+          emptyColSpan: 4,
+        })}
         ${renderModelsPaginationHtml({
           pageSizeId: 'page-size-select',
           limit: modelsState.limit,
@@ -79,7 +85,8 @@ export function createModelsRender(deps) {
           currentPage,
           totalPages,
           loading: modelsState.loading,
-          usingFilter})}
+          usingFilter,
+        })}
       </div>
     `;
       container.dataset.modelsMounted = '1';

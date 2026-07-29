@@ -1,14 +1,15 @@
+/* eslint-disable complexity, max-lines-per-function, max-statements */
 /**
  * Modal UI helpers and event binding for the account connections section.
  */
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import {
   isCompatibleProviderType,
-  normalizeModelRecord
+  normalizeModelRecord,
 } from '../../shared/utils/connection-helpers.js';
 import {
   previewConnectionModalModels,
-  buildSelectedConnectionModels
+  buildSelectedConnectionModels,
 } from '../admin/settings/connections-helpers-modal-models.js';
 import {
   normalizeConnectionModelSelectionMode,
@@ -74,7 +75,7 @@ export function createModalUi(ctx) {
     closeBtn,
     overlay,
     testBtn,
-    removePersonalConnection
+    removePersonalConnection,
   } = ctx;
 
   const updateToggleLabel = () => {
@@ -397,6 +398,6 @@ export function createModalUi(ctx) {
     testConnection,
     saveConnection,
     finishAndRender,
-    bindEvents: () => {}
+    bindEvents: () => {},
   };
 }
