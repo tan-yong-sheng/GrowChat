@@ -3,10 +3,10 @@
  *
  * Routes requests to per-route handlers based on method + path
  */
-import { error, authError } from '../utils/response.js';
+import { authError } from '../utils/response.js';
 import { createDB } from '../db.js';
 import { createLogger } from '../utils/logger.js';
-import { authorize, getAuditLog, logAuditEvent } from '../utils/authorize.js';
+import { authorize } from '../utils/authorize.js';
 import { handleRbacRolesList } from './rbac-roles-list.js';
 import { handleRbacRolesCreate } from './rbac-roles-create.js';
 import { handleRbacRolesUpdate } from './rbac-roles-update.js';
@@ -38,38 +38,56 @@ const PATH_PATTERN_MAP = [
   },
 ];
 
-export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
+const AUDIT_PATH = '/api/admin/audit';
+const RBAC_PATH_PREFIX = '/api/admin/rbac/';
+const PERMISSION_AUDIT_READ = 'admin.audit.read';
+const PERMISSION_RBAC_ADMIN = 'admin.rbac.admin';
 
-  const isRbacPath = path.startsWith('/api/admin/rbac/') || path === '/api/admin/audit';
-  if (!isRbacPath) return null;
+function isRbacPath(path) {
+  return path.startsWith(RBAC_PATH_PREFIX) || path === AUDIT_PATH;
+}
 
-  const requiredPermission = path === '/api/admin/audit' ? 'admin.audit.read' : 'admin.rbac.admin';
-  const authDecision = await authorize(env, user, {
-    action: requiredPermission,
-  });
+function requiredPermissionFor(path) {
+  return path === AUDIT_PATH ? PERMISSION_AUDIT_READ : PERMISSION_RBAC_ADMIN;
+}
 
-  if (!authDecision.allow) {
-    return authError(req, authDecision);
-  }
+function buildLogger(env, requestContext) {
+  return requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
+}
 
-  const db = createDB(env.DB);
+async function checkAuth({ env, user, path, req }) {
+  const authDecision = await authorize(env, user, { action: requiredPermissionFor(path) });
+  if (!authDecision.allow) return authError(req, authDecision);
+  return null;
+}
 
-  // Exact path match
+function dispatchExact(req, path, ctx) {
   for (const route of ROUTE_MAP) {
-    if (route.method === req.method && route.path === path) {
-      return route.handler({ req, env, ctx: _ctx, user, path, db, logger });
-    }
+    if (route.method === req.method && route.path === path) return route.handler(ctx);
   }
+  return null;
+}
 
-  // Pattern match (PUT /roles/:id, DELETE /roles/:id)
+function dispatchPattern(req, path, ctx) {
   for (const route of PATH_PATTERN_MAP) {
     const match = path.match(route.pattern);
     if (match && req.method === route.method) {
-      return route.handler({ req, env, ctx: _ctx, user, roleId: match[1], path, db, logger });
+      return route.handler({ ...ctx, roleId: match[1] });
     }
   }
-
   return null;
+}
+
+/* eslint-disable-next-line max-params */
+export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}) {
+  if (!isRbacPath(path)) return null;
+
+  const logger = buildLogger(env, requestContext);
+  const authFail = await checkAuth({ env, user, path, req });
+  if (authFail) return authFail;
+
+  const db = createDB(env.DB);
+  const dispatchCtx = { req, env, ctx: _ctx, user, path, db, logger };
+
+  return dispatchExact(req, path, dispatchCtx) || dispatchPattern(req, path, dispatchCtx);
 }
