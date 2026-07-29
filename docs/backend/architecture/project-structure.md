@@ -206,10 +206,8 @@ pnpm run test:coverage   # Coverage report
 pnpm run test:e2e        # E2E (via scripts/test-e2e.js: starts wrangler dev, seeds DB, runs Playwright)
 pnpm run test:e2e:ui     # Playwright UI mode
 pnpm run test:e2e:update-snapshots  # Update visual regression baselines
-pnpm run check:mutation  # Stryker mutation testing
-pnpm run prepush         # Full pre-push gate (full unit tests + typecheck + lint + all checks + E2E)
-pnpm run prepush:scoped  # Scoped pre-push gate (changed files only)
+pnpm run prepush         # Pre-push gate (typecheck + format:check + lint:hygiene + lint:dupes + lint:security + lint:flags)
 
 # Deployment
-pnpm run deploy           # predeploy: lint → format-check → test → coverage → build:css → validate migrations → wrangler deploy
+pnpm run deploy           # predeploy: typecheck → format:check → build:css → validate migrations → lint:hygiene → lint:dupes → lint:security → lint:flags → wrangler deploy
 ```

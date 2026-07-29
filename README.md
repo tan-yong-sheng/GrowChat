@@ -380,8 +380,8 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 - ✅ RAG context injection into LLM prompts
 - ✅ Citation tracking in messages
 - ✅ Admin panel with statistics and vector management
-- ✅ Comprehensive test suite (unit + E2E + mutation + visual regression)
-- ✅ CI quality gates (ESLint, Stryker, jscpd, dependency-cruiser)
+- ✅ Comprehensive test suite (unit + E2E)
+- ✅ CI quality gates (typecheck, format, ESLint, Fallow hygiene/dupes/security/flags)
 
 ### Phase 3 (Planned)
 
