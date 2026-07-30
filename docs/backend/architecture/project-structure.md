@@ -205,7 +205,6 @@ pnpm run test:watch       # Watch mode
 pnpm run test:coverage   # Coverage report
 pnpm run test:e2e        # E2E (via scripts/test-e2e.js: starts wrangler dev, seeds DB, runs Playwright)
 pnpm run test:e2e:ui     # Playwright UI mode
-pnpm run test:e2e:update-snapshots  # Update visual regression baselines
 pnpm run prepush         # Pre-push gate (typecheck + format:check + lint:hygiene + lint:dupes + lint:security + lint:flags)
 
 # Deployment
