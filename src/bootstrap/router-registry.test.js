@@ -56,8 +56,6 @@ describe('PUBLIC_ROUTES', () => {
     expect(paths).toContain('/api/auth/login');
     expect(paths).toContain('/api/auth/refresh');
     expect(paths).toContain('/api/auth/logout');
-    expect(paths).toContain('/api/auth/verify-email');
-    expect(paths).toContain('/api/auth/resend-verification');
     expect(paths).toContain('/api/users/me/resources/mcp-servers/oauth/callback');
     expect(paths).toContain('/api/health');
     expect(paths).toContain('/api/models');

@@ -199,7 +199,7 @@ export async function storeFileMetadata(db, fileMetadata) {
     `INSERT INTO documents
      (id, user_id, chat_id, filename, content_type, file_size, r2_key, r2_url,
       extraction_status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, unixepoch(), unixepoch())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, unixepoch(), unixepoch())`,
     [
       documentId,
       fileMetadata.userId,

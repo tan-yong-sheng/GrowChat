@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   getFileMetadata: vi.fn(),
   listUserDocuments: vi.fn(),
   deleteDocument: vi.fn(),
-  extractDocumentText: vi.fn(),
   requireOwnedDocument: vi.fn(),
   createLogger: vi.fn(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })),
   checkRateLimit: vi.fn(),
@@ -112,7 +111,6 @@ describe('filesRouter', () => {
       warn: vi.fn(),
       debug: vi.fn(),
     });
-    mocks.extractDocumentText.mockResolvedValue({ skipped: false });
   });
 
   afterEach(() => {
@@ -582,183 +580,7 @@ describe('filesRouter', () => {
       const body = await res.json();
       expect(body.id).toBe('d1');
       expect(body.filename).toBe('sample.json');
-      expect(body.extraction_status).toBe(0);
-    });
-
-    it('skips extraction for JSON files and logs', async () => {
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const formData = new FormData();
-      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        {},
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      expect(mocks.extractDocumentText).not.toHaveBeenCalled();
-      expect(customLogger.info).toHaveBeenCalledWith('Document extraction skipped for JSON file', {
-        documentId: 'd1',
-      });
-    });
-
-    it('triggers async extraction for non-JSON files', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload'
-      );
-      expect(ctx.waitUntil).toHaveBeenCalled();
-      expect(mocks.extractDocumentText).toHaveBeenCalled();
-      await waitUntilCalls[0];
-    });
-
-    it('logs extraction skipped when extract returns skipped=true', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockResolvedValueOnce({
-        skipped: true,
-        reason: 'unsupported type',
-      });
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      await waitUntilCalls[0];
-      expect(customLogger.info).toHaveBeenCalledWith(
-        'Document extraction skipped',
-        expect.objectContaining({ documentId: 'd1', reason: 'unsupported type' })
-      );
-    });
-
-    it('logs extraction complete on success', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockResolvedValueOnce({ skipped: false });
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      await waitUntilCalls[0];
-      expect(customLogger.info).toHaveBeenCalledWith('Document extraction complete', {
-        documentId: 'd1',
-      });
-    });
-
-    it('logs extraction error on failure', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockRejectedValueOnce(new Error('parse failed'));
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      await waitUntilCalls[0];
-      expect(customLogger.error).toHaveBeenCalledWith(
-        'Failed to process document extraction',
-        expect.objectContaining({ documentId: 'd1' })
-      );
-    });
-
-    it('handles null extractResult in waitUntil for optional chaining', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockResolvedValueOnce(null);
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      await waitUntilCalls[0];
-      expect(customLogger.info).toHaveBeenCalledWith('Document extraction complete', {
-        documentId: 'd1',
-      });
-      expect(customLogger.error).not.toHaveBeenCalled();
-    });
-
-    it('handles null extraction rejection in waitUntil for optional chaining', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockRejectedValueOnce(null);
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      await waitUntilCalls[0];
-      expect(customLogger.error).toHaveBeenCalledWith('Failed to process document extraction', {
-        documentId: 'd1',
-        error: null,
-      });
-    });
-
-    it('uses default reason when extraction skip has no reason', async () => {
-      mocks.resolveContentType.mockReturnValueOnce('text/plain');
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-      const waitUntilCalls = [];
-      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
-      const formData = new FormData();
-      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockResolvedValueOnce({ skipped: true });
-      await filesRouter(
-        makeMultipartReq('/api/files/upload', formData),
-        env,
-        ctx,
-        user,
-        '/api/files/upload',
-        { logger: customLogger }
-      );
-      await waitUntilCalls[0];
-      expect(customLogger.info).toHaveBeenCalledWith(
-        'Document extraction skipped',
-        expect.objectContaining({ reason: undefined })
-      );
+      expect(body.extraction_status).toBe(1);
     });
 
     it('returns 504 on R2 upload timeout', async () => {

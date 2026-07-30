@@ -18,8 +18,7 @@ vi.mock('../../public/js/shared/utils.js', () => ({
 
 describe('files modal helpers', () => {
   it('derives file status and delete permission', () => {
-    expect(getFileStatus({ extraction_status: 1 })).toBe('ready');
-    expect(getFileStatus({ extraction_status: -1 })).toBe('failed');
+    expect(getFileStatus()).toBe('ready');
     expect(canDeleteFiles({ permissions: ['file.delete'] })).toBe(true);
   });
 
