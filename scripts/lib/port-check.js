@@ -8,7 +8,7 @@
  * a fast, clear failure so we never kill unrelated user processes.
  */
 import { createServer } from 'node:net';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -18,6 +18,47 @@ const PORT_POLL_MS = 100;
 
 /** Names that identify a process we (the E2E runner) are allowed to kill. */
 const OUR_PROCESS_NAMES = ['wrangler', 'workerd', 'node'];
+
+/**
+ * Coerce a value to a positive safe integer suitable for use as a TCP port or
+ * POSIX PID. Throws TypeError on anything else so callers fail fast instead of
+ * reaching the shell with a tainted value (CodeQL: shell-command-injection).
+ *
+ * Accepts:
+ *   - finite primitive numbers > 0 that are exact integers in JS safe range
+ *   - digit-only strings (e.g. `"8787"`)
+ *
+ * Rejects (with TypeError):
+ *   - booleans (`true`, `false`) — `Number(true) === 1` would otherwise sneak through
+ *   - arrays and objects, even with `valueOf` / `toString` hacks
+ *   - strings with extra characters (`"8787; rm -rf /"`)
+ *   - zero, negatives, decimals, NaN, Infinity, non-safe-integer numbers
+ *
+ * @param {unknown} value
+ * @param {string} label  Used in the error message.
+ * @returns {number}
+ */
+function toPositiveInteger(value, label) {
+  // Restrict to primitive number or string. Booleans, arrays, and objects are
+  // rejected even when they coerce, because Number(true) === 1 and
+  // Number(['8788']) === 1 would otherwise produce plausible-but-tainted
+  // ports/PIDs that bypass the intended type check.
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new TypeError(
+      `${label} must be a positive integer, got ${typeof value} ${String(value)}`
+    );
+  }
+  if (typeof value === 'string' && !/^\d+$/.test(value)) {
+    throw new TypeError(`${label} must be a positive integer, got string "${value}"`);
+  }
+  const n = Number(value);
+  // isSafeInteger rejects NaN, Infinity, and values beyond Number.MAX_SAFE_INTEGER,
+  // on top of the integer-only / positive-only checks.
+  if (!Number.isSafeInteger(n) || n <= 0) {
+    throw new TypeError(`${label} must be a positive integer, got ${value}`);
+  }
+  return n;
+}
 
 /**
  * Test whether a TCP port is currently occupied by attempting to bind it.
@@ -52,22 +93,27 @@ export function checkPortOccupied(port) {
  * @returns {number|null}
  */
 export function findPortPid(port) {
+  const safePort = toPositiveInteger(port, 'port');
+
   try {
-    const out = execSync(`lsof -t -i :${port}`, { encoding: 'utf8' }).trim();
+    const out = execFileSync('lsof', ['-t', '-i', `:${safePort}`], { encoding: 'utf8' }).trim();
+    // Defense in depth: silently drop anything that isn't a positive safe
+    // integer. toPositiveInteger would throw, but here we want to skip the
+    // entry and keep looking at the rest of the PID list.
     const pids = out
       .split('\n')
       .filter(Boolean)
-      .map((s) => Number.parseInt(s, 10))
-      .filter((n) => n > 0);
+      .map((s) => Number(s))
+      .filter((n) => Number.isSafeInteger(n) && n > 0);
     if (pids.length) return pids[0];
   } catch {
     // lsof unavailable or no results.
   }
 
   try {
-    const out = execSync(`ss -tlnp 'sport = :${port}'`, { encoding: 'utf8' }).trim();
+    const out = execFileSync('ss', ['-tlnp', `sport = :${safePort}`], { encoding: 'utf8' }).trim();
     const match = out.match(/pid=(\d+)/);
-    if (match) return Number.parseInt(match[1], 10);
+    if (match) return toPositiveInteger(match[1], 'pid');
   } catch {
     // ss unavailable.
   }
@@ -84,14 +130,16 @@ export function findPortPid(port) {
  * @returns {string|null}
  */
 export function getProcessName(pid) {
+  const safePid = toPositiveInteger(pid, 'pid');
+
   try {
-    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim();
+    return readFileSync(`/proc/${safePid}/comm`, 'utf8').trim();
   } catch {
     // Not Linux or PID vanished.
   }
 
   try {
-    return execSync(`ps -o comm= -p ${pid}`, { encoding: 'utf8' }).trim();
+    return execFileSync('ps', ['-o', 'comm=', '-p', String(safePid)], { encoding: 'utf8' }).trim();
   } catch {
     return null;
   }
