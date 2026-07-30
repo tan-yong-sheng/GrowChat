@@ -71,48 +71,56 @@ function normalizeManualModel(item) {
   return buildManualModelEntry(item, stripModelsPrefix(rawId));
 }
 
-// Mock connections-utils
-vi.mock('./connections-utils.js', () => ({
-  normalizeBaseUrl: (url) => (url ? String(url).trim().replace(/\/$/, '') : ''),
-  ensureConnectionId: (conn, idx) => conn.id || `conn-${idx}`,
-  labelFromFamily: (f) => {
-    if (f === 'google') return 'Gemini';
-    if (f === 'anthropic') return 'Claude';
-    return 'OpenAI';
-  },
-  normalizeAuthType: (v) => {
-    const raw = String(v || '')
-      .trim()
-      .toLowerCase();
-    if (['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(raw)) return raw;
-    return '';
-  },
-  safeParseHeaders: (raw) => {
-    if (!raw) return {};
-    if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
-    try {
-      const parsed = JSON.parse(String(raw));
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-      return parsed;
-    } catch {
-      return {};
-    }
-  },
-  normalizeConnectionManualModels: (value = []) => {
-    if (!Array.isArray(value)) return [];
-    return value.map(normalizeManualModel).filter(Boolean);
-  },
-  getConnectionApiType: (pt) => {
-    if (pt === 'google') return 'stream-generate-content';
-    if (pt === 'anthropic') return 'messages';
-    return 'chat-completions';
-  },
-  getConnectionDefaultBaseUrl: (pt) => {
-    if (pt === 'google') return 'https://generativelanguage.googleapis.com/v1beta';
-    if (pt === 'anthropic') return 'https://api.anthropic.com/v1';
-    return 'https://api.openai.com/v1';
-  },
-}));
+// Mock connections-utils — spread the real module so the test exercises the
+// actual normalizeUserConnectionRow/Input implementations (the bug being
+// verified: these helpers are required for connections-user.js to work).
+// Test-specific overrides only need to be added where the test relies on a
+// different behavior than the real module.
+vi.mock('./connections-utils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    normalizeBaseUrl: (url) => (url ? String(url).trim().replace(/\/$/, '') : ''),
+    ensureConnectionId: (conn, idx) => conn.id || `conn-${idx}`,
+    labelFromFamily: (f) => {
+      if (f === 'google') return 'Gemini';
+      if (f === 'anthropic') return 'Claude';
+      return 'OpenAI';
+    },
+    normalizeAuthType: (v) => {
+      const raw = String(v || '')
+        .trim()
+        .toLowerCase();
+      if (['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(raw)) return raw;
+      return '';
+    },
+    safeParseHeaders: (raw) => {
+      if (!raw) return {};
+      if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+      try {
+        const parsed = JSON.parse(String(raw));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        return parsed;
+      } catch {
+        return {};
+      }
+    },
+    normalizeConnectionManualModels: (value = []) => {
+      if (!Array.isArray(value)) return [];
+      return value.map(normalizeManualModel).filter(Boolean);
+    },
+    getConnectionApiType: (pt) => {
+      if (pt === 'google') return 'stream-generate-content';
+      if (pt === 'anthropic') return 'messages';
+      return 'chat-completions';
+    },
+    getConnectionDefaultBaseUrl: (pt) => {
+      if (pt === 'google') return 'https://generativelanguage.googleapis.com/v1beta';
+      if (pt === 'anthropic') return 'https://api.anthropic.com/v1';
+      return 'https://api.openai.com/v1';
+    },
+  };
+});
 
 // --- Test Helpers ---
 
