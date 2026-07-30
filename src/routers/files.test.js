@@ -46,10 +46,6 @@ vi.mock('../services/uploads.js', () => ({
   requireOwnedDocument: (...args) => mocks.requireOwnedDocument(...args),
 }));
 
-vi.mock('../services/extraction.js', () => ({
-  extractDocumentText: (...args) => mocks.extractDocumentText(...args),
-}));
-
 vi.mock('../utils/logger.js', () => ({
   createLogger: (...args) => mocks.createLogger(...args),
 }));

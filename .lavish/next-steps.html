@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR #279 — Where we are, what's next</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.css" rel="stylesheet" type="text/css" />
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .file-list { font-size: 0.78rem; line-height: 1.4; }
+  .conflict { background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; padding: 0.5rem 0.75rem; }
+  .ours { background: rgba(34, 197, 94, 0.08); border-left: 3px solid #22c55e; padding: 0.5rem 0.75rem; }
+  .cancel { background: rgba(99, 102, 241, 0.08); border-left: 3px solid #6366f1; padding: 0.5rem 0.75rem; }
+  pre { white-space: pre-wrap; word-break: break-word; }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+
+<main class="mx-auto max-w-6xl p-6 lg:p-10 space-y-6">
+
+  <section class="hero bg-base-100 rounded-box shadow-sm">
+    <div class="hero-content text-center w-full">
+      <div class="max-w-3xl w-full">
+        <div class="badge badge-warning badge-lg gap-2 mb-3">
+          <span class="loading loading-spinner loading-xs"></span>
+          PR #279 is OPEN + CONFLICTING
+        </div>
+        <h1 class="text-4xl font-bold">Where we are, what's next</h1>
+        <p class="text-base-content/70 mt-2">The branch shipped; main moved on. Three viable paths from here.</p>
+        <div class="stats stats-vertical lg:stats-horizontal shadow mt-6 w-full">
+          <div class="stat"><div class="stat-title">PR</div><div class="stat-value text-base mono">#279</div><div class="stat-desc">tan-yong-sheng/GrowChat</div></div>
+          <div class="stat"><div class="stat-title">Diff vs main</div><div class="stat-value text-error">540 files</div><div class="stat-desc">+41,006 / -40,997</div></div>
+          <div class="stat"><div class="stat-title">Our unique value</div><div class="stat-value text-success">~22 files</div><div class="stat-desc">rows 3b + 4 only</div></div>
+          <div class="stat"><div class="stat-title">Behind main</div><div class="stat-value text-warning">2 commits</div><div class="stat-desc">incl. PR #276 merge</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title">Why the diff shows 540 files, not 22</h2>
+      <p class="text-base-content/80">My branch <span class="badge badge-ghost mono">reduction/email-verif-rag</span> sits on <span class="badge badge-ghost mono">e49f358f</span>, which is 396 commits ahead of <span class="mono">origin/main</span> because it inherited PR #276's content locally before #276 was merged upstream.</p>
+      <p class="text-base-content/80">GitHub diffs my branch against main and sees the full #276 surface (already merged) plus my 3 commits. So it reports <span class="badge badge-error">CONFLICTING</span> on any file #276 touched that my branch also touched.</p>
+      <div class="alert alert-info mt-2">
+        <span><strong>The actual unique value-add is small.</strong> Most of the 540 files are PR #276 contents already on main that will cancel out on a real rebase. The conflict surface for <em>our</em> cuts is ~22 files.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="text-2xl font-bold mb-4">Three paths forward</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <div class="card bg-base-100 shadow-sm border-2 border-success">
+        <div class="card-body">
+          <div class="flex items-center justify-between"><h3 class="card-title">Path B — Recreate branch from main</h3><span class="badge badge-success">Recommended</span></div>
+          <p class="text-sm text-base-content/70">Abandon <span class="mono">reduction/email-verif-rag</span>; recreate from <span class="mono">origin/main</span>; re-apply cuts.</p>
+          <h4 class="font-semibold mt-3 text-sm">Steps</h4>
+          <ol class="text-sm space-y-1 list-decimal list-inside">
+            <li>Close PR #279</li>
+            <li><span class="mono">git checkout origin/main</span></li>
+            <li><span class="mono">git checkout -b reduction/email-verif-rag-v2</span></li>
+            <li>Apply port script + fixes (registration.js, files.test.js)</li>
+            <li>Push and open new PR</li>
+          </ol>
+          <h4 class="font-semibold mt-3 text-sm">Effort</h4>
+          <div class="flex gap-2 flex-wrap"><span class="badge badge-outline">~10 min</span><span class="badge badge-outline badge-success">no rebase needed</span></div>
+          <h4 class="font-semibold mt-3 text-sm">Outcome</h4>
+          <p class="text-sm text-success font-medium">New PR, same content, small diff.</p>
+          <h4 class="font-semibold mt-3 text-sm">Trade-offs</h4>
+          <ul class="text-sm space-y-1">
+            <li>✅ Bypasses the rebase block</li>
+            <li>✅ Cleanest diff (~22 files)</li>
+            <li>❌ Have to close PR #279, lose its trail</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <div class="flex items-center justify-between"><h3 class="card-title">Path A — Rebase onto main</h3><span class="badge badge-warning">Sandbox-blocked</span></div>
+          <p class="text-sm text-base-content/70">Sync branch with current main; resolve the ~22-file conflict set; repush.</p>
+          <h4 class="font-semibold mt-3 text-sm">Steps</h4>
+          <ol class="text-sm space-y-1 list-decimal list-inside">
+            <li>Move HEAD of branch to <span class="mono">origin/main</span></li>
+            <li>Replay 3 commits on top</li>
+            <li>Resolve conflict in <span class="mono">app.js</span> only</li>
+            <li>Force-push and update PR #279</li>
+          </ol>
+          <h4 class="font-semibold mt-3 text-sm">Effort</h4>
+          <div class="flex gap-2 flex-wrap"><span class="badge badge-outline">~5 min from terminal</span><span class="badge badge-outline badge-error">sandbox blocks rebase verb</span></div>
+          <h4 class="font-semibold mt-3 text-sm">Outcome</h4>
+          <p class="text-sm text-warning font-medium">PR cleanly mergeable.</p>
+          <h4 class="font-semibold mt-3 text-sm">Trade-offs</h4>
+          <ul class="text-sm space-y-1">
+            <li>✅ Smallest possible diff</li>
+            <li>✅ Reviewer sees only the real change</li>
+            <li>❌ Needs to lift the sandbox rebase block, or run from your terminal</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <div class="flex items-center justify-between"><h3 class="card-title">Path C — Leave it for now</h3><span class="badge badge-ghost">Pause</span></div>
+          <p class="text-sm text-base-content/70">Close PR #279 with a note. Cuts live in the branch; pick up later from any machine.</p>
+          <h4 class="font-semibold mt-3 text-sm">Steps</h4>
+          <ol class="text-sm space-y-1 list-decimal list-inside">
+            <li>Comment "do not merge" on PR #279</li>
+            <li>Close PR #279</li>
+            <li>Run reduction from a different machine later</li>
+          </ol>
+          <h4 class="font-semibold mt-3 text-sm">Effort</h4>
+          <div class="flex gap-2 flex-wrap"><span class="badge badge-outline">~30 sec</span><span class="badge badge-outline badge-neutral">no risk</span></div>
+          <h4 class="font-semibold mt-3 text-sm">Outcome</h4>
+          <p class="text-sm text-base-content/70 font-medium">No PR; cuts stranded on a stale branch.</p>
+          <h4 class="font-semibold mt-3 text-sm">Trade-offs</h4>
+          <ul class="text-sm space-y-1">
+            <li>✅ Zero risk</li>
+            <li>❌ Wastes today's progress</li>
+            <li>❌ E2E never runs against cuts</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  <section class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title">The conflict surface (real)</h2>
+      <p class="text-base-content/70 text-sm">Out of 540 files in the PR diff, only ~22 are unique to our work. The rest are PR #276 content already on main.</p>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+
+        <div>
+          <h3 class="font-semibold text-sm flex items-center gap-2"><span class="badge badge-error badge-sm">CONFLICT</span>Files both PRs touch</h3>
+          <div class="conflict mt-2 file-list mono">
+            <div class="font-bold">public/js/bootstrap/app.js</div>
+            <div class="text-xs text-base-content/70 mt-1">PR #276 introduced REDIRECTS array. Our edit: add <span class="mono">{ match: isVerifyPath, to: '/' }</span> and delete orphaned <span class="mono">handleVerificationRoute</span>.</div>
+          </div>
+
+          <h3 class="font-semibold text-sm flex items-center gap-2 mt-4"><span class="badge badge-success badge-sm">OURS</span>Only our PR (~22 files)</h3>
+          <div class="ours mt-2 file-list mono">
+            <div>src/routers/email-verification.js <span class="text-error">[DEL]</span></div>
+            <div>src/routers/email-verification.test.js <span class="text-error">[DEL]</span></div>
+            <div>src/routers/auth.js</div>
+            <div>src/routers/auth/auth-verify-email.js <span class="text-error">[DEL]</span></div>
+            <div>src/routers/auth/auth-resend-verification.js <span class="text-error">[DEL]</span></div>
+            <div>src/routers/files.test.js</div>
+            <div>src/routers/files-upload-helpers.js</div>
+            <div>src/bootstrap/router-registry.js</div>
+            <div>src/services/extraction.js <span class="text-error">[DEL]</span></div>
+            <div>src/services/extraction.test.js <span class="text-error">[DEL]</span></div>
+            <div>src/services/parsers/index.js <span class="text-error">[DEL]</span></div>
+            <div>src/services/parsers/index.test.js <span class="text-error">[DEL]</span></div>
+            <div>src/services/email/templates/email-verification.html <span class="text-error">[DEL]</span></div>
+            <div>public/js/features/auth/verification-pending.js <span class="text-error">[DEL]</span></div>
+            <div>public/js/features/auth/verification-success.js <span class="text-error">[DEL]</span></div>
+            <div>public/js/features/admin/settings/registration.js</div>
+            <div>migrations/004_email_verification.sql <span class="text-error">[DEL]</span></div>
+            <div>migrations/007_reduction.sql <span class="text-success">[NEW]</span></div>
+            <div>tests/unit/public-admin-registration.test.js</div>
+            <div>docs/backend/database/schema.md</div>
+            <div>docs/backend/jobs/README.md</div>
+            <div>docs/REDUCTION_EXECUTION_REPORT.md <span class="text-success">[NEW]</span></div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-sm flex items-center gap-2"><span class="badge badge-neutral badge-sm">CANCEL</span>Will cancel on rebase</h3>
+          <div class="cancel mt-2 file-list mono">
+            <div class="text-xs text-base-content/70 mb-2">Already on main via #276; rebase reconciles without conflict.</div>
+            <div>package.json, pnpm-lock.yaml</div>
+            <div>playwright.config.ts</div>
+            <div>knip.json, .jscpd.json</div>
+            <div>AGENTS.md, README.md, CLAUDE.md</div>
+            <div>docs/index.md, docs/backend/*</div>
+            <div>docs/OPEN_ISSUES_WORKFLOW_PLAN.md</div>
+            <div>.github/workflows/* (guardrails.yml, semgrep.yml, etc.)</div>
+            <div>commitlint.config.mjs, dangerfile.js</div>
+            <div>~510 more files from PR #276</div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-sm flex items-center gap-2"><span class="badge badge-info badge-sm">GATES</span>Quality status</h3>
+          <div class="mt-2 space-y-2">
+            <div class="flex justify-between"><span>pnpm test</span><span class="badge badge-success">266/266</span></div>
+            <div class="flex justify-between"><span>pnpm run lint</span><span class="badge badge-success">0 errors</span></div>
+            <div class="flex justify-between"><span>pnpm run typecheck</span><span class="badge badge-success">clean</span></div>
+            <div class="flex justify-between"><span>fall dead-code</span><span class="badge badge-success">0 issues</span></div>
+            <div class="flex justify-between"><span>fall dupes</span><span class="badge badge-success">clean</span></div>
+            <div class="flex justify-between"><span>fall security</span><span class="badge badge-success">clean</span></div>
+            <div class="flex justify-between"><span>fall flags</span><span class="badge badge-success">clean</span></div>
+            <div class="flex justify-between"><span>test:e2e</span><span class="badge badge-error">blocked</span></div>
+            <div class="text-xs text-base-content/60 mt-2">4 pre-existing test failures unchanged from baseline <span class="mono">e49f358f</span>.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title">Path B — exact commands to run from your terminal</h2>
+      <pre class="mono text-xs bg-base-200 p-3 rounded">cd ~/Documents/Coding/GrowChat
+
+# 1. Close the conflicting PR
+gh pr close 279 --repo tan-yong-sheng/GrowChat --delete-branch=false
+
+# 2. Start clean from current main
+git checkout origin/main
+git checkout -b reduction/email-verif-rag-v2
+
+# 3. Apply the cuts
+bash /home/tys203831/.treehouse/GrowChat-871455/1/GrowChat/scripts/apply-reduction-port.sh
+
+# 4. Fix the two known script gaps (registration.js, files.test.js)
+#    -- already documented in scripts/port-patches/README.md
+
+# 5. Run quality gates
+pnpm test && pnpm run lint && pnpm run typecheck
+
+# 6. Commit
+git add -A
+git commit -m "chore(reduction): drop email verification (row 3b) and RAG extraction (row 4)"
+
+# 7. Push and open the new PR
+git push fork reduction/email-verif-rag-v2
+gh pr create \
+  --repo tan-yong-sheng/GrowChat \
+  --head vipin-kumar17:reduction/email-verif-rag-v2 \
+  --base main \
+  --title 'chore(reduction): drop email verification (row 3b) and RAG extraction (row 4)' \
+  --body-file docs/REDUCTION_EXECUTION_REPORT.md</pre>
+      <div class="alert alert-warning mt-3">
+        <span class="text-sm"><strong>Sandbox-blocked from me:</strong> The sandbox can't write to the writable clone and can't run rebase. Running the above from your terminal avoids both.</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
