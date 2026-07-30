@@ -33,12 +33,16 @@ try {
   const pids = pidList.split('\n').filter(Boolean);
   for (const rawPid of pids) {
     // Defense in depth: validate the PID we just read from lsof before passing
-    // it on to ps / kill, even though lsof output is normally digits only.
-    if (!/^\d+$/.test(rawPid)) continue;
+    // it on to ps / kill. The original /^\d+$/ test allowed "0" through, and
+    // `kill -9 0` would signal the entire process group (taking down the dev
+    // server itself). Require a positive safe integer.
+    const pid = Number(rawPid);
+    if (!Number.isSafeInteger(pid) || pid <= 0) continue;
+    const safePid = String(pid);
     try {
-      const comm = execFileSync('ps', ['-o', 'comm=', '-p', rawPid], { encoding: 'utf8' }).trim();
-      console.log(`🔪  Killing "${comm}" (PID ${rawPid}) on port ${PORT}`);
-      execFileSync('kill', ['-9', rawPid]);
+      const comm = execFileSync('ps', ['-o', 'comm=', '-p', safePid], { encoding: 'utf8' }).trim();
+      console.log(`🔪  Killing "${comm}" (PID ${safePid}) on port ${PORT}`);
+      execFileSync('kill', ['-9', safePid]);
     } catch {
       // Already gone
     }

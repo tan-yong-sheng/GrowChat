@@ -20,25 +20,41 @@ const PORT_POLL_MS = 100;
 const OUR_PROCESS_NAMES = ['wrangler', 'workerd', 'node'];
 
 /**
- * Coerce a value to a positive integer suitable for use as a TCP port or POSIX
- * PID. Throws TypeError on anything else so callers fail fast instead of
+ * Coerce a value to a positive safe integer suitable for use as a TCP port or
+ * POSIX PID. Throws TypeError on anything else so callers fail fast instead of
  * reaching the shell with a tainted value (CodeQL: shell-command-injection).
  *
- * Accepts integer-valued strings ("8787") but rejects strings with extra
- * characters (`"8787; rm -rf /"`) — `Number.parseInt` alone would silently
- * truncate the latter to `8787`.
+ * Accepts:
+ *   - finite primitive numbers > 0 that are exact integers in JS safe range
+ *   - digit-only strings (e.g. `"8787"`)
+ *
+ * Rejects (with TypeError):
+ *   - booleans (`true`, `false`) — `Number(true) === 1` would otherwise sneak through
+ *   - arrays and objects, even with `valueOf` / `toString` hacks
+ *   - strings with extra characters (`"8787; rm -rf /"`)
+ *   - zero, negatives, decimals, NaN, Infinity, non-safe-integer numbers
  *
  * @param {unknown} value
  * @param {string} label  Used in the error message.
  * @returns {number}
  */
 function toPositiveInteger(value, label) {
-  // Reject anything that isn't a finite integer or a numeric-only string.
+  // Restrict to primitive number or string. Booleans, arrays, and objects are
+  // rejected even when they coerce, because Number(true) === 1 and
+  // Number(['8788']) === 1 would otherwise produce plausible-but-tainted
+  // ports/PIDs that bypass the intended type check.
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new TypeError(
+      `${label} must be a positive integer, got ${typeof value} ${String(value)}`
+    );
+  }
   if (typeof value === 'string' && !/^\d+$/.test(value)) {
     throw new TypeError(`${label} must be a positive integer, got string "${value}"`);
   }
   const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) {
+  // isSafeInteger rejects NaN, Infinity, and values beyond Number.MAX_SAFE_INTEGER,
+  // on top of the integer-only / positive-only checks.
+  if (!Number.isSafeInteger(n) || n <= 0) {
     throw new TypeError(`${label} must be a positive integer, got ${value}`);
   }
   return n;
@@ -81,11 +97,14 @@ export function findPortPid(port) {
 
   try {
     const out = execFileSync('lsof', ['-t', '-i', `:${safePort}`], { encoding: 'utf8' }).trim();
+    // Defense in depth: silently drop anything that isn't a positive safe
+    // integer. toPositiveInteger would throw, but here we want to skip the
+    // entry and keep looking at the rest of the PID list.
     const pids = out
       .split('\n')
       .filter(Boolean)
-      .map((s) => Number.parseInt(s, 10))
-      .filter((n) => n > 0);
+      .map((s) => Number(s))
+      .filter((n) => Number.isSafeInteger(n) && n > 0);
     if (pids.length) return pids[0];
   } catch {
     // lsof unavailable or no results.
@@ -94,7 +113,7 @@ export function findPortPid(port) {
   try {
     const out = execFileSync('ss', ['-tlnp', `sport = :${safePort}`], { encoding: 'utf8' }).trim();
     const match = out.match(/pid=(\d+)/);
-    if (match) return Number.parseInt(match[1], 10);
+    if (match) return toPositiveInteger(match[1], 'pid');
   } catch {
     // ss unavailable.
   }

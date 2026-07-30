@@ -150,6 +150,38 @@ describe('findPortPid', () => {
     expect(() => findPortPid(Number.NaN)).toThrow(TypeError);
     expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
   });
+
+  it('throws TypeError on a coercible port that Number() would silently accept', () => {
+    // Booleans: Number(true) === 1, so without the primitive-only guard a
+    // boolean would produce a plausible-but-tainted port.
+    expect(() => findPortPid(true)).toThrow(TypeError);
+    expect(() => findPortPid(false)).toThrow(TypeError);
+    // Arrays: Number(['8788']) === 8788 via toString coercion.
+    expect(() => findPortPid(['8788'])).toThrow(TypeError);
+    // Objects with valueOf/toString would coerce to NaN today, but defending
+    // against future tampering is cheap.
+    expect(() => findPortPid({ valueOf: () => 8788 })).toThrow(TypeError);
+    expect(() => findPortPid({ toString: () => '8788' })).toThrow(TypeError);
+    expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('throws TypeError on a port outside the safe-integer range', () => {
+    // 2 ** 53 is the first integer Number cannot represent exactly.
+    expect(() => findPortPid(Number.MAX_SAFE_INTEGER + 2)).toThrow(TypeError);
+    expect(() => findPortPid(Number.POSITIVE_INFINITY)).toThrow(TypeError);
+    expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('skips non-positive PIDs returned by lsof instead of passing them to ss', () => {
+    // Regression: the original /^\d+$/ regex accepted "0", and the prior
+    // Number.parseInt + n > 0 filter left non-safe-integer values through.
+    childProcessMocks.execFileSync.mockReturnValueOnce('0\n00000\n-1\nabc\n12345\n');
+
+    expect(findPortPid(8788)).toBe(12345);
+    // Only the first safe-positive PID (12345) should propagate; no value
+    // should ever reach the ss fallback in this test.
+    expect(childProcessMocks.execFileSync).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('getProcessName', () => {
@@ -193,6 +225,13 @@ describe('getProcessName', () => {
     expect(() => getProcessName(-42)).toThrow(TypeError);
     expect(() => getProcessName(1.5)).toThrow(TypeError);
     expect(() => getProcessName(Number.NaN)).toThrow(TypeError);
+    expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('throws TypeError on coercible PIDs (booleans, arrays, objects)', () => {
+    expect(() => getProcessName(true)).toThrow(TypeError);
+    expect(() => getProcessName(['12345'])).toThrow(TypeError);
+    expect(() => getProcessName({ valueOf: () => 12345 })).toThrow(TypeError);
     expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
   });
 });
