@@ -53,7 +53,7 @@ function handleChildClose(code) {
     }
     exitClean();
   } catch {
-    exitClean();
+    exitWithChildError(1);
   }
 }
 

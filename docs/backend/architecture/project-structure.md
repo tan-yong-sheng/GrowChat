@@ -136,7 +136,7 @@ public/
 tests/
 ├── unit/                   # Vitest unit tests
 ├── e2e/                    # Playwright E2E tests
-│   ├── frontend/          # auth, chat, admin-settings, connections, visual-regression, etc.
+│   ├── frontend/          # auth, chat, admin-settings, connections, etc.
 │   └── fixtures/          # auth-state.json (⚠️ contains real credentials — sanitize)
 ├── rbac.test.js            # RBAC design spec (not executable)
 └── rbac.integration.test.js # RBAC integration spec (not executable)
@@ -153,7 +153,6 @@ Test files in `src/`: `src/**/*.test.js` — colocated unit tests.
 - `chat.spec.ts` — Chat creation, messaging, streaming
 - `admin-settings.spec.ts` — Admin settings CRUD
 - `connections.spec.ts` — LLM connection management
-- `visual-regression.spec.ts` — Playwright `toHaveScreenshot()` baselines (desktop + mobile)
 - `accessibility.spec.ts` — axe-core a11y audits
 - `button-responsive.spec.ts` — Button responsive behavior tests
 
