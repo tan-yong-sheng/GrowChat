@@ -14,8 +14,6 @@ import { handleChangePassword } from './auth-change-password.js';
 import { handleLogin } from './auth/auth-login.js';
 import { handleRefresh } from './auth/auth-refresh.js';
 import { handleLogout } from './auth/auth-logout.js';
-import { handleVerifyEmail } from './auth/auth-verify-email.js';
-import { handleResendVerification } from './auth/auth-resend-verification.js';
 import { handleMe } from './auth/auth-me.js';
 import { createAccessToken, ensureUserRoleBinding } from './auth/auth-helpers.js';
 
@@ -64,12 +62,6 @@ const ROUTE_MAP = [
     path: '/api/auth/reset-password',
     handler: (c) => handleResetPassword({ req: c.req, env: c.env, db: c.db }),
   },
-  { method: 'GET', path: '/api/auth/verify-email', handler: (c) => handleVerifyEmail(c.req) },
-  {
-    method: 'POST',
-    path: '/api/auth/resend-verification',
-    handler: (c) => handleResendVerification(c.req, c.env),
-  },
   {
     method: 'POST',
     path: '/api/auth/change-password',
@@ -101,6 +93,7 @@ function resolveRoute(method, path) {
   return null;
 }
 
+// eslint-disable-next-line max-params -- dispatcher pattern, params passed through from router
 export async function authRouter(req, env, _ctx, authUser, path, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
@@ -136,7 +129,7 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
   if (handler) return handler(context);
 
   if (AUTH_PATHS.includes(path)) {
-    return error(req, 'Method not allowed', 405);
+    return error(req, 'Method not allowed', 405); // eslint-disable-line no-magic-numbers -- HTTP status code
   }
 
   return null;
