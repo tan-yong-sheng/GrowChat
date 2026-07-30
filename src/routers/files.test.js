@@ -1625,7 +1625,7 @@ describe('filesRouter', () => {
         file_size: 7,
         r2_key: 'key-1',
         r2_url: 'https://r2.example.com/key-1',
-        extraction_status: 0,
+        extraction_status: 1,
       });
       expect(typeof body.created_at).toBe('number');
     });
