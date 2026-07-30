@@ -18,29 +18,45 @@ export function getPotentialStartIndex(text, searchedText) {
   return null;
 }
 
+function clearEscape(state) {
+  state.escaped = false;
+}
+
+function tryBackslash(state, char) {
+  if (char !== '\\') return false;
+  state.escaped = state.inString;
+  return true;
+}
+
+function tryQuote(state, char) {
+  if (char !== '"') return false;
+  state.inString = !state.inString;
+  return true;
+}
+
+function updateBracketDepth(state, char) {
+  if (state.inString) return;
+  if (char === '{' || char === '[') state.depth += 1;
+  if (char === '}' || char === ']') state.depth -= 1;
+}
+
+function updateJsonParseState(state, char) {
+  if (state.escaped) {
+    clearEscape(state);
+    return;
+  }
+  if (tryBackslash(state, char)) return;
+  if (tryQuote(state, char)) return;
+  updateBracketDepth(state, char);
+}
+
 export function looksLikeIncompleteJson(text) {
   const raw = String(text || '');
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
+  const state = { depth: 0, inString: false, escaped: false };
   for (const char of raw) {
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === '\\') {
-      escaped = inString;
-      continue;
-    }
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (char === '{' || char === '[') depth += 1;
-    if (char === '}' || char === ']') depth -= 1;
+    updateJsonParseState(state, char);
   }
-  return inString || depth > 0;
+  return state.inString || state.depth > 0;
 }
 
 export function extractTextFromGoogle(parsed) {

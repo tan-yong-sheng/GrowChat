@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-lines-per-function, max-statements */
 /**
  * Modal UI helpers and event binding for the account connections section.
  */
@@ -5,13 +6,10 @@ import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import {
   isCompatibleProviderType,
   normalizeModelRecord,
-  providerDisplayLabel as adminProviderDisplayLabel,
-  resolveUrlLabel,
 } from '../../shared/utils/connection-helpers.js';
 import {
   previewConnectionModalModels,
   buildSelectedConnectionModels,
-  updateApiTypeDisplay,
 } from '../admin/settings/connections-helpers-modal-models.js';
 import {
   normalizeConnectionModelSelectionMode,
@@ -19,14 +17,33 @@ import {
 } from '../../shared/utils/connection-model-selection.js';
 import { buildConnectionModalModelsMarkup } from '../../shared/components/connection-modal.js';
 import { normalizeProviderType, providerUrlPlaceholder } from './account-connections-helpers.js';
-import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
-import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
+import { testUserConnection } from '../../shared/api/resources.js';
+import { syncProviderUi } from './account-connections-modal-ui-sync-provider.js';
+
+/**
+ * Sanitize a string value — trims, stringifies null/undefined.
+ * Equivalent to String(v || '').trim() with explicit || semantics.
+ */
+const sanitizeString = (v) => String(v == null ? '' : v).trim();
+
+/**
+ * Strip empty optional fields from a payload object.
+ * Removes keys whose values are falsy (empty strings / undefined / null).
+ */
+const stripOptionalFields = (payload) => {
+  for (const key of ['key', 'headers', 'auth_type', 'id']) {
+    if (!payload[key]) {
+      delete payload[key];
+    }
+  }
+  return payload;
+};
+
 import {
-  createUserConnection,
-  deleteUserConnection,
-  updateUserConnection,
-  testUserConnection,
-} from '../../shared/api/resources.js';
+  handleConnectionModalSave,
+  handleConnectionModalDelete,
+  persistConnectionPayload,
+} from './account-connections-modal-actions.js';
 
 export function createModalUi(ctx) {
   const {
@@ -54,8 +71,6 @@ export function createModalUi(ctx) {
     render,
     upsertPersonalConnection,
     mergeSavedConnection,
-    canManageConnections,
-    container,
     headersInput,
     closeBtn,
     overlay,
@@ -94,64 +109,56 @@ export function createModalUi(ctx) {
     testMessage.classList.toggle('text-gray-900', tone === 'success');
     testMessage.classList.toggle('text-gray-400', tone === 'idle' || tone === 'testing');
   };
-  const syncProviderUi = () => {
-    if (!providerSelect || !baseUrlInput) return;
-    const providerType = providerSelect.value;
-    const nextDefault = providerUrlPlaceholder(providerType);
-    baseUrlInput.placeholder = nextDefault;
-    if (isCompatibleProviderType(providerType)) {
-      const currentValue = String(baseUrlInput.value || '').trim();
-      const knownDefaults = [
-        providerUrlPlaceholder('openai-compatible'),
-        providerUrlPlaceholder('gemini-compatible'),
-        providerUrlPlaceholder('claude-compatible'),
-      ];
-      if (!currentValue || knownDefaults.includes(currentValue)) {
-        baseUrlInput.value = '';
-      }
-    } else {
-      baseUrlInput.value = nextDefault;
-    }
-    updateApiTypeDisplay(bodyEl, providerType);
-    const urlLabel = bodyEl?.querySelector('#modal-conn-url-label');
-    if (urlLabel) urlLabel.textContent = resolveUrlLabel(providerType);
-    const providerHint = bodyEl?.querySelector('#modal-conn-provider-hint');
-    if (providerHint) providerHint.textContent = adminProviderDisplayLabel(providerType);
-    const urlHint = bodyEl?.querySelector('#modal-conn-url-hint');
-    if (urlHint) {
-      urlHint.textContent = isCompatibleProviderType(providerType)
-        ? 'Required for compatible providers.'
-        : 'Uses the built-in default if left blank.';
-    }
-    const keyLabel = bodyEl?.querySelector('#modal-conn-key-label');
-    if (keyLabel) keyLabel.textContent = 'API Key *';
-    if (nameInput) nameInput.placeholder = `e.g. ${adminProviderDisplayLabel(providerType)}`;
+  const renderEmptyState = (message) => {
+    if (!modelsList || !modelsStatus) return false;
+    modelsList.innerHTML = `<div class="px-4 py-3 text-xs text-gray-400">${message}</div>`;
+    modelsStatus.textContent = '';
+    if (searchInput) searchInput.value = modalState.query;
+    return true;
   };
+  const renderLoadingState = () => {
+    if (!modelsList || !modelsStatus) return false;
+    modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
+    modelsStatus.textContent = '';
+    if (searchInput) searchInput.value = modalState.query;
+    return true;
+  };
+  const renderErrorState = () => {
+    if (!modelsList || !modelsStatus) return false;
+    modelsList.innerHTML =
+      '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
+    modelsStatus.textContent = modalState.modelsError;
+    modelsStatus.classList.add('text-red-500');
+    if (searchInput) searchInput.value = modalState.query;
+    return true;
+  };
+  const hasModelUiElements = () => modelsList && modelsStatus;
+
+  const shouldShowEmptyModelsState = () =>
+    !connection?.id && (!Array.isArray(modalState.models) || modalState.models.length === 0);
+
+  const resolveSelectedModels = () =>
+    modalState.selection instanceof Set ? modalState.selection : new Set();
+
+  const buildModelsStatusText = (models, selected) =>
+    models.length ? `Models selected in this connection: ${selected.size}` : '';
+
   const renderModels = () => {
-    if (!modelsList || !modelsStatus) return;
-    if (!connection?.id && (!Array.isArray(modalState.models) || modalState.models.length === 0)) {
-      modelsList.innerHTML =
-        '<div class="px-4 py-3 text-xs text-gray-400">Click Verify to load models from this connection.</div>';
-      modelsStatus.textContent = '';
-      if (searchInput) searchInput.value = modalState.query;
+    if (!hasModelUiElements()) return;
+    if (shouldShowEmptyModelsState()) {
+      renderEmptyState('Click Verify to load models from this connection.');
       return;
     }
     if (modalState.loadingModels) {
-      modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
-      modelsStatus.textContent = '';
-      if (searchInput) searchInput.value = modalState.query;
+      renderLoadingState();
       return;
     }
     if (modalState.modelsError) {
-      modelsList.innerHTML =
-        '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
-      modelsStatus.textContent = modalState.modelsError;
-      modelsStatus.classList.add('text-red-500');
-      if (searchInput) searchInput.value = modalState.query;
+      renderErrorState();
       return;
     }
     const models = sortModelsByActiveThenName(modalState.models);
-    const selected = modalState.selection instanceof Set ? modalState.selection : new Set();
+    const selected = resolveSelectedModels();
     modelsList.innerHTML = buildConnectionModalModelsMarkup(
       models,
       modalState.query,
@@ -160,167 +167,163 @@ export function createModalUi(ctx) {
       ''
     );
     modelsStatus.classList.remove('text-red-500');
-    modelsStatus.textContent = models.length
-      ? `Models selected in this connection: ${selected.size}`
-      : '';
+    modelsStatus.textContent = buildModelsStatusText(models, selected);
     if (searchInput) searchInput.value = modalState.query;
   };
-  const buildPayload = () => {
-    const providerType = normalizeProviderType(
+  const resolveProviderType = () =>
+    normalizeProviderType(
       providerSelect?.value || connection?.provider_type || connection?.providerType || 'openai'
     );
-    const baseUrl = String(baseUrlInput?.value || '').trim();
-    const resolvedUrl = isCompatibleProviderType(providerType)
+  const resolveConnectionUrl = (providerType) => {
+    const baseUrl = sanitizeString(baseUrlInput?.value);
+    return isCompatibleProviderType(providerType)
       ? baseUrl
       : baseUrl || providerUrlPlaceholder(providerType);
-    const selectedModels = buildSelectedConnectionModels(
-      modalState.models,
-      modalState.selection,
-      connection
-    );
+  };
+  const buildSelectedModels = () =>
+    buildSelectedConnectionModels(modalState.models, modalState.selection, connection);
+  const resolveManualModelsMode = () => {
     const existingMode =
       normalizeConnectionModelSelectionMode(
         connection?.manual_models_mode || connection?.manualModelsMode
       ) || 'all';
-    const manualModelsMode =
-      Array.isArray(modalState.models) && modalState.models.length > 0
-        ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
-        : existingMode;
-    const payload = {
-      id: isEdit ? String(connection?.id || '').trim() : undefined,
-      name: String(nameInput?.value || '').trim(),
-      provider_type: providerType,
-      base_url: resolvedUrl,
-      key: String(keyInput?.value || '').trim(),
-      headers: String(headersInput?.value || '').trim(),
-      auth_type: String(connection?.auth_type || connection?.authType || '')
-        .trim()
-        .toLowerCase(),
-      enabled: connection?.enabled !== false,
-      manual_models: selectedModels,
-      manual_models_mode: manualModelsMode,
-    };
-    if (!payload.key) delete payload.key;
-    if (!payload.headers) delete payload.headers;
-    if (!payload.auth_type) delete payload.auth_type;
-    if (!payload.id) delete payload.id;
-    return payload;
+    const hasModels = Array.isArray(modalState.models) && modalState.models.length > 0;
+    return hasModels
+      ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
+      : existingMode;
   };
-  const testConnection = async () => {
+  const resolveConnectionName = () => sanitizeString(nameInput?.value);
+  const resolveConnectionKey = () => sanitizeString(keyInput?.value);
+  const resolveConnectionHeaders = () => sanitizeString(headersInput?.value);
+  const resolveConnectionAuthType = () =>
+    sanitizeString(connection?.auth_type || connection?.authType || '').toLowerCase();
+  const resolveConnectionEnabled = () => connection?.enabled !== false;
+
+  const buildPayload = () => {
+    const providerType = resolveProviderType();
+    const payload = {
+      id: isEdit ? sanitizeString(connection?.id) : undefined,
+      name: resolveConnectionName(),
+      provider_type: providerType,
+      base_url: resolveConnectionUrl(providerType),
+      key: resolveConnectionKey(),
+      headers: resolveConnectionHeaders(),
+      auth_type: resolveConnectionAuthType(),
+      enabled: resolveConnectionEnabled(),
+      manual_models: buildSelectedModels(),
+      manual_models_mode: resolveManualModelsMode(),
+    };
+    return stripOptionalFields(payload);
+  };
+  const validateConnectionUrl = (payload) => {
+    if (isCompatibleProviderType(payload.provider_type) && !payload.base_url) {
+      throw new Error('Connection URL is required');
+    }
+  };
+  const prepareTestConnection = () => {
     const payload = buildPayload();
     if (!payload.name) throw new Error('Name is required');
-    if (isCompatibleProviderType(payload.provider_type) && !payload.base_url)
-      throw new Error('Connection URL is required');
+    validateConnectionUrl(payload);
     setTestMessage('Testing connection...', 'testing');
     modalState.loadingModels = true;
     renderModels();
+    return payload;
+  };
+
+  const normalizeDiscoveredModels = (result) => {
+    if (!Array.isArray(result?.models)) return [];
+    return result.models
+      .map((model) =>
+        normalizeModelRecord({
+          id: model.id,
+          name: model.name || model.id,
+          manual: false,
+        })
+      )
+      .filter(Boolean);
+  };
+
+  const applyTestSuccess = (result, discovered) => {
+    const preview = previewConnectionModalModels(
+      modalState.models,
+      modalState.selection,
+      discovered,
+      { ...connection, manualModelsMode: modalState.manualModelsMode }
+    );
+    modalState.models = preview.models;
+    modalState.selection = preview.selection;
+    modalState.modelsError = '';
+    setTestMessage(
+      result?.message || `Connection successful. ${discovered.length} models loaded.`,
+      'success'
+    );
+  };
+
+  const applyTestError = (err) => {
+    const message = err?.message || 'Failed to test connection';
+    modalState.modelsError = message;
+    setTestMessage(message, 'error');
+  };
+
+  const finishTestLoading = () => {
+    modalState.loadingModels = false;
+    renderModels();
+  };
+
+  const testConnection = async () => {
+    const payload = prepareTestConnection();
     try {
       const result = await testUserConnection(payload);
-      const discovered = Array.isArray(result?.models)
-        ? result.models
-            .map((model) =>
-              normalizeModelRecord({
-                id: model.id,
-                name: model.name || model.id,
-                manual: false,
-              })
-            )
-            .filter(Boolean)
-        : [];
-      const preview = previewConnectionModalModels(
-        modalState.models,
-        modalState.selection,
-        discovered,
-        { ...connection, manualModelsMode: modalState.manualModelsMode }
-      );
-      modalState.models = preview.models;
-      modalState.selection = preview.selection;
-      modalState.modelsError = '';
-      setTestMessage(
-        result?.message || `Connection successful. ${discovered.length} models loaded.`,
-        'success'
-      );
+      const discovered = normalizeDiscoveredModels(result);
+      applyTestSuccess(result, discovered);
     } catch (err) {
-      modalState.modelsError = err?.message || 'Failed to test connection';
-      setTestMessage(err?.message || 'Failed to test connection', 'error');
+      applyTestError(err);
     } finally {
-      modalState.loadingModels = false;
-      renderModels();
+      finishTestLoading();
     }
   };
   const saveConnection = async () => {
     const payload = buildPayload();
-    const name = String(payload.name || '').trim();
+    const name = sanitizeString(payload.name);
     if (!name) {
       throw new Error('Name is required');
     }
-    if (isCompatibleProviderType(payload.provider_type) && !payload.base_url) {
-      throw new Error('Connection URL is required');
-    }
-    if (isEdit) {
-      return {
-        payload,
-        result: await updateUserConnection(connection.id, payload),
-      };
-    }
-    return {
-      payload,
-      result: await createUserConnection(payload),
-    };
+    validateConnectionUrl(payload);
+    return persistConnectionPayload(payload, isEdit, connection?.id);
   };
   const finishAndRender = () => {
     closeModal();
     render();
   };
-  saveBtn?.addEventListener('click', async (event) => {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    if (viewState.saving) return;
-    setError('');
-    setSaving(true);
-    try {
-      const { payload, result } = await saveConnection();
-      const savedConnection =
-        result?.connection || result?.saved_connection || result?.data?.connection || null;
-      if (savedConnection || isEdit) {
-        upsertPersonalConnection(
-          mergeSavedConnection(payload, savedConnection, isEdit ? connection : null)
-        );
-      }
-      broadcastConnectionsInvalidation();
-      broadcastModelsInvalidation();
-      finishAndRender();
-    } catch (err) {
-      setError(err?.message || 'Failed to save connection');
-    } finally {
-      setSaving(false);
-    }
-  });
-  deleteBtn?.addEventListener('click', async () => {
-    if (viewState.saving || !isEdit) return;
-    if (
-      !window.confirm(
-        `Delete connection ${connection.name || connection.id}? This cannot be undone.`
-      )
-    )
-      return;
-    setError('');
-    setSaving(true);
-    try {
-      await deleteUserConnection(connection.id);
-      removePersonalConnection(connection.id);
-      broadcastConnectionsInvalidation();
-      broadcastModelsInvalidation();
-      finishAndRender();
-    } catch (err) {
-      setError(err?.message || 'Failed to delete connection');
-    } finally {
-      setSaving(false);
-    }
-  });
+  saveBtn?.addEventListener('click', (event) =>
+    handleConnectionModalSave(event, {
+      viewState,
+      setError,
+      setSaving,
+      saveConnection,
+      isEdit,
+      connection,
+      upsertPersonalConnection,
+      mergeSavedConnection,
+      finishAndRender,
+    })
+  );
+  deleteBtn?.addEventListener('click', (event) =>
+    handleConnectionModalDelete(event, {
+      viewState,
+      setError,
+      setSaving,
+      isEdit,
+      connection,
+      removePersonalConnection,
+      finishAndRender,
+    })
+  );
   closeBtn?.addEventListener('click', closeModal);
   overlay?.addEventListener('click', closeModal);
-  providerSelect?.addEventListener('change', syncProviderUi);
+  providerSelect?.addEventListener('change', () =>
+    syncProviderUi(providerSelect, baseUrlInput, bodyEl, nameInput)
+  );
   toggleKeyBtn?.addEventListener('click', () => {
     if (!keyInput) return;
     keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
@@ -349,7 +352,7 @@ export function createModalUi(ctx) {
     renderModels();
   });
   manualAddBtn?.addEventListener('click', () => {
-    const raw = String(manualInput?.value || '').trim();
+    const raw = sanitizeString(manualInput?.value);
     if (!raw) return;
     const normalized = normalizeModelRecord({
       id: raw,
@@ -381,7 +384,7 @@ export function createModalUi(ctx) {
     }
     renderModels();
   });
-  syncProviderUi();
+  syncProviderUi(providerSelect, baseUrlInput, bodyEl, nameInput);
   renderModels();
 
   return {

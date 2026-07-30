@@ -1,6 +1,7 @@
 /**
  * Utility functions and section renderers for the account page.
  */
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { apiFetch } from '../../shared/api.js';
 
 export const accountSectionRenderers = {
@@ -83,15 +84,6 @@ export function getAccountSectionPath(section) {
   }
 }
 
-export function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 export async function loadAccountState() {
   const res = await apiFetch('/api/users/me/settings');
   if (!res.ok) {
@@ -100,26 +92,41 @@ export async function loadAccountState() {
   return res.json();
 }
 
-/* eslint-disable complexity */
+function resolveAvatarInitial(user) {
+  return user.avatar_emoji || user.name?.[0] || 'U';
+}
+
+function resolveUserName(user) {
+  return user.name || 'User';
+}
+
+function renderProfileHeader(user) {
+  return `
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Profile</div>
+        <div class="mt-3 flex items-center gap-3">
+          <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-700">${escapeHtml(resolveAvatarInitial(user))}</div>
+          <div>
+            <div class="text-base font-semibold text-gray-900">${escapeHtml(resolveUserName(user))}</div>
+            <div class="text-sm text-gray-500">${escapeHtml(user.email || '')}</div>
+          </div>
+        </div>`;
+}
+
+function renderProfileFields(user, preferences) {
+  return `
+        <div class="mt-4 space-y-2 text-sm text-gray-600">
+          <div><span class="font-medium text-gray-900">Status:</span> ${escapeHtml(user.status || 'offline')}</div>
+          <div><span class="font-medium text-gray-900">Role:</span> ${escapeHtml(user.primary_role || 'member')}</div>
+          <div><span class="font-medium text-gray-900">Theme:</span> ${escapeHtml(preferences.theme || 'system')}</div>
+        </div>`;
+}
+
 export function renderOverview(state) {
   const user = state.user || {};
   const preferences = state.settings?.preferences || {};
   return `
     <div class="grid gap-4 lg:grid-cols-2">
-      <section class="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
-        <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Profile</div>
-        <div class="mt-3 flex items-center gap-3">
-          <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-700">${escapeHtml(user.avatar_emoji || user.name?.[0] || 'U')}</div>
-          <div>
-            <div class="text-base font-semibold text-gray-900">${escapeHtml(user.name || 'User')}</div>
-            <div class="text-sm text-gray-500">${escapeHtml(user.email || '')}</div>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2 text-sm text-gray-600">
-          <div><span class="font-medium text-gray-900">Status:</span> ${escapeHtml(user.status || 'offline')}</div>
-          <div><span class="font-medium text-gray-900">Role:</span> ${escapeHtml(user.primary_role || 'member')}</div>
-          <div><span class="font-medium text-gray-900">Theme:</span> ${escapeHtml(preferences.theme || 'system')}</div>
-        </div>
+      <section class="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">${renderProfileHeader(user)}${renderProfileFields(user, preferences)}
       </section>
     </div>
   `;

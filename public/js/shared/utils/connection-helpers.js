@@ -70,20 +70,7 @@ export function normalizeSavedConnectionModelId(providerId, modelId) {
 }
 export function normalizeConnectionManualModels(value = []) {
   if (!Array.isArray(value)) return [];
-  const seen = new Set();
-  const models = [];
-  value.forEach((item) => {
-    const rawId = String(item?.modelId || item?.id || item?.name || item || '').trim();
-    if (!rawId) return;
-    const safeId = stripModelsPrefix(rawId);
-    if (seen.has(safeId)) return;
-    seen.add(safeId);
-    models.push({
-      modelId: safeId,
-      name: String(item?.name || safeId).trim() || safeId,
-    });
-  });
-  return models;
+  return collectManualModels(value);
 }
 
 function stripModelsPrefix(value) {
@@ -94,6 +81,28 @@ function stripModelsPrefix(value) {
 
 function firstDefinedModelName(model, fallback) {
   return String(model?.name || model?.displayName || model?.id || fallback || '').trim();
+}
+
+function extractManualModelId(item) {
+  return String(item?.modelId || item?.id || item?.name || item || '').trim();
+}
+
+function buildManualModelName(item, safeId) {
+  return String(item?.name || safeId).trim() || safeId;
+}
+
+function collectManualModels(value) {
+  const seen = new Set();
+  const models = [];
+  for (const item of value) {
+    const rawId = extractManualModelId(item);
+    if (!rawId) continue;
+    const safeId = stripModelsPrefix(rawId);
+    if (seen.has(safeId)) continue;
+    seen.add(safeId);
+    models.push({ modelId: safeId, name: buildManualModelName(item, safeId) });
+  }
+  return models;
 }
 export function normalizeModelRecord(model = {}) {
   const id = String(model?.id || model?.modelId || model?.name || '').trim();
@@ -137,18 +146,27 @@ const COMPATIBLE_PROVIDER_PREFIX = {
   'claude-compatible': 'anthropic',
 };
 
-export function getConnectionProviderId(connection = {}) {
-  const providerId = String(connection?.providerId || '').trim();
-  if (providerId) return providerId;
+function resolveProviderTypeForConnectionId(connection) {
   const providerType = normalizeProviderType(
     connection?.providerType || connection?.providerFamily || 'openai'
   );
   const connectionId = String(connection?.id || '').trim();
-  if (!connectionId) return providerType;
+  return { providerType, connectionId };
+}
+
+function buildConnectionProviderIdFromPrefix(providerType, connectionId) {
   const prefix = COMPATIBLE_PROVIDER_PREFIX[providerType];
   if (prefix) return `${prefix}/${connectionId}`;
   const family = normalizeProviderFamily(providerType);
   return `${family || providerType}/${connectionId}`;
+}
+
+export function getConnectionProviderId(connection = {}) {
+  const providerId = String(connection?.providerId || '').trim();
+  if (providerId) return providerId;
+  const { providerType, connectionId } = resolveProviderTypeForConnectionId(connection);
+  if (!connectionId) return providerType;
+  return buildConnectionProviderIdFromPrefix(providerType, connectionId);
 }
 export function formatConnectionModelId(providerId, modelId) {
   const safeProvider = String(providerId || '').trim();
@@ -222,6 +240,31 @@ export function mergeConnectionModalModels(
     });
   return sortModelsByActiveThenName(Array.from(merged.values()));
 }
+function normalizeSelectionIds(existingSelection, connection) {
+  if (!(existingSelection instanceof Set)) return new Set();
+  return new Set(
+    Array.from(existingSelection)
+      .map((modelId) => normalizeModalModelId(String(modelId || '').trim(), connection))
+      .filter(Boolean)
+  );
+}
+
+function buildPreviousStatesMap(existingModels, normalizedSelection, connection) {
+  return new Map(
+    (Array.isArray(existingModels) ? existingModels : []).map((model) => {
+      const modelId = normalizeModalModelId(String(model?.id || '').trim(), connection);
+      return [modelId, Boolean(normalizedSelection.has(modelId))];
+    })
+  );
+}
+
+function determineWasEnabled(model, previousStates, existingModels, normalizedSelection) {
+  if (previousStates.has(model.id)) return previousStates.get(model.id);
+  return (
+    Array.isArray(existingModels) && existingModels.length === 0 && normalizedSelection.size === 0
+  );
+}
+
 export function previewConnectionModalModels(
   existingModels = [],
   existingSelection = new Set(),
@@ -231,20 +274,8 @@ export function previewConnectionModalModels(
   const connectionMode = normalizeConnectionModelSelectionMode(
     connection?.manual_models_mode || connection?.manualModelsMode
   );
-  const normalizedSelection =
-    existingSelection instanceof Set
-      ? new Set(
-          Array.from(existingSelection)
-            .map((modelId) => normalizeModalModelId(String(modelId || '').trim(), connection))
-            .filter(Boolean)
-        )
-      : new Set();
-  const previousStates = new Map(
-    (Array.isArray(existingModels) ? existingModels : []).map((model) => {
-      const modelId = normalizeModalModelId(String(model?.id || '').trim(), connection);
-      return [modelId, Boolean(normalizedSelection.has(modelId))];
-    })
-  );
+  const normalizedSelection = normalizeSelectionIds(existingSelection, connection);
+  const previousStates = buildPreviousStatesMap(existingModels, normalizedSelection, connection);
   const models = mergeConnectionModalModels(existingModels, discoveredModels, connection);
   const selection = new Set();
   if (connectionMode === 'all') {
@@ -263,11 +294,12 @@ export function previewConnectionModalModels(
     };
   }
   models.forEach((model) => {
-    const wasEnabled = previousStates.has(model.id)
-      ? previousStates.get(model.id)
-      : Array.isArray(existingModels) &&
-        existingModels.length === 0 &&
-        normalizedSelection.size === 0;
+    const wasEnabled = determineWasEnabled(
+      model,
+      previousStates,
+      existingModels,
+      normalizedSelection
+    );
     if (wasEnabled) selection.add(model.id);
   });
   return {
@@ -335,16 +367,33 @@ export function updateApiTypeDisplay(scope, providerType) {
   if (label) label.textContent = details.label;
   if (hint) hint.textContent = details.endpoint;
 }
+function readModalFieldValue(root, selector) {
+  return root?.querySelector(selector)?.value || '';
+}
+
+function readModalProviderType(root) {
+  return readModalFieldValue(root, '#modal-conn-provider') || 'openai';
+}
+
 export function buildModalConnectionPayload(scope = null, selectedConnection = null) {
   const root = scope || document;
   return {
     id: selectedConnection?.id || '',
-    name: root.querySelector('#modal-conn-name')?.value || '',
-    url: root.querySelector('#modal-conn-url')?.value || '',
-    key: root.querySelector('#modal-conn-key')?.value || '',
-    headers: root.querySelector('#modal-conn-headers')?.value || '',
-    providerType: root.querySelector('#modal-conn-provider')?.value || 'openai',
-    providerFamily: root.querySelector('#modal-conn-provider')?.value || 'openai',
+    name: readModalFieldValue(root, '#modal-conn-name'),
+    url: readModalFieldValue(root, '#modal-conn-url'),
+    key: readModalFieldValue(root, '#modal-conn-key'),
+    headers: readModalFieldValue(root, '#modal-conn-headers'),
+    providerType: readModalProviderType(root),
+    providerFamily: readModalProviderType(root),
     authType: selectedConnection?.authType || selectedConnection?.auth_type || '',
   };
+}
+
+export function buildTestableConnectionPayload(scope = null, selectedConnection = null) {
+  const modalRoot = scope?.querySelector('#edit-connection-modal') || scope;
+  const payload = buildModalConnectionPayload(modalRoot, selectedConnection);
+  const resolvedUrl = resolveModalUrl(payload.providerType, payload.url);
+  if (!resolvedUrl) return null;
+  payload.url = resolvedUrl;
+  return { modalRoot, payload };
 }

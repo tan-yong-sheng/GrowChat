@@ -3,9 +3,10 @@ import { renderButton } from '../../shared/components/button.js';
 
 export function renderAccountSecuritySection(
   container,
-  state = {},
-  { onRefresh, routeCache } = {}
+  _state = {},
+  { onRefresh: _onRefresh, routeCache: _routeCache } = {}
 ) {
+  const PASSWORD_MIN_LENGTH = 8;
   let saving = false;
 
   const showFeedback = (message, isError = false) => {
@@ -21,6 +22,44 @@ export function renderAccountSecuritySection(
       : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
     feedback.classList.remove('hidden');
   };
+
+  function clearPasswordFeedback() {
+    const feedback = container.querySelector('#password-change-feedback');
+    if (feedback) feedback.classList.add('hidden');
+  }
+
+  function validatePasswordForm(newPassword, confirmNewPassword) {
+    if (newPassword !== confirmNewPassword) {
+      return 'New passwords do not match. Please re-enter the same password.';
+    }
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      return 'New password must be at least ' + PASSWORD_MIN_LENGTH + ' characters.';
+    }
+    return null;
+  }
+
+  function postPasswordChange(currentPassword, newPassword, confirmNewPassword) {
+    return apiFetch('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
+    });
+  }
+
+  async function handlePasswordResponse(res, form) {
+    if (res.ok) {
+      showFeedback('Password changed successfully.', false);
+      form.querySelector('#current-password').value = '';
+      form.querySelector('#new-password').value = '';
+      form.querySelector('#confirm-password').value = '';
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    showFeedback(data?.error || 'Failed to change password.', true);
+  }
+
+  function handlePasswordError(err) {
+    showFeedback(err?.message || 'Network error. Please try again.', true);
+  }
 
   const render = () => {
     container.innerHTML = `
@@ -88,43 +127,20 @@ export function renderAccountSecuritySection(
         const newPassword = form.querySelector('#new-password').value;
         const confirmNewPassword = form.querySelector('#confirm-password').value;
 
-        // Clear any previous feedback
-        const feedback = container.querySelector('#password-change-feedback');
-        if (feedback) {
-          feedback.classList.add('hidden');
-        }
+        clearPasswordFeedback();
 
-        // Frontend validation: confirm must match
-        if (newPassword !== confirmNewPassword) {
-          showFeedback('New passwords do not match. Please re-enter the same password.', true);
-          saving = false;
-          return;
-        }
-
-        // Frontend validation: minimum length
-        if (newPassword.length < 8) {
-          showFeedback('New password must be at least 8 characters.', true);
+        const validationError = validatePasswordForm(newPassword, confirmNewPassword);
+        if (validationError) {
+          showFeedback(validationError, true);
           saving = false;
           return;
         }
 
         try {
-          const res = await apiFetch('/api/auth/change-password', {
-            method: 'POST',
-            body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
-          });
-
-          if (res.ok) {
-            showFeedback('Password changed successfully.', false);
-            form.querySelector('#current-password').value = '';
-            form.querySelector('#new-password').value = '';
-            form.querySelector('#confirm-password').value = '';
-          } else {
-            const data = await res.json().catch(() => ({}));
-            showFeedback(data?.error || 'Failed to change password.', true);
-          }
+          const res = await postPasswordChange(currentPassword, newPassword, confirmNewPassword);
+          await handlePasswordResponse(res, form);
         } catch (err) {
-          showFeedback(err?.message || 'Network error. Please try again.', true);
+          handlePasswordError(err);
         } finally {
           saving = false;
         }

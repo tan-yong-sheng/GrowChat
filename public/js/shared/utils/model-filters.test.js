@@ -27,8 +27,8 @@ describe('model filters', () => {
     const all = options.find((option) => option.value === 'all');
     const openai = options.find((option) => option.value === 'openai main');
     const google = options.find((option) => option.value === 'gemini');
-
-    expect(all?.total).toBe(3);
+    const TOTAL_COUNT = 3;
+    expect(all?.total).toBe(TOTAL_COUNT);
     expect(all?.active).toBe(2);
     expect(openai?.total).toBe(2);
     expect(openai?.active).toBe(1);

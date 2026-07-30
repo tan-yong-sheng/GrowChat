@@ -190,23 +190,36 @@ export async function renderAdminPage(container) {
     }
   };
 
-  const sortUsers = (users) =>
-    users.slice().sort((a, b) => {
-      const roleOrder = { admin: 0, member: 1 };
-      const statusOrder = { active: 0, pending: 1 };
-      const roleDiff = (roleOrder[a.primary_role] ?? 2) - (roleOrder[b.primary_role] ?? 2);
-      if (roleDiff !== 0) return roleDiff;
-      const statusDiff =
-        (statusOrder[a.account_status] ?? 2) - (statusOrder[b.account_status] ?? 2);
-      if (statusDiff !== 0) return statusDiff;
-      const nameDiff = String(a.name || '').localeCompare(String(b.name || ''), undefined, {
-        sensitivity: 'base',
-      });
-      if (nameDiff !== 0) return nameDiff;
-      return String(a.email || '').localeCompare(String(b.email || ''), undefined, {
-        sensitivity: 'base',
-      });
+  function getUserRoleOrder(role) {
+    return role === 'admin' ? 0 : role === 'member' ? 1 : 2;
+  }
+
+  function getUserStatusOrder(status) {
+    return status === 'active' ? 0 : status === 'pending' ? 1 : 2;
+  }
+
+  function compareUserNames(a, b) {
+    return String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+      sensitivity: 'base',
     });
+  }
+
+  function compareUserEmails(a, b) {
+    return String(a.email || '').localeCompare(String(b.email || ''), undefined, {
+      sensitivity: 'base',
+    });
+  }
+
+  function compareUsers(a, b) {
+    return (
+      getUserRoleOrder(a.primary_role) - getUserRoleOrder(b.primary_role) ||
+      getUserStatusOrder(a.account_status) - getUserStatusOrder(b.account_status) ||
+      compareUserNames(a, b) ||
+      compareUserEmails(a, b)
+    );
+  }
+
+  const sortUsers = (users) => users.slice().sort(compareUsers);
 
   const clearUsersCache = () => {
     data.usersCache = {};

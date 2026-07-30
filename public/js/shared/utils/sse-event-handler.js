@@ -7,35 +7,39 @@
  * chat-message-stream-send.
  */
 
-function handleStartEvent(payload, ctx, state) {
-  const {
-    chatId,
-    tempAssistantId,
-    tempUserId,
-    replaceTempMessageId,
-    applyAssistantText,
-    thinkingActiveByMessageId,
-    thinkingStartByMessageId,
-    onUserMessageStart,
-    onAssistantMessageStart,
-  } = ctx;
+function startUserMessage(payload, ctx, _state) {
+  const { chatId, tempUserId, replaceTempMessageId, onUserMessageStart } = ctx;
+  if (!payload?.user_message_id || !tempUserId) return;
+  const nextId = String(payload.user_message_id);
+  replaceTempMessageId(chatId, tempUserId, nextId);
+  if (onUserMessageStart) onUserMessageStart(chatId, nextId);
+}
 
-  if (payload?.user_message_id && tempUserId) {
-    const nextId = String(payload.user_message_id);
-    replaceTempMessageId(chatId, tempUserId, nextId);
-    if (onUserMessageStart) onUserMessageStart(chatId, nextId);
+function startAssistantMessage(payload, ctx, state) {
+  const { chatId, tempAssistantId, replaceTempMessageId, onAssistantMessageStart } = ctx;
+  if (!payload?.message_id) return false;
+  state.assistantMessageId = String(payload.message_id);
+  replaceTempMessageId(chatId, tempAssistantId, state.assistantMessageId);
+  if (onAssistantMessageStart) onAssistantMessageStart(chatId, state.assistantMessageId);
+  return true;
+}
+
+function ensureThinkingStarted(ctx, state) {
+  const { thinkingActiveByMessageId, thinkingStartByMessageId } = ctx;
+  const id = String(state.assistantMessageId);
+  if (!thinkingActiveByMessageId.has(id)) {
+    thinkingActiveByMessageId.set(id, true);
   }
-  if (payload?.message_id) {
-    state.assistantMessageId = String(payload.message_id);
-    replaceTempMessageId(chatId, tempAssistantId, state.assistantMessageId);
-    if (onAssistantMessageStart) onAssistantMessageStart(chatId, state.assistantMessageId);
-    if (!thinkingActiveByMessageId.has(String(state.assistantMessageId))) {
-      thinkingActiveByMessageId.set(String(state.assistantMessageId), true);
-    }
-    if (!thinkingStartByMessageId.has(String(state.assistantMessageId))) {
-      thinkingStartByMessageId.set(String(state.assistantMessageId), Date.now());
-    }
-    applyAssistantText(true);
+  if (!thinkingStartByMessageId.has(id)) {
+    thinkingStartByMessageId.set(id, Date.now());
+  }
+}
+
+function handleStartEvent(payload, ctx, state) {
+  startUserMessage(payload, ctx, state);
+  if (startAssistantMessage(payload, ctx, state)) {
+    ensureThinkingStarted(ctx, state);
+    ctx.applyAssistantText(true);
   }
 }
 
@@ -91,16 +95,25 @@ function handleToolEvent(payload, ctx, state) {
   applyAssistantText();
 }
 
+function resolveErrorMessage(payload) {
+  return payload.message || payload.error || 'LLM request failed';
+}
+
+function buildErrorAssistantText(currentText, message, strategy) {
+  if (strategy !== 'append') return '';
+  const label = `Error: ${message}`;
+  return currentText ? `${currentText}\n\n${label}` : label;
+}
+
 function handleError(payload, ctx, state) {
   const { applyAssistantText, errorStrategy } = ctx;
-  state.errorMessage = payload.message || payload.error || 'LLM request failed';
+  state.errorMessage = resolveErrorMessage(payload);
   state.errorActive = true;
-  if (errorStrategy === 'append') {
-    const label = `Error: ${state.errorMessage}`;
-    state.assistantText = state.assistantText ? `${state.assistantText}\n\n${label}` : label;
-  } else {
-    state.assistantText = '';
-  }
+  state.assistantText = buildErrorAssistantText(
+    state.assistantText,
+    state.errorMessage,
+    errorStrategy
+  );
   applyAssistantText();
 }
 
@@ -130,13 +143,18 @@ export function createSseStreamHandlers(ctx) {
     if ('assistantText' in updates) state.assistantText = updates.assistantText;
   }
 
+  const EVENT_HANDLERS = {
+    start: handleStartEvent,
+    reasoning_start: handleReasoningStart,
+    reasoning_delta: handleReasoningDelta,
+    reasoning_end: handleReasoningEnd,
+    tool_status: handleToolEvent,
+    tool_result: handleToolEvent,
+  };
+
   const onEvent = (payload) => {
-    const event = payload?.event;
-    if (event === 'start') handleStartEvent(payload, ctx, state);
-    if (event === 'reasoning_start') handleReasoningStart(payload, ctx, state);
-    if (event === 'reasoning_delta') handleReasoningDelta(payload, ctx, state);
-    if (event === 'reasoning_end') handleReasoningEnd(payload, ctx, state);
-    if (event === 'tool_status' || event === 'tool_result') handleToolEvent(payload, ctx, state);
+    const handler = EVENT_HANDLERS[payload?.event];
+    if (handler) handler(payload, ctx, state);
     if (payload?.error) handleError(payload, ctx, state);
     notePayloadSeq(payload, state.assistantMessageId);
   };
@@ -302,4 +320,42 @@ export async function handleStreamCatchError({
     activeChatId,
     preferredLeafId,
   });
+}
+
+/**
+ * Create a reusable applyAssistantText callback for createSseStreamHandlers.
+ *
+ * Replaces the inline `applyAssistantText: (streaming) => { ... }` pattern
+ * that was duplicated across chat-message-actions and chat-message-retry-actions.
+ *
+ * @param {Function} getStreamState - The getStreamState() closure from createSseStreamHandlers
+ * @param {Object} opts - Options including applyStreamingAssistantText and streaming context
+ * @returns {Function} - Callback suitable for applyAssistantText in createSseStreamHandlers
+ */
+export function makeApplyStreamingCallback(
+  getStreamState,
+  {
+    state,
+    setState,
+    streamingOverrideByChat,
+    updateMessageContentDom,
+    chatId,
+    applyStreamingAssistantText,
+  } = {}
+) {
+  return (streaming = true) => {
+    const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
+    applyStreamingAssistantText({
+      state,
+      setState,
+      streamingOverrideByChat,
+      updateMessageContentDom,
+      chatId,
+      messageId: assistantMessageId,
+      assistantText,
+      errorActive,
+      errorMessage,
+      streaming,
+    });
+  };
 }

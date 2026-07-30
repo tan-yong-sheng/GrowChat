@@ -1,13 +1,9 @@
 import { apiFetch } from '../../../shared/api.js';
-
-const escapeHtml = (text) => {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-};
+import {
+  escapeHtml,
+  showFeedback,
+  sendTestEmail as sharedSendTestEmail,
+} from './security-shared.js';
 
 const PROVIDERS = [
   {
@@ -44,47 +40,45 @@ export function renderEmailDeliverySettings(container) {
   let saving = false;
   let sendingTestEmail = false;
 
-  const showFeedback = (message, isError = false) => {
-    let feedback = container.querySelector('#settings-feedback');
-    if (!feedback) {
-      feedback = document.createElement('div');
-      feedback.id = 'settings-feedback';
-      const feedbackContainer = container.querySelector('.space-y-3');
-      if (feedbackContainer) feedbackContainer.appendChild(feedback);
-      else container.appendChild(feedback);
-    }
-    feedback.textContent = message;
-    feedback.className = isError
-      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-    feedback.classList.remove('hidden');
-    setTimeout(() => feedback.classList.add('hidden'), 3000);
-  };
-
   const getApiKeyHint = () => {
     const p = PROVIDERS.find((x) => x.id === settingsState.provider);
-    if (settingsState.apiKeyConfigured) {
-      return `An API key is configured for ${p?.label || settingsState.provider}. Enter a new key to replace it.`;
-    }
-    return p?.helperText || 'Enter your API key.';
+    if (settingsState.apiKeyConfigured) return buildConfiguredHint(p);
+    return buildDefaultHint(p);
   };
+
+  function buildConfiguredHint(p) {
+    return `An API key is configured for ${p?.label || settingsState.provider}. Enter a new key to replace it.`;
+  }
+
+  function buildDefaultHint(p) {
+    return p?.helperText || 'Enter your API key.';
+  }
+
+  function maskedApiKeyValue() {
+    return settingsState.apiKeyConfigured ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : '';
+  }
+
+  function findCurrentProvider() {
+    return PROVIDERS.find((x) => x.id === settingsState.provider);
+  }
+
+  function buildProviderOptions() {
+    return PROVIDERS.map(
+      (p) =>
+        `<option value="${p.id}"${p.id === settingsState.provider ? ' selected' : ''}>${escapeHtml(p.label)}</option>`
+    ).join('');
+  }
 
   const render = () => {
     if (!isActiveTab()) return;
 
-    const maskedValue = settingsState.apiKeyConfigured
-      ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
-      : '';
-    const escapedMaskedValue = escapeHtml(maskedValue);
+    const escapedMaskedValue = escapeHtml(maskedApiKeyValue());
     const apiKeyHint = escapeHtml(getApiKeyHint());
     const escapedFromEmail = escapeHtml(settingsState.fromEmail);
     const escapedDomain = escapeHtml(settingsState.mailgunDomain);
-    const currentProvider = PROVIDERS.find((x) => x.id === settingsState.provider);
+    const currentProvider = findCurrentProvider();
 
-    const providerOptions = PROVIDERS.map(
-      (p) =>
-        `<option value="${p.id}"${p.id === settingsState.provider ? ' selected' : ''}>${escapeHtml(p.label)}</option>`
-    ).join('');
+    const providerOptions = buildProviderOptions();
 
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
@@ -182,81 +176,151 @@ export function renderEmailDeliverySettings(container) {
     bindEvents();
   };
 
+  function buildProviderPayload(newProvider) {
+    return JSON.stringify({ email_provider: newProvider });
+  }
+
+  function parseProviderErrorResponse(err) {
+    return err?.error || err?.message || 'Failed to update provider';
+  }
+
+  function updateProviderState(state, newProvider) {
+    const prev = state.provider;
+    state.provider = newProvider;
+    state.apiKeyConfigured = false;
+    return prev;
+  }
+
+  function revertProviderState(state, prev) {
+    state.provider = prev;
+  }
+
+  function formatProviderError(err) {
+    return err?.message || 'Failed to update provider.';
+  }
+
+  async function applyEmailProviderUpdate(newProvider) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: buildProviderPayload(newProvider),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(parseProviderErrorResponse(err));
+    }
+  }
+
   const saveProvider = async (newProvider) => {
     if (saving) return;
     saving = true;
-    const prev = settingsState.provider;
-    settingsState.provider = newProvider;
-    settingsState.apiKeyConfigured = false;
+    const prev = updateProviderState(settingsState, newProvider);
     try {
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ email_provider: newProvider }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update provider');
-      }
+      await applyEmailProviderUpdate(newProvider);
       render();
     } catch (err) {
-      settingsState.provider = prev;
+      revertProviderState(settingsState, prev);
       render();
-      showFeedback(err?.message || 'Failed to update provider.', true);
+      showFeedback(container, formatProviderError(err), true);
     } finally {
       saving = false;
     }
   };
 
+  function isMaskedApiKeyValue(value) {
+    return value.includes('\u2022');
+  }
+
+  function disableEmailApiKeyInput() {
+    const input = container.querySelector('#email-api-key');
+    if (input) input.disabled = true;
+  }
+
+  function formatApiKeyError(err) {
+    return err?.message || 'Failed to update API key.';
+  }
+
+  async function extractApiKeyErrorMessage(res) {
+    const err = await res.json().catch(() => ({}));
+    return err?.error || err?.message || 'Failed to update API key';
+  }
+
+  async function applyEmailApiKeyUpdate(newValue) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: JSON.stringify({ email_api_key: newValue }),
+    });
+    if (!res.ok) {
+      throw new Error(await extractApiKeyErrorMessage(res));
+    }
+  }
+
   const saveApiKey = async (newValue) => {
-    if (newValue.includes('\u2022')) {
-      showFeedback('Invalid API key format.', true);
+    if (isMaskedApiKeyValue(newValue)) {
+      showFeedback(container, 'Invalid API key format.', true);
       render();
       return;
     }
     if (saving) return;
     saving = true;
     const prevConfigured = settingsState.apiKeyConfigured;
-    const input = container.querySelector('#email-api-key');
     try {
-      if (input) input.disabled = true;
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ email_api_key: newValue }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update API key');
-      }
+      disableEmailApiKeyInput();
+      await applyEmailApiKeyUpdate(newValue);
       settingsState.apiKeyConfigured = true;
       render();
-      showFeedback('API key saved.');
+      showFeedback(container, 'API key saved.');
     } catch (err) {
       settingsState.apiKeyConfigured = prevConfigured;
       render();
-      showFeedback(err?.message || 'Failed to update API key.', true);
+      showFeedback(container, formatApiKeyError(err), true);
     } finally {
       saving = false;
     }
   };
 
+  function updateSimpleEmailState(state, key, value) {
+    const prev = state[key];
+    state[key] = value;
+    return prev;
+  }
+
+  function revertSimpleEmailState(state, key, prev) {
+    state[key] = prev;
+  }
+
+  function buildSimplePayload(fieldName, value) {
+    return JSON.stringify({ [fieldName]: value });
+  }
+
+  function parseSimpleEmailErrorResponse(err, label) {
+    return err?.error || err?.message || `Failed to update ${label}`;
+  }
+
+  function formatSimpleEmailError(err, label) {
+    return err?.message || `Failed to update ${label}.`;
+  }
+
+  async function applySimpleEmailUpdate(fieldName, value, label) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: buildSimplePayload(fieldName, value),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(parseSimpleEmailErrorResponse(err, label));
+    }
+  }
+
   const saveFromEmail = async (newFromEmail) => {
     if (saving) return;
     saving = true;
-    const prev = settingsState.fromEmail;
-    settingsState.fromEmail = newFromEmail;
+    const prev = updateSimpleEmailState(settingsState, 'fromEmail', newFromEmail);
     try {
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ email_from: newFromEmail }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update from email');
-      }
-      showFeedback('From email saved.');
+      await applySimpleEmailUpdate('email_from', newFromEmail, 'from email');
+      showFeedback(container, 'From email saved.');
     } catch (err) {
-      settingsState.fromEmail = prev;
-      showFeedback(err?.message || 'Failed to update from email.', true);
+      revertSimpleEmailState(settingsState, 'fromEmail', prev);
+      showFeedback(container, formatSimpleEmailError(err, 'from email'), true);
     } finally {
       saving = false;
     }
@@ -265,60 +329,20 @@ export function renderEmailDeliverySettings(container) {
   const saveMailgunDomain = async (newDomain) => {
     if (saving) return;
     saving = true;
-    const prev = settingsState.mailgunDomain;
-    settingsState.mailgunDomain = newDomain;
+    const prev = updateSimpleEmailState(settingsState, 'mailgunDomain', newDomain);
     try {
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ mailgun_domain: newDomain }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update Mailgun domain');
-      }
-      showFeedback('Mailgun domain saved.');
+      await applySimpleEmailUpdate('mailgun_domain', newDomain, 'Mailgun domain');
+      showFeedback(container, 'Mailgun domain saved.');
     } catch (err) {
-      settingsState.mailgunDomain = prev;
-      showFeedback(err?.message || 'Failed to update Mailgun domain.', true);
+      revertSimpleEmailState(settingsState, 'mailgunDomain', prev);
+      showFeedback(container, formatSimpleEmailError(err, 'Mailgun domain'), true);
     } finally {
       saving = false;
     }
   };
 
   const sendTestEmail = async (email) => {
-    if (sendingTestEmail) return;
-    if (!email || !email.trim()) {
-      showFeedback('Please enter a valid email address.', true);
-      return;
-    }
-    sendingTestEmail = true;
-    const sendTestBtn = container.querySelector('#send-test-email');
-    const testEmailInput = container.querySelector('#test-email');
-    try {
-      if (sendTestBtn) {
-        sendTestBtn.disabled = true;
-        sendTestBtn.textContent = 'Sending...';
-      }
-      if (testEmailInput) testEmailInput.disabled = true;
-      const res = await apiFetch('/api/admin/email-config/test', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to send test email');
-      }
-      showFeedback('Test email sent successfully.');
-    } catch (err) {
-      showFeedback(err?.message || 'Failed to send test email.', true);
-    } finally {
-      sendingTestEmail = false;
-      if (sendTestBtn) {
-        sendTestBtn.disabled = false;
-        sendTestBtn.textContent = 'Send Test';
-      }
-      if (testEmailInput) testEmailInput.disabled = false;
-    }
+    await sharedSendTestEmail(container, email);
   };
 
   const bindEvents = () => {
@@ -359,22 +383,44 @@ export function renderEmailDeliverySettings(container) {
     });
   };
 
+  function resolveEmailProvider(payload) {
+    return payload?.email_provider || 'resend';
+  }
+
+  function resolveApiKeyConfigured(payload) {
+    return payload?.email_api_key_configured || payload?.resend_api_key_configured || false;
+  }
+
+  function resolveFromEmail(payload) {
+    return payload?.email_from || payload?.resend_from_email || '';
+  }
+
+  function resolveMailgunDomain(payload) {
+    return payload?.mailgun_domain || '';
+  }
+
+  function applyEmailConfig(payload) {
+    settingsState.provider = resolveEmailProvider(payload);
+    settingsState.apiKeyConfigured = resolveApiKeyConfigured(payload);
+    settingsState.fromEmail = resolveFromEmail(payload);
+    settingsState.mailgunDomain = resolveMailgunDomain(payload);
+  }
+
+  function handleLoadConfigError(err) {
+    console.warn('Failed to load email config', err);
+  }
+
   const loadConfig = async () => {
     if (settingsState.configLoaded) return;
     settingsState.configLoaded = true;
     try {
       const res = await apiFetch('/api/admin/email-config');
-      if (res.ok) {
-        const payload = await res.json();
-        settingsState.provider = payload?.email_provider || 'resend';
-        settingsState.apiKeyConfigured =
-          payload?.email_api_key_configured || payload?.resend_api_key_configured || false;
-        settingsState.fromEmail = payload?.email_from || payload?.resend_from_email || '';
-        settingsState.mailgunDomain = payload?.mailgun_domain || '';
-        if (isActiveTab()) render();
-      }
+      if (!res.ok) return;
+      const payload = await res.json();
+      applyEmailConfig(payload);
+      if (isActiveTab()) render();
     } catch (err) {
-      console.warn('Failed to load email config', err);
+      handleLoadConfigError(err);
     }
   };
 

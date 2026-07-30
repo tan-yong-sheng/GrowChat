@@ -54,6 +54,19 @@ vi.mock('../../admin/tool-servers.js', () => ({
 vi.mock('./admin-helpers.js', () => ({
   ensureAdminAclAccess: (...args) => mocks.ensureAdminAclAccess(...args),
   isValidModelAccessId: vi.fn((id) => !!id && id.length <= 200 && !/\s/.test(id)),
+  parseJsonAndRequireAdminAcl: async (req, env, user, resource) => {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return { error: new Response('Invalid JSON body', { status: 400 }) };
+    }
+    const aclDecision = await mocks.ensureAdminAclAccess({ env, user, resource });
+    if (!aclDecision.allow) {
+      return { error: new Response(aclDecision.reason || 'Forbidden', { status: 403 }) };
+    }
+    return { body };
+  },
 }));
 
 vi.mock('../../utils/response.js', () => ({
@@ -64,6 +77,15 @@ vi.mock('../../utils/response.js', () => ({
     if (details !== undefined) body.details = details;
     return new Response(JSON.stringify(body), {
       status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+  authError: (req, decision, defaultMessage = 'Forbidden') => {
+    const statusCodeMap = { server_error: 500, unauthorized: 401, not_found: 404 };
+    const statusCode = statusCodeMap[decision.code] || 403;
+    const message = decision.reason || defaultMessage;
+    return new Response(JSON.stringify({ error: message }), {
+      status: statusCode,
       headers: { 'Content-Type': 'application/json' },
     });
   },

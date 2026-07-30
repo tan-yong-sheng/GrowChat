@@ -14,6 +14,7 @@
  *   - admin-config.js              → audit-logs, config, model-attachment-caps
  *   - admin-email-security.js      → email-config, security-config
  */
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { createDB } from '../db.js';
 import { error } from '../utils/response.js';
 import { authorize } from '../utils/authorize.js';
@@ -47,9 +48,17 @@ function resolveAdminPermission(path, method) {
 /**
  * Admin Router Handler
  */
-export async function adminRouter(req, env, ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
+// Cloudflare Worker handler
+export async function adminRouter({
+  req,
+  env,
+  ctx,
+  user,
+  path,
+  requestId,
+  logger: providedLogger,
+} = {}) {
+  const logger = providedLogger || createLogger(env, { requestId });
 
   if (!path.startsWith('/api/admin/')) return null;
 
@@ -66,13 +75,13 @@ export async function adminRouter(req, env, ctx, user, path, requestContext = {}
         unauthorized: 401,
         not_found: 404,
       };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
+      const statusCode = statusCodeMap[authDecision.code] || HTTP_STATUS.FORBIDDEN;
       return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
   }
 
   const db = createDB(env.DB);
-  const deps = { db, logger, requestContext };
+  const deps = { db, logger };
 
   // Delegate to domain-specific sub-handlers.
   // Each returns a Response if it handles the route, or null otherwise.
@@ -84,7 +93,7 @@ export async function adminRouter(req, env, ctx, user, path, requestContext = {}
     () => handleAdminToolServersCrud(req, env, ctx, user, path, deps),
     () => handleAdminToolServersOAuth(req, env, ctx, user, path, deps),
     () => handleAdminConfig(req, env, ctx, user, path, deps),
-    () => handleAdminEmailSecurity(req, env, ctx, user, path, deps),
+    () => handleAdminEmailSecurity({ req, env, user, path, deps }),
   ];
 
   for (const handler of handlers) {

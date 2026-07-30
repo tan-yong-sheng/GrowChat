@@ -40,6 +40,7 @@ export function normalizeBackendQuery(query) {
 export function getSearchChatDateLabel(dateString) {
   if (!dateString) return 'Unknown date';
   const date = new Date(dateString);
+  // 1970 is Unix epoch start
   if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Unknown date';
   const label = formatDate(dateString);
   return label || 'Unknown date';
@@ -56,12 +57,13 @@ export function groupChatsByDate(chats) {
 }
 
 export function renderSearchEmptyStateMarkup(query = '') {
+  const safeQuery = escapeHtml(String(query || ''));
   return `
     <div class="px-3 py-12 text-center">
       <div class="text-gray-300 mb-3 flex justify-center">
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       </div>
-      <p class="text-xs text-gray-400 font-medium">${query ? 'No results found' : 'No recent chats'}</p>
+      <p class="text-xs text-gray-400 font-medium">${safeQuery ? 'No results found' : 'No recent chats'}</p>
     </div>
   `;
 }
@@ -72,7 +74,7 @@ export function renderSearchResultsMarkup(results = [], query = '') {
     .map(
       ([label, groupChats]) => `
     <div class="mt-4 first:mt-0">
-      <div class="px-3 py-2 text-label-sm font-bold text-gray-400 uppercase tracking-widest">${label}</div>
+      <div class="px-3 py-2 text-label-sm font-bold text-gray-400 uppercase tracking-widest">${escapeHtml(label)}</div>
       <div class="space-y-1.5">
         ${groupChats
           .map((c) => {

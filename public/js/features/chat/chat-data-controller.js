@@ -1,5 +1,134 @@
 import { resolveConversationLeafId } from '../../shared/utils/conversation.js';
 
+/**
+ * Check if a message is still actively streaming (not yet done).
+ * Used to detect running messages that need live-stream attention.
+ * @param {object} message
+ * @param {number} now - current Date.now() value
+ * @param {number} staleMs - stream stale timeout in ms
+ * @returns {boolean}
+ */
+function isRunningStatus(message) {
+  const status = String(message?.status || '');
+  return message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+}
+
+function isWithinStaleWindow(message, now, staleMs) {
+  const createdAtMs = Number(message?.created_at || 0) * 1000;
+  return createdAtMs > 0 && now - createdAtMs <= staleMs;
+}
+
+function isMessageLive(message, now, staleMs) {
+  return isRunningStatus(message) && isWithinStaleWindow(message, now, staleMs);
+}
+
+/**
+ * Resolve the preferred model ID based on modelMode ('default' vs 'chat').
+ * @param {object} state
+ * @param {object} data - parsed response data
+ * @param {'keep'|'default'|'chat'} modelMode
+ * @returns {string|null}
+ */
+function resolveModelIdForMode(state, data, modelMode) {
+  if (modelMode === 'default') return pickDefaultModel(state, data);
+  if (modelMode === 'chat') return pickChatModel(state, data);
+  return state.activeModelId;
+}
+
+function pickDefaultModel(state, data) {
+  return (
+    state.defaultModelId || state.globalDefaultModelId || data?.chat?.model || state.activeModelId
+  );
+}
+
+function pickChatModel(state, data) {
+  return (
+    data?.chat?.model || state.activeModelId || state.defaultModelId || state.globalDefaultModelId
+  );
+}
+
+/**
+ * Mark messages as (not) done based on stream live status.
+ * Used by loadMessages to flag stale messages before fallback insertion.
+ * @param {object[]} messages
+ * @param {number} now - current Date.now() value
+ * @param {number} staleMs - stream stale timeout in ms
+ * @returns {object[]}
+ *  Messages with `done` set according to isMessageLive check
+ */
+function markStreamingDone(messages, now, staleMs) {
+  return (messages || []).map((m) => ({
+    ...m,
+    done: !isMessageLive(m, now, staleMs),
+  }));
+}
+
+/**
+ * Compute whether any messages are still actively streaming.
+ * @param {object[]} messages
+ * @param {number} now - current Date.now() value
+ * @param {number} staleMs - stream stale timeout in ms
+ * @returns {boolean}
+ */
+function hasLiveStream(messages, now, staleMs) {
+  return messages.some((m) => isMessageLive(m, now, staleMs));
+}
+
+/**
+ * Handle fallback message insertion when a stream fallback is needed.
+ * @param {object[]} messages
+ * @param {object|null} fallbackMessage
+ * @returns {{ messages: object[], appliedFallbackId: string|null }}
+ */
+function extractFallbackContext(fallbackMessage) {
+  if (!fallbackMessage?.id) return null;
+  return {
+    fallbackId: String(fallbackMessage.id),
+    fallbackParent: fallbackMessage.parent_id ? String(fallbackMessage.parent_id) : '',
+  };
+}
+
+function resolveFallbackMessageInsertion(messages, fallbackMessage) {
+  const ctx = extractFallbackContext(fallbackMessage);
+  if (!ctx) return { messages, appliedFallbackId: null };
+
+  let resolved = fallbackMessage;
+  if (isFallbackAlreadyPresent(messages, ctx.fallbackId, ctx.fallbackParent)) {
+    return { messages, appliedFallbackId: null };
+  }
+
+  if (!parentExistsInMessages(messages, ctx.fallbackParent)) {
+    resolved = reparentToLastUser(messages, resolved);
+  }
+
+  return appendAndSortFallback(messages, resolved);
+}
+
+function isFallbackAlreadyPresent(messages, fallbackId, fallbackParent) {
+  const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
+  if (hasExact) return true;
+  if (!fallbackParent) return false;
+  return messages.some(
+    (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
+  );
+}
+
+function parentExistsInMessages(messages, fallbackParent) {
+  if (!fallbackParent) return false;
+  return messages.some((msg) => String(msg.id) === fallbackParent);
+}
+
+function reparentToLastUser(messages, resolved) {
+  const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
+  return { ...resolved, parent_id: lastUser ? lastUser.id : null };
+}
+
+function appendAndSortFallback(messages, resolved) {
+  const updated = [...messages, { ...resolved, done: true }];
+  updated.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+  return { messages: updated, appliedFallbackId: String(resolved.id) };
+}
+
 export function createChatDataController({
   state,
   setState = () => {},
@@ -34,18 +163,37 @@ export function createChatDataController({
     }
   }
 
+  function getChatsPaginationLimit(pagination) {
+    return pagination?.offset || pagination?.limit || 30;
+  }
+
+  function extractTempChats(chats) {
+    return chats.filter((chat) => isTempChatId(chat?.id));
+  }
+
+  function buildChatIdSet(chats) {
+    return new Set(chats.map((chat) => String(chat.id)));
+  }
+
+  function mergeTempAndServerChats(tempChats, serverChats, tempIds) {
+    return [...tempChats, ...serverChats.filter((chat) => !tempIds.has(String(chat.id)))];
+  }
+
+  function resolveNextActiveChatId(currentActiveChatId, chats) {
+    if (!currentActiveChatId) return null;
+    return chats.some((chat) => chat.id === currentActiveChatId)
+      ? currentActiveChatId
+      : chats[0]?.id || null;
+  }
+
   async function loadChats() {
-    const limit = state.chatsPagination?.offset || state.chatsPagination?.limit || 30;
+    const limit = getChatsPaginationLimit(state.chatsPagination);
     const data = await fetchChats({ limit, offset: 0 });
     const serverChats = data.chats || [];
-    const tempChats = state.chats.filter((chat) => isTempChatId(chat?.id));
-    const tempIds = new Set(tempChats.map((chat) => String(chat.id)));
-    const chats = [...tempChats, ...serverChats.filter((chat) => !tempIds.has(String(chat.id)))];
-
-    let nextActiveChatId = state.activeChatId;
-    if (nextActiveChatId && !chats.some((chat) => chat.id === nextActiveChatId)) {
-      nextActiveChatId = chats[0]?.id || null;
-    }
+    const tempChats = extractTempChats(state.chats);
+    const tempIds = buildChatIdSet(tempChats);
+    const chats = mergeTempAndServerChats(tempChats, serverChats, tempIds);
+    const nextActiveChatId = resolveNextActiveChatId(state.activeChatId, chats);
 
     setState({
       chats,
@@ -69,26 +217,10 @@ export function createChatDataController({
       preferredLeafId = null,
       fallbackMessage = null,
     } = options;
-    if (!chatId) {
-      if (draw) drawMessages([]);
-      return;
-    }
-    if (isTempChatId(chatId)) {
-      if (draw) {
-        setState({ ui: { loadingChatId: null, streaming: false, streamingChatId: null } });
-        const existing = state.messagesByChat[chatId] || [];
-        drawMessages(existing);
-      }
-      return;
-    }
+    if (handleLoadMessagesEarlyReturn(chatId, draw)) return;
     touchRecentChat(recentChatIds, chatId);
     schedulePrune();
-
-    if (draw) {
-      setState({ ui: { loadingChatId: chatId } });
-      const existing = state.messagesByChat[chatId] || [];
-      drawMessages(existing);
-    }
+    if (draw) setLoadingState(chatId);
 
     const res = await apiFetch(`/api/chats/${chatId}`, { cache: 'no-store' });
     if (!res.ok) {
@@ -97,45 +229,42 @@ export function createChatDataController({
     }
     const data = await res.json();
 
+    const { messages, appliedFallbackId } = prepareMessagesForLoad(data, chatId, fallbackMessage);
+    rememberResolvedLeaf(chatId, messages, {
+      preferredLeafId,
+      data,
+      appliedFallbackId,
+    });
+
+    const streamingNow = hasLiveStream(messages, Date.now(), STREAM_STALE_MS);
+    applyLoadedMessagesToState(chatId, messages, {
+      updateActiveModel,
+      modelMode,
+      data,
+      streamingNow,
+    });
+
+    if (draw) drawMessages(messages);
+    maybeResumeStream(chatId, messages, streamingNow);
+  }
+
+  function setLoadingState(chatId) {
+    setState({ ui: { loadingChatId: chatId } });
+    const existing = state.messagesByChat[chatId] || [];
+    drawMessages(existing);
+  }
+
+  function prepareMessagesForLoad(data, _chatId, fallbackMessage) {
     const now = Date.now();
-    const isMessageLive = (message) => {
-      const status = String(message?.status || '');
-      const isRunning =
-        message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-      if (!isRunning) return false;
-      const createdAtMs = Number(message?.created_at || 0) * 1000;
-      if (!createdAtMs) return false;
-      return now - createdAtMs <= STREAM_STALE_MS;
-    };
+    const { messages: initialMessages, appliedFallbackId: savedFallbackId } =
+      resolveFallbackMessageInsertion(
+        markStreamingDone(data.messages, now, STREAM_STALE_MS),
+        fallbackMessage
+      );
+    return { messages: initialMessages, appliedFallbackId: savedFallbackId };
+  }
 
-    let messages = (data.messages || []).map((m) => ({
-      ...m,
-      done: !isMessageLive(m),
-    }));
-    let appliedFallbackId = null;
-    if (fallbackMessage?.id) {
-      let resolvedFallback = fallbackMessage;
-      const fallbackId = String(resolvedFallback.id);
-      const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
-      const fallbackParent = resolvedFallback.parent_id ? String(resolvedFallback.parent_id) : '';
-      const hasSibling = fallbackParent
-        ? messages.some(
-            (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
-          )
-        : false;
-      if (!hasExact && !hasSibling) {
-        const parentExists =
-          fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
-        if (!parentExists) {
-          const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
-          resolvedFallback = { ...resolvedFallback, parent_id: lastUser ? lastUser.id : null };
-        }
-        messages = [...messages, { ...resolvedFallback, done: true }];
-        messages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
-        appliedFallbackId = String(resolvedFallback.id);
-      }
-    }
-
+  function rememberResolvedLeaf(chatId, messages, { preferredLeafId, data, appliedFallbackId }) {
     const priorLeafId = currentLeafByChatId.get(chatId) || null;
     const resolvedLeafId = resolveConversationLeafId(messages, {
       preferredLeafId,
@@ -146,41 +275,47 @@ export function createChatDataController({
     if (resolvedLeafId) {
       currentLeafByChatId.set(chatId, String(resolvedLeafId));
     }
+  }
 
-    const hasRunning = messages.some((m) => isMessageLive(m));
-
+  function applyLoadedMessagesToState(chatId, messages, opts) {
+    const { updateActiveModel, modelMode, data, streamingNow } = opts;
     const nextState = {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
     };
     if (updateActiveModel) {
-      let preferredModelId = state.activeModelId;
-      if (modelMode === 'default') {
-        preferredModelId =
-          state.defaultModelId ||
-          state.globalDefaultModelId ||
-          data?.chat?.model ||
-          state.activeModelId;
-      } else if (modelMode === 'chat') {
-        preferredModelId =
-          data?.chat?.model ||
-          state.activeModelId ||
-          state.defaultModelId ||
-          state.globalDefaultModelId;
+      const preferredModelId = resolveModelIdForMode(state, data, modelMode);
+      if (preferredModelId) {
+        nextState.activeModelId = preferredModelId;
       }
-      nextState.activeModelId = preferredModelId;
     }
     nextState.ui = {
       loadingChatId: null,
-      streaming: hasRunning,
-      streamingChatId: hasRunning ? String(chatId) : null,
+      streaming: streamingNow,
+      streamingChatId: streamingNow ? String(chatId) : null,
     };
     setState(nextState);
+  }
 
-    if (draw) drawMessages(messages);
-    if (hasRunning && state.activeChatId === chatId) {
-      const runningId = streamSession?.getRunningMessageId(messages);
-      if (runningId) startResumeStream(chatId, runningId);
+  function handleLoadMessagesEarlyReturn(chatId, draw) {
+    if (!chatId) {
+      if (draw) drawMessages([]);
+      return true;
     }
+    if (isTempChatId(chatId)) {
+      if (draw) {
+        setState({ ui: { loadingChatId: null, streaming: false, streamingChatId: null } });
+        const existing = state.messagesByChat[chatId] || [];
+        drawMessages(existing);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function maybeResumeStream(chatId, messages, streamingNow) {
+    if (!streamingNow || state.activeChatId !== chatId) return;
+    const runningId = streamSession?.getRunningMessageId(messages);
+    if (runningId) startResumeStream(chatId, runningId);
   }
 
   return {

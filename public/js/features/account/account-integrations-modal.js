@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-lines-per-function, max-statements */
 /**
  * Modal logic for the account integrations section.
  */
@@ -7,17 +8,15 @@ import {
   updateUserMcpServer,
   testUserMcpServer,
 } from '../../shared/api/resources.js';
-import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
 import { apiFetch } from '../../shared/api.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { normalizeToolList, buildFormMarkup } from './account-integrations-helpers.js';
 import {
-  normalizeToolList,
-  clonePreferences,
-  normalizeServer,
-  shouldShowAuthField,
-  buildFormMarkup,
-} from './account-integrations-helpers.js';
+  updateAuthFields as sharedUpdateAuthFields,
+  readFormFieldValue,
+  handleOAuthApiFetchResponse,
+} from '../../shared/components/integrations-shared.js';
 
 export function createIntegrationsModal(ctx) {
   const {
@@ -39,19 +38,20 @@ export function createIntegrationsModal(ctx) {
     activeModalHash = '';
   }
 
+  function toggleButtonVisual(btn, saving) {
+    if (!btn) return;
+    btn.disabled = saving;
+    btn.classList.toggle('opacity-60', saving);
+    btn.classList.toggle('cursor-not-allowed', saving);
+  }
+
   function setSaving(saving, saveBtn, deleteBtn) {
     sectionState.saving = saving;
+    toggleButtonVisual(saveBtn, saving);
     if (saveBtn) {
-      saveBtn.disabled = saving;
       saveBtn.textContent = saving ? 'Saving...' : 'Save';
-      saveBtn.classList.toggle('opacity-60', saving);
-      saveBtn.classList.toggle('cursor-not-allowed', saving);
     }
-    if (deleteBtn) {
-      deleteBtn.disabled = saving;
-      deleteBtn.classList.toggle('opacity-60', saving);
-      deleteBtn.classList.toggle('cursor-not-allowed', saving);
-    }
+    toggleButtonVisual(deleteBtn, saving);
   }
 
   function openModal(server = null) {
@@ -92,13 +92,7 @@ export function createIntegrationsModal(ctx) {
     const urlInput = bodyEl?.querySelector('#server-url');
     const headersInput = bodyEl?.querySelector('#server-headers');
     const bearerInput = bodyEl?.querySelector('#server-auth-bearer');
-    const basicUserInput = bodyEl?.querySelector('#server-auth-basic-username');
     const basicPassInput = bodyEl?.querySelector('#server-auth-basic-password');
-    const oauthClientNameInput = bodyEl?.querySelector('#server-auth-oauth-client-name');
-    const oauthScopeInput = bodyEl?.querySelector('#server-auth-oauth-scope');
-    const oauthClientIdInput = bodyEl?.querySelector('#server-auth-oauth-client-id');
-    const oauthClientSecretInput = bodyEl?.querySelector('#server-auth-oauth-client-secret');
-    const oauthTokenMethodSelect = bodyEl?.querySelector('#server-auth-oauth-token-method');
     const oauthStatus = bodyEl?.querySelector('#oauth-status');
     const oauthConnectBtn = bodyEl?.querySelector('#connect-oauth');
     const bearerToggleBtn = bodyEl?.querySelector('#toggle-bearer-visibility');
@@ -133,15 +127,41 @@ export function createIntegrationsModal(ctx) {
     };
 
     const updateAuthFields = (authType = authTypeSelect?.value || 'none') => {
-      const bearer = bodyEl?.querySelector('#auth-bearer-fields');
-      const basic = bodyEl?.querySelector('#auth-basic-fields');
-      const oauth = bodyEl?.querySelector('#auth-oauth-fields');
-      if (bearer) bearer.classList.toggle('hidden', !shouldShowAuthField(authType, 'bearer'));
-      if (basic) basic.classList.toggle('hidden', !shouldShowAuthField(authType, 'basic'));
-      if (oauth) oauth.classList.toggle('hidden', !shouldShowAuthField(authType, 'oauth'));
+      sharedUpdateAuthFields(bodyEl, authType);
     };
 
+    const readFormFields = () => ({
+      auth_bearer_token: readFormFieldValue(container, '#server-auth-bearer'),
+      auth_basic_username: readFormFieldValue(container, '#server-auth-basic-username'),
+      auth_basic_password: readFormFieldValue(container, '#server-auth-basic-password'),
+      oauth_client_name: readFormFieldValue(container, '#server-auth-oauth-client-name'),
+      oauth_scope: readFormFieldValue(container, '#server-auth-oauth-scope'),
+      oauth_client_id: readFormFieldValue(container, '#server-auth-oauth-client-id'),
+      oauth_client_secret: readFormFieldValue(container, '#server-auth-oauth-client-secret'),
+      oauth_token_auth_method: readFormFieldValue(container, '#server-auth-oauth-token-method'),
+    });
+
+    const OPTIONAL_PAYLOAD_FIELDS = [
+      'headers',
+      'auth_bearer_token',
+      'auth_basic_username',
+      'auth_basic_password',
+      'oauth_client_name',
+      'oauth_scope',
+      'oauth_client_id',
+      'oauth_client_secret',
+      'oauth_token_auth_method',
+    ];
+
+    function compactOptionalFields(payload) {
+      for (const key of OPTIONAL_PAYLOAD_FIELDS) {
+        if (!payload[key]) delete payload[key];
+      }
+      return payload;
+    }
+
     const buildPayload = () => {
+      const f = readFormFields();
       const payload = {
         name: String(nameInput?.value || '').trim(),
         url: String(urlInput?.value || '').trim(),
@@ -150,25 +170,16 @@ export function createIntegrationsModal(ctx) {
         auth_type: String(authTypeSelect?.value || 'none')
           .trim()
           .toLowerCase(),
-        auth_bearer_token: String(bearerInput?.value || '').trim(),
-        auth_basic_username: String(basicUserInput?.value || '').trim(),
-        auth_basic_password: String(basicPassInput?.value || ''),
-        oauth_client_name: String(oauthClientNameInput?.value || '').trim(),
-        oauth_scope: String(oauthScopeInput?.value || '').trim(),
-        oauth_client_id: String(oauthClientIdInput?.value || '').trim(),
-        oauth_client_secret: String(oauthClientSecretInput?.value || ''),
-        oauth_token_auth_method: String(oauthTokenMethodSelect?.value || '').trim(),
+        auth_bearer_token: f.auth_bearer_token.trim(),
+        auth_basic_username: f.auth_basic_username.trim(),
+        auth_basic_password: f.auth_basic_password,
+        oauth_client_name: f.oauth_client_name.trim(),
+        oauth_scope: f.oauth_scope.trim(),
+        oauth_client_id: f.oauth_client_id.trim(),
+        oauth_client_secret: f.oauth_client_secret,
+        oauth_token_auth_method: String(f.oauth_token_auth_method).trim(),
       };
-      if (!payload.headers) delete payload.headers;
-      if (!payload.auth_bearer_token) delete payload.auth_bearer_token;
-      if (!payload.auth_basic_username) delete payload.auth_basic_username;
-      if (!payload.auth_basic_password) delete payload.auth_basic_password;
-      if (!payload.oauth_client_name) delete payload.oauth_client_name;
-      if (!payload.oauth_scope) delete payload.oauth_scope;
-      if (!payload.oauth_client_id) delete payload.oauth_client_id;
-      if (!payload.oauth_client_secret) delete payload.oauth_client_secret;
-      if (!payload.oauth_token_auth_method) delete payload.oauth_token_auth_method;
-      return payload;
+      return compactOptionalFields(payload);
     };
 
     const saveServer = async () => {
@@ -208,36 +219,45 @@ export function createIntegrationsModal(ctx) {
       ctx.render();
     };
 
-    saveBtn?.addEventListener('click', async () => {
-      if (sectionState.saving) return;
-      setTestStatus('idle', '');
+    const withSavingLock = async (fn, errorMsg) => {
       setSaving(true, saveBtn, deleteBtn);
       try {
-        const { payload, result } = await saveServer();
-        const savedServer = result?.server || result?.saved_server || result?.data?.server || null;
-        if (savedServer || isEdit) {
-          upsertServer(mergeSavedServer(payload, savedServer, isEdit ? server : null));
-        }
-        broadcastToolServersInvalidation();
-        finishAndRender();
+        return await fn();
       } catch (err) {
-        setTestStatus('error', err?.message || 'Failed to save integration');
+        setTestStatus('error', err?.message || errorMsg);
       } finally {
         setSaving(false, saveBtn, deleteBtn);
       }
+    };
+
+    function resolveSavedServer(result) {
+      const key = ['server', 'saved_server'].find((k) => result?.[k]);
+      if (key) return result[key];
+      return result?.data?.server || null;
+    }
+
+    function buildMergedServer(payload, result) {
+      const savedServer = resolveSavedServer(result);
+      if (!savedServer && !isEdit) return null;
+      return mergeSavedServer(payload, savedServer, isEdit ? server : null);
+    }
+
+    saveBtn?.addEventListener('click', async () => {
+      if (sectionState.saving) return;
+      setTestStatus('idle', '');
+      await withSavingLock(async () => {
+        const { payload, result } = await saveServer();
+        const mergedServer = buildMergedServer(payload, result);
+        if (mergedServer) upsertServer(mergedServer);
+        broadcastToolServersInvalidation();
+        finishAndRender();
+      }, 'Failed to save integration');
     });
 
     testBtn?.addEventListener('click', async () => {
       if (sectionState.saving) return;
       setTestStatus('idle', '');
-      setSaving(true, saveBtn, deleteBtn);
-      try {
-        await testServer();
-      } catch (err) {
-        setTestStatus('error', err?.message || 'Failed to test integration');
-      } finally {
-        setSaving(false, saveBtn, deleteBtn);
-      }
+      await withSavingLock(() => testServer(), 'Failed to test integration');
     });
 
     deleteBtn?.addEventListener('click', async () => {
@@ -245,17 +265,12 @@ export function createIntegrationsModal(ctx) {
       if (!window.confirm(`Delete integration ${server.name || server.id}? This cannot be undone.`))
         return;
       setTestStatus('idle', '');
-      setSaving(true, saveBtn, deleteBtn);
-      try {
+      await withSavingLock(async () => {
         await deleteUserMcpServer(server.id);
         removeServer(server.id);
         broadcastToolServersInvalidation();
         finishAndRender();
-      } catch (err) {
-        setTestStatus('error', err?.message || 'Failed to delete integration');
-      } finally {
-        setSaving(false, saveBtn, deleteBtn);
-      }
+      }, 'Failed to delete integration');
     });
 
     closeBtn?.addEventListener('click', closeModal);
@@ -275,43 +290,57 @@ export function createIntegrationsModal(ctx) {
     });
     updateToggleLabel(bearerToggleBtn, bearerInput);
     updateToggleLabel(basicToggleBtn, basicPassInput);
-    oauthConnectBtn?.addEventListener('click', async () => {
-      if (sectionState.saving) return;
-      if (authTypeSelect?.value !== 'oauth') return;
+    function canStartOAuthConnection() {
+      if (sectionState.saving) return false;
+      return authTypeSelect?.value === 'oauth';
+    }
+
+    function requireServerIdForOAuth() {
       const serverId = server?.id || '';
       if (!serverId) {
         setTestStatus('error', 'Save the server before connecting OAuth');
-        return;
       }
+      return serverId;
+    }
+
+    function buildOAuthStartPayload(serverId, fields) {
+      return {
+        id: serverId,
+        name: String(nameInput?.value || '').trim(),
+        url: String(urlInput?.value || '').trim(),
+        headers: String(headersInput?.value || '').trim(),
+        enabled: true,
+        auth_type: 'oauth',
+        ...fields,
+        auth_bearer_token: fields.auth_bearer_token.trim(),
+        auth_basic_username: fields.auth_basic_username.trim(),
+        auth_basic_password: fields.auth_basic_password,
+        oauth_client_name: fields.oauth_client_name.trim(),
+        oauth_scope: fields.oauth_scope.trim(),
+        oauth_client_id: fields.oauth_client_id.trim(),
+        oauth_client_secret: fields.oauth_client_secret.trim(),
+        oauth_token_auth_method: fields.oauth_token_auth_method.trim(),
+      };
+    }
+
+    function handleOAuthStartSuccess(payload) {
+      if (!payload.authorization_url) return;
+      if (oauthStatus) oauthStatus.textContent = 'Awaiting authorization...';
+      setTestStatus('success', 'OAuth authorization started');
+    }
+
+    oauthConnectBtn?.addEventListener('click', async () => {
+      if (!canStartOAuthConnection()) return;
+      const serverId = requireServerIdForOAuth();
+      if (!serverId) return;
       try {
+        const fields = readFormFields();
         const res = await apiFetch('/api/users/me/resources/mcp-servers/oauth/start', {
           method: 'POST',
-          body: JSON.stringify({
-            id: serverId,
-            name: String(nameInput?.value || '').trim(),
-            url: String(urlInput?.value || '').trim(),
-            headers: String(headersInput?.value || '').trim(),
-            enabled: true,
-            auth_type: 'oauth',
-            auth_bearer_token: String(bearerInput?.value || '').trim(),
-            auth_basic_username: String(basicUserInput?.value || '').trim(),
-            auth_basic_password: String(basicPassInput?.value || ''),
-            oauth_client_name: String(oauthClientNameInput?.value || '').trim(),
-            oauth_scope: String(oauthScopeInput?.value || '').trim(),
-            oauth_client_id: String(oauthClientIdInput?.value || '').trim(),
-            oauth_client_secret: String(oauthClientSecretInput?.value || '').trim(),
-            oauth_token_auth_method: String(oauthTokenMethodSelect?.value || '').trim(),
-          }),
+          body: JSON.stringify(buildOAuthStartPayload(serverId, fields)),
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(payload.error || payload.message || 'OAuth start failed');
-        }
-        if (payload.authorization_url) {
-          window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
-          if (oauthStatus) oauthStatus.textContent = 'Awaiting authorization...';
-          setTestStatus('success', 'OAuth authorization started');
-        }
+        const payload = await handleOAuthApiFetchResponse(res);
+        handleOAuthStartSuccess(payload);
       } catch (err) {
         setTestStatus('error', err?.message || 'OAuth start failed');
       }

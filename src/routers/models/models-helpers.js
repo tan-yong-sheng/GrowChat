@@ -1,18 +1,37 @@
+/* eslint-disable no-magic-numbers */
 /**
  * Model Helper Functions
  *
  * Shared utility functions for model configuration and management.
  */
-import { getConfigValue } from '../../utils/app-config.js';
-import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
-import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
+
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
+import { applyModelAttachmentCapUpdate } from '../admin/admin-config-helpers.js';
+import {
+  loadModelAttachmentCaps,
+  applyAttachmentDefaults,
+  getModelAttachmentCapsEntry,
+  MODEL_ATTACHMENT_CAPS_KEY,
+  DEFAULT_ATTACHMENT_CAPS,
+} from '../../chat/attachments.js';
 import { createRootLogger } from '../../utils/logger.js';
 
 const rootLogger = createRootLogger({});
-const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
-const DEFAULT_ATTACHMENT_CAPS = { text: true };
 const CONNECTION_DISCOVERY_CACHE_TTL_MS = 60 * 1000;
+
+/**
+ * Parse common pagination/search params from a search params instance.
+ * Shared between public and admin model list handlers.
+ * @param {URLSearchParams} params
+ * @returns {{limit: number, offset: number, query: string}}
+ */
+export function parseModelListSearchParams(params) {
+  const limit = parseInt(params.get('limit') || '0', 10);
+  const offset = parseInt(params.get('offset') || '0', 10);
+  const rawQuery = params.get('q') || '';
+  const query = String(rawQuery).trim().toLowerCase();
+  return { limit, offset, query };
+}
 const connectionDiscoveryCacheByEnv = new WeakMap();
 const fallbackConnectionDiscoveryCache = new Map();
 
@@ -22,30 +41,6 @@ export function isValidModelId(value) {
   if (id.length > 200) return false;
   if (/\s/.test(id)) return false;
   return true;
-}
-
-export async function loadModelAttachmentCaps(db) {
-  if (!db) return {};
-  try {
-    const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-    return loadAttachmentCapsFromRaw(raw);
-  } catch {
-    return {};
-  }
-}
-
-export function applyAttachmentDefaults(attachments) {
-  const caps = attachments && typeof attachments === 'object' ? { ...attachments } : {};
-  caps.text = DEFAULT_ATTACHMENT_CAPS.text;
-  return caps;
-}
-
-export function getModelAttachmentCapsEntry(caps, modelId) {
-  const entry = caps?.[modelId];
-  if (!entry || typeof entry !== 'object') return applyAttachmentDefaults(null);
-  const attachments = entry.attachments;
-  if (!attachments || typeof attachments !== 'object') return applyAttachmentDefaults(null);
-  return applyAttachmentDefaults(attachments);
 }
 
 export async function ensureModelAccessTable(db, _logger = rootLogger) {
@@ -94,25 +89,7 @@ export async function getModelAccessMap(db, logger = rootLogger) {
 export { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 
 export function applyAttachmentCapsPatch(caps, update) {
-  const modelId = normalizeModelId(update?.model_id || update?.modelId);
-  if (!modelId) {
-    throw new Error('model_id is required');
-  }
-  const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
-  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
-  const nextAttachments = { ...(current.attachments || {}) };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) {
-      delete nextAttachments[key];
-    } else {
-      nextAttachments[key] = value;
-    }
-  }
-  caps[modelId] = {
-    ...current,
-    attachments: nextAttachments,
-    updated_at: Math.floor(Date.now() / 1000),
-  };
+  applyModelAttachmentCapUpdate(caps, update);
 }
 
 export function buildModelAttachmentCapSaveStatement(db, caps) {
@@ -153,27 +130,7 @@ export function shouldSuppressDiscoveryWarning(connection = {}, discovery = {}) 
 }
 
 export function createConnectionDiscoveryCacheKey(env, uniqueConnections = [], allowSet = null) {
-  const normalizedConnections = uniqueConnections.map((conn) => ({
-    id: String(conn?.id || ''),
-    source: String(conn?.source || ''),
-    providerType: String(conn?.providerType || ''),
-    providerFamily: String(conn?.providerFamily || ''),
-    baseUrl: String(conn?.baseUrl || ''),
-    key: String(conn?.key || ''),
-    headers:
-      conn?.headers && typeof conn.headers === 'object'
-        ? Object.entries(conn.headers)
-            .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
-            .sort((a, b) => a[0].localeCompare(b[0]))
-        : [],
-    manualModelsMode: String(conn?.manualModelsMode || conn?.manual_models_mode || ''),
-    manualModels: normalizeConnectionManualModels(conn?.manualModels)
-      .map((model) => ({
-        modelId: String(model?.modelId || ''),
-        name: String(model?.name || ''),
-      }))
-      .sort((a, b) => a.modelId.localeCompare(b.modelId)),
-  }));
+  const normalizedConnections = uniqueConnections.map(normalizeConnectionForCache);
   const allowed = allowSet ? Array.from(allowSet).sort() : [];
   return JSON.stringify({
     openaiModels: String(env.OPENAI_MODELS || env.OPENAI_API_MODELS || ''),
@@ -181,6 +138,48 @@ export function createConnectionDiscoveryCacheKey(env, uniqueConnections = [], a
     allowed,
     normalizedConnections,
   });
+}
+
+function normalizeConnectionHeaders(headers) {
+  if (!headers || typeof headers !== 'object') return [];
+  return Object.entries(headers)
+    .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
+    .sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function normalizeConnectionManualModelsForCache(manualModels) {
+  return normalizeConnectionManualModels(manualModels)
+    .map((model) => ({
+      modelId: String(model?.modelId || ''),
+      name: String(model?.name || ''),
+    }))
+    .sort((a, b) => a.modelId.localeCompare(b.modelId));
+}
+
+function getConnectionString(conn, key) {
+  return String((conn && conn[key]) || '');
+}
+
+function getConnectionStringFallback(conn, keys) {
+  for (const key of keys) {
+    const value = conn && conn[key];
+    if (value) return String(value);
+  }
+  return '';
+}
+
+function normalizeConnectionForCache(conn) {
+  return {
+    id: getConnectionString(conn, 'id'),
+    source: getConnectionString(conn, 'source'),
+    providerType: getConnectionString(conn, 'providerType'),
+    providerFamily: getConnectionString(conn, 'providerFamily'),
+    baseUrl: getConnectionString(conn, 'baseUrl'),
+    key: getConnectionString(conn, 'key'),
+    headers: normalizeConnectionHeaders(conn?.headers),
+    manualModelsMode: getConnectionStringFallback(conn, ['manualModelsMode', 'manual_models_mode']),
+    manualModels: normalizeConnectionManualModelsForCache(conn?.manualModels),
+  };
 }
 
 export function getConnectionDiscoveryCache(env) {
@@ -204,6 +203,9 @@ export function pruneExpiredConnectionDiscoveryCache(cache, now = Date.now()) {
 }
 
 export {
+  loadModelAttachmentCaps,
+  applyAttachmentDefaults,
+  getModelAttachmentCapsEntry,
   MODEL_ATTACHMENT_CAPS_KEY,
   DEFAULT_ATTACHMENT_CAPS,
   CONNECTION_DISCOVERY_CACHE_TTL_MS,

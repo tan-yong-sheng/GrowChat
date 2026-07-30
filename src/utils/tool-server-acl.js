@@ -1,4 +1,4 @@
-import { ruleMatchesPrincipal, buildIdFilterClause } from './acl-shared.js';
+import { buildIdFilterClause, evaluateAclAccess } from './acl-shared.js';
 import { createRootLogger } from './logger.js';
 const logger = createRootLogger({});
 
@@ -56,54 +56,19 @@ export function buildToolServerAclIndex(rules = []) {
   return index;
 }
 
-function isToolServerAclActionRelevant(action) {
-  const normalized = String(action || 'use')
-    .trim()
-    .toLowerCase();
-  return ['use', 'manage', 'admin', 'read'].includes(normalized);
-}
-
-function evaluateToolServerAclCore(toolServer, rules, { user, userGroupIds, allowAdmin }) {
-  if (toolServer?.source === 'user') {
-    return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
-  }
-
-  const normalizedRules = Array.isArray(rules)
-    ? rules.map(normalizeToolServerAclRule).filter(Boolean)
-    : [];
-
-  const denyMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'deny' &&
-      isToolServerAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (denyMatched) {
-    return { allowed: false, access_label: 'No access', access_variant: 'none' };
-  }
-
-  const allowMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'allow' &&
-      isToolServerAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (allowMatched) {
-    return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
-  }
-
-  if (allowAdmin && user?.primary_role === 'admin') {
-    return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
-  }
-
-  return { allowed: false, access_label: 'No access', access_variant: 'none' };
-}
-
 export function evaluateToolServerAclAccess(
   toolServer,
   { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
 ) {
-  return evaluateToolServerAclCore(toolServer, rules, { user, userGroupIds, allowAdmin });
+  return evaluateAclAccess({
+    resource: toolServer,
+    rules,
+    normalizeRule: normalizeToolServerAclRule,
+    user,
+    userGroupIds,
+    allowAdmin,
+    isPersonal: (resource) => resource?.source === 'user',
+  });
 }
 
 export async function ensureToolServerAclRulesTable(db) {

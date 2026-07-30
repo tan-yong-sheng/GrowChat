@@ -1,3 +1,5 @@
+import { toggleSidebar } from '../../shared/components/sidebar-helpers.js';
+
 export function createChatShellController({
   state,
   setState = () => {},
@@ -33,38 +35,57 @@ export function createChatShellController({
   }
 
   function loadMoreChats() {
-    if (loadMoreChatsPromise || !state.chatsPagination?.hasMore || state.chatsPagination?.loading) {
-      return loadMoreChatsPromise;
-    }
+    if (!shouldLoadMoreChats()) return loadMoreChatsPromise;
 
     setState({ chatsPagination: { loading: true } });
     const { limit, offset } = state.chatsPagination;
     loadMoreChatsPromise = fetchChats({ limit, offset })
-      .then((data) => {
-        const nextChats = data.chats || [];
-        const existingIds = new Set(state.chats.map((chat) => chat.id));
-        const mergedChats = state.chats.concat(
-          nextChats.filter((chat) => !existingIds.has(chat.id))
-        );
-        setState({
-          chats: mergedChats,
-          chatsPagination: {
-            limit: data.limit || limit,
-            offset: (data.offset || offset) + nextChats.length,
-            hasMore: data.has_more === true,
-            loading: false,
-          },
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to load more chats:', err);
-        setState({ chatsPagination: { loading: false } });
-      })
+      .then(applyLoadedChats)
+      .catch(handleLoadMoreChatsError)
       .finally(() => {
         loadMoreChatsPromise = null;
       });
 
     return loadMoreChatsPromise;
+  }
+
+  function shouldLoadMoreChats() {
+    if (loadMoreChatsPromise) return false;
+    if (!state.chatsPagination?.hasMore) return false;
+    if (state.chatsPagination?.loading) return false;
+    return true;
+  }
+
+  function mergeChatsWith(nextChats) {
+    const existingIds = new Set(state.chats.map((chat) => chat.id));
+    return state.chats.concat(nextChats.filter((chat) => !existingIds.has(chat.id)));
+  }
+
+  function applyLoadedChats(data) {
+    const nextChats = data.chats || [];
+    const { limit, offset } = state.chatsPagination;
+    setState({
+      chats: mergeChatsWith(nextChats),
+      chatsPagination: {
+        limit: data.limit || limit,
+        offset: (data.offset || offset) + nextChats.length,
+        hasMore: data.has_more === true,
+        loading: false,
+      },
+    });
+  }
+
+  function handleLoadMoreChatsError(err) {
+    console.error('Failed to load more chats:', err);
+    setState({ chatsPagination: { loading: false } });
+  }
+
+  function handleIntersectionEntries(entries) {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        loadMoreChats();
+      }
+    });
   }
 
   function refreshChatListObserver() {
@@ -77,43 +98,45 @@ export function createChatShellController({
     const sentinel = root?.querySelector('#chat-list-load-more');
     if (!sentinel) return;
 
-    chatListLoadObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            loadMoreChats();
-          }
-        });
-      },
-      {
-        root: chatListContainerEl,
-        rootMargin: '120px 0px',
-        threshold: 0.1,
-      }
-    );
+    chatListLoadObserver = new IntersectionObserver(handleIntersectionEntries, {
+      root: chatListContainerEl,
+      rootMargin: '120px 0px',
+      threshold: 0.1,
+    });
 
     chatListLoadObserver.observe(sentinel);
   }
 
   function startNewChat() {
-    const activeTempId =
-      state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
-    if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
-      setState({ activeChatId: activeTempId, newChatDraft: '' });
-      if (state.newChatToolSelection !== null) {
-        setDraftToolNames(activeTempId, state.newChatToolSelection);
-        setDraftToolNames(null, null);
-      }
-      syncRoute(activeTempId);
-      drawMessages([]);
-      return;
-    }
+    if (reuseEmptyTempChat()) return;
+    startFreshTempChat();
+  }
 
+  function reuseEmptyTempChat() {
+    const activeTempId = activeEmptyTempChatId();
+    if (!activeTempId) return false;
+    setState({ activeChatId: activeTempId, newChatDraft: '' });
+    transferDraftToolSelection(activeTempId);
+    syncRoute(activeTempId);
+    drawMessages([]);
+    return true;
+  }
+
+  function activeEmptyTempChatId() {
+    if (!state.activeChatId || !isTempChatId(state.activeChatId)) return null;
+    if ((state.messagesByChat[state.activeChatId] || []).length !== 0) return null;
+    return state.activeChatId;
+  }
+
+  function transferDraftToolSelection(chatId) {
+    if (state.newChatToolSelection === null) return;
+    setDraftToolNames(chatId, state.newChatToolSelection);
+    setDraftToolNames(null, null);
+  }
+
+  function startFreshTempChat() {
     const tempChat = buildTempChat();
-    if (state.newChatToolSelection !== null) {
-      setDraftToolNames(tempChat.id, state.newChatToolSelection);
-      setDraftToolNames(null, null);
-    }
+    transferDraftToolSelection(tempChat.id);
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
@@ -125,15 +148,7 @@ export function createChatShellController({
     drawMessages([]);
   }
 
-  const onToggleSidebar = () => {
-    if (state.isMobile) {
-      setState({ showSidebar: !state.showSidebar });
-    } else if (!state.showSidebar) {
-      setState({ showSidebar: true });
-    } else {
-      setState({ sidebarCollapsed: !state.sidebarCollapsed });
-    }
-  };
+  const onToggleSidebar = () => toggleSidebar(state, setState);
 
   const onOpenSearch = async () => {
     await ensureSearchModal();

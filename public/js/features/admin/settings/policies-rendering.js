@@ -112,6 +112,125 @@ export function renderFamilySkeleton() {
 }
 
 /**
+ * Render the owner badge for a resource.
+ */
+function renderOwnerBadge(resource) {
+  return resource.source === 'user'
+    ? resourceBadge('Personal', 'personal', true)
+    : resourceBadge('Platform', 'admin', true);
+}
+
+/**
+ * Build the dependency warning for a model resource.
+ */
+function buildDependencyWarning(resource, familyKey, groupId, connectionRulesById) {
+  return familyKey === 'models'
+    ? getModelConnectionWarning(resource, groupId, connectionRulesById)
+    : null;
+}
+
+/**
+ * Render the selection checkbox for a resource row.
+ */
+function renderSelectionCheckbox({ resource, isSelected, onToggleSelection, note }) {
+  if (!onToggleSelection) return '';
+  return `
+          <input type="checkbox" class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-300 shrink-0"
+            data-select-resource="${escapeHtml(resource.id)}"
+            ${isSelected ? 'checked' : ''}
+            aria-label="Select ${escapeHtml(getResourceLabel(resource))}"
+          >
+          `;
+}
+
+/**
+ * Render the dependency warning link for a resource row.
+ */
+function renderDependencyWarning(dependencyWarning, { groupId, resource }) {
+  const href =
+    dependencyWarning.linkHref ||
+    buildPoliciesDeepLink({
+      groupId,
+      familyKey: 'connections',
+      resourceId: resource.connection_id || '',
+      open: 'access',
+    });
+  return `
+          <a href="${escapeHtml(href)}"
+            class="inline-flex items-center gap-1 rounded-full border px-[5px] py-0.5 text-label-xs font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200"
+            title="${escapeHtml(dependencyWarning.title)}"
+            aria-label="${escapeHtml(dependencyWarning.linkLabel || dependencyWarning.title)}"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.5 15A1.5 1.5 0 0 0 3.08 21h17.84a1.5 1.5 0 0 0 1.29-2.14l-8.5-15a1.5 1.5 0 0 0-2.58 0Z" />
+            </svg>
+            <span>Blocked</span>
+          </a>
+          `;
+}
+
+/**
+ * Render the edit button for a resource row.
+ */
+function renderEditButton({ resource, familyKey, editDisabled }) {
+  const disabledClass = editDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : '';
+  const disabledAttr = editDisabled ? 'disabled' : '';
+  const title = editDisabled ? 'Disabled resources cannot be edited' : 'Edit access rules';
+  return `
+          <button type="button"
+            class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition ${disabledClass}"
+            ${disabledAttr}
+            data-edit-resource="${escapeHtml(resource.id)}"
+            data-family="${escapeHtml(familyKey)}"
+            title="${escapeHtml(title)}"
+            aria-label="Edit access rules"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
+            </svg>
+          </button>
+          `;
+}
+
+/**
+ * Render a single resource row.
+ */
+function renderResourceRow(resource, ctx) {
+  const { familyKey, groupId, selectedIds, connectionRulesById, onToggleSelection } = ctx;
+  const visibilityBadge = getResourceVisibilityBadge(resource, groupId);
+  const ownerBadge = renderOwnerBadge(resource);
+  const dependencyWarning = buildDependencyWarning(
+    resource,
+    familyKey,
+    groupId,
+    connectionRulesById
+  );
+  const isSelected = selectedIds instanceof Set && selectedIds.has(resource.id);
+  const note = getResourceNote(resource, familyKey);
+  const editDisabled = resource.enabled === false;
+  const rowClass = isSelected ? 'border-gray-400 bg-gray-50' : 'border-gray-200 bg-white';
+  const disabledBadge = resource.enabled === false ? resourceBadge('Disabled', 'none', true) : '';
+
+  return `
+      <div class="group flex items-center justify-between gap-2 rounded-lg border ${rowClass} px-2 py-0.5">
+        <label class="flex items-center gap-1 min-w-0 flex-1 cursor-pointer" title="${escapeHtml(note)}">
+          ${renderSelectionCheckbox({ resource, isSelected, onToggleSelection, note })}
+          <div class="min-w-0 flex items-center gap-1">
+            <div class="text-body-sm font-semibold text-gray-900 truncate">${escapeHtml(getResourceLabel(resource))}</div>
+            <span class="opacity-80 transition group-hover:opacity-100">${ownerBadge}</span>
+            ${disabledBadge}
+          </div>
+        </label>
+        <div class="flex items-center gap-1 shrink-0">
+          ${dependencyWarning ? renderDependencyWarning(dependencyWarning, { groupId, resource }) : ''}
+          ${resourceBadge(visibilityBadge.label, visibilityBadge.kind, true)}
+          ${renderEditButton({ resource, familyKey, editDisabled })}
+        </div>
+      </div>
+      `;
+}
+
+/**
  * Render the list of resources for a family with checkboxes and edit buttons.
  */
 export function renderResourceList({
@@ -129,74 +248,15 @@ export function renderResourceList({
       ${
         resources.length
           ? resources
-              .map((resource) => {
-                const visibilityBadge = getResourceVisibilityBadge(resource, groupId);
-                const ownerBadge =
-                  resource.source === 'user'
-                    ? resourceBadge('Personal', 'personal', true)
-                    : resourceBadge('Platform', 'admin', true);
-                const dependencyWarning =
-                  familyKey === 'models'
-                    ? getModelConnectionWarning(resource, groupId, connectionRulesById)
-                    : null;
-                const isSelected = selectedIds instanceof Set && selectedIds.has(resource.id);
-                const note = getResourceNote(resource, familyKey);
-                const editDisabled = resource.enabled === false;
-
-                return `
-      <div class="group flex items-center justify-between gap-2 rounded-lg border ${isSelected ? 'border-gray-400 bg-gray-50' : 'border-gray-200 bg-white'} px-2 py-0.5">
-        <label class="flex items-center gap-1 min-w-0 flex-1 cursor-pointer" title="${escapeHtml(note)}">
-          ${
-            onToggleSelection
-              ? `
-          <input type="checkbox" class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-300 shrink-0"
-            data-select-resource="${escapeHtml(resource.id)}"
-            ${isSelected ? 'checked' : ''}
-            aria-label="Select ${escapeHtml(getResourceLabel(resource))}"
-          >
-          `
-              : ''
-          }
-          <div class="min-w-0 flex items-center gap-1">
-            <div class="text-body-sm font-semibold text-gray-900 truncate">${escapeHtml(getResourceLabel(resource))}</div>
-            <span class="opacity-80 transition group-hover:opacity-100">${ownerBadge}</span>
-            ${resource.enabled === false ? resourceBadge('Disabled', 'none', true) : ''}
-          </div>
-        </label>
-        <div class="flex items-center gap-1 shrink-0">
-          ${
-            dependencyWarning
-              ? `
-          <a href="${escapeHtml(dependencyWarning.linkHref || buildPoliciesDeepLink({ groupId, familyKey: 'connections', resourceId: resource.connection_id || '', open: 'access' }))}"
-            class="inline-flex items-center gap-1 rounded-full border px-[5px] py-0.5 text-label-xs font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200"
-            title="${escapeHtml(dependencyWarning.title)}"
-            aria-label="${escapeHtml(dependencyWarning.linkLabel || dependencyWarning.title)}"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.5 15A1.5 1.5 0 0 0 3.08 21h17.84a1.5 1.5 0 0 0 1.29-2.14l-8.5-15a1.5 1.5 0 0 0-2.58 0Z" />
-            </svg>
-            <span>Blocked</span>
-          </a>
-          `
-              : ''
-          }
-          ${resourceBadge(visibilityBadge.label, visibilityBadge.kind, true)}
-          <button type="button"
-            class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition ${editDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : ''}"
-            ${editDisabled ? 'disabled' : ''}
-            data-edit-resource="${escapeHtml(resource.id)}"
-            data-family="${escapeHtml(familyKey)}"
-            title="${editDisabled ? 'Disabled resources cannot be edited' : 'Edit access rules'}"
-            aria-label="Edit access rules"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      `;
-              })
+              .map((resource) =>
+                renderResourceRow(resource, {
+                  familyKey,
+                  groupId,
+                  selectedIds,
+                  connectionRulesById,
+                  onToggleSelection,
+                })
+              )
               .join('')
           : `
       <div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500 text-center">

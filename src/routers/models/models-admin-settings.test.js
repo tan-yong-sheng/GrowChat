@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   buildProviderStats: vi.fn(),
   sortModelsByActiveThenName: vi.fn(),
   countEnabledModels: vi.fn(),
+  parseModelListSearchParams: vi.fn(),
 }));
 
 vi.mock('../../db.js', () => ({
@@ -58,6 +59,9 @@ vi.mock('../../utils/model-acl.js', () => ({
 
 vi.mock('../../admin/tool-servers.js', () => ({
   normalizeModelId: (...args) => mocks.normalizeModelId(...args),
+}));
+
+vi.mock('../../admin/tool-servers-utils.js', () => ({
   normalizeAttachmentCaps: (...args) => mocks.normalizeAttachmentCaps(...args),
 }));
 
@@ -71,10 +75,30 @@ vi.mock('./models-helpers.js', () => ({
     mocks.buildModelAttachmentCapSaveStatement(...args),
   isValidModelId: (...args) => mocks.isValidModelId(...args),
   MODEL_ATTACHMENT_CAPS_KEY: 'model_attachment_caps_v1',
+  parseModelListSearchParams: vi.fn(() => ({ limit: 0, offset: 0, query: '' })),
 }));
 
 vi.mock('./models-discovery.js', () => ({
   fetchBaseModelsFromOpenAI: (...args) => mocks.fetchBaseModelsFromOpenAI(...args),
+  loadModels: async (env, logger, options) => {
+    let modelConnections;
+    let baseModels = [];
+    let customModels = [];
+    try {
+      modelConnections = await mocks.getAllOpenAIConnectionConfigs(env, options);
+      baseModels = await mocks.fetchBaseModelsFromOpenAI(env, modelConnections);
+    } catch (err) {
+      logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+        error: err.message,
+      });
+    }
+    try {
+      customModels = await mocks.loadCustomModels(env);
+    } catch (err) {
+      logger.warn('Failed to load custom models', { error: err.message });
+    }
+    return { baseModels, customModels };
+  },
   loadCustomModels: (...args) => mocks.loadCustomModels(...args),
   toPublicModel: (...args) => mocks.toPublicModel(...args),
   buildProviderStats: (...args) => mocks.buildProviderStats(...args),

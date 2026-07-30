@@ -22,11 +22,13 @@ export function loadAttachmentCapsFromRaw(raw = '{}') {
   return parsed;
 }
 
+const LEGACY_MS_THRESHOLD = 1e12;
+
 function isLegacyMsEntry(entry) {
   return (
     entry &&
     typeof entry === 'object' &&
     typeof entry.updated_at === 'number' &&
-    entry.updated_at > 1e12
+    entry.updated_at > LEGACY_MS_THRESHOLD
   );
 }

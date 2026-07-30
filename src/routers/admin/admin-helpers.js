@@ -3,17 +3,21 @@
  *
  * Shared authorization and validation helpers for admin sub-handlers.
  */
+import { authError, error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 
 /**
  * Check if a value is a valid model access ID.
  * @param {string} value
  * @returns {boolean}
  */
+export const MAX_MODEL_ACCESS_ID_LENGTH = 200;
+
 export function isValidModelAccessId(value) {
   const id = String(value || '').trim();
   if (!id) return false;
-  if (id.length > 200) return false;
+  if (id.length > MAX_MODEL_ACCESS_ID_LENGTH) return false;
   if (/\s/.test(id)) return false;
   return true;
 }
@@ -49,6 +53,26 @@ export async function ensureAdminAclAccess(options = {}, legacyUser, legacyResou
     action: 'admin.rbac.admin',
     resource,
   });
+}
+
+/**
+ * Parse the request body as JSON and ensure the user has admin ACL access.
+ * Returns { body } on success or { error: Response } on failure.
+ */
+export async function parseJsonAndRequireAdminAcl(req, env, user, resource) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
+  }
+
+  const aclDecision = await ensureAdminAclAccess({ env, user, resource });
+  if (!aclDecision.allow) {
+    return { error: authError(req, aclDecision) };
+  }
+
+  return { body };
 }
 
 /**

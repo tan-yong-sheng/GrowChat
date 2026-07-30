@@ -26,68 +26,61 @@ export function createChatMessageDom({
   // Track incremental streaming state per message
   const streamingState = new WeakMap();
 
-  function updateMessageContentDom(messageId, content, options = {}) {
-    if (!messageId) return false;
-    const el = messagesList?.querySelector?.(`[data-message-content="${messageId}"]`);
-    if (!el) return false;
-    const {
-      isError = false,
-      isStreaming = false,
-      errorMessage = '',
-      chatId = state.activeChatId,
-    } = options;
+  function resolveForceError(el, isError) {
     const forceError = isError || el.dataset.messageError === '1';
-    if (forceError) {
-      el.dataset.messageError = '1';
-    }
+    if (forceError) el.dataset.messageError = '1';
+    return forceError;
+  }
 
-    if (isStreaming) {
-      const selection = document.getSelection?.();
-      const anchorNode = selection?.anchorNode || null;
-      const focusNode = selection?.focusNode || null;
-      const hasActiveSelection =
-        Boolean(selection && !selection.isCollapsed) &&
-        ((anchorNode && el.contains(anchorNode)) || (focusNode && el.contains(focusNode)));
-      if (hasActiveSelection) {
+  function hasActiveTextSelection(el) {
+    const selection = document.getSelection?.();
+    if (!selection || selection.isCollapsed) return false;
+    const anchorNode = selection.anchorNode || null;
+    const focusNode = selection.focusNode || null;
+    return (anchorNode && el.contains(anchorNode)) || (focusNode && el.contains(focusNode));
+  }
+
+  function canIncrementalStream(messageId, forceError) {
+    const key = String(messageId);
+    const hasThinking = thinkingActiveByMessageId?.get(key) === true;
+    const hasTools = (toolCallsByMessageId?.get(key) || []).some(
+      (call) => String(call?.status || '').toLowerCase() === 'running'
+    );
+    return !hasThinking && !hasTools && !forceError;
+  }
+
+  function formatStreamingHtml(content) {
+    return `<div class="whitespace-pre-wrap break-words" data-streaming-text>${escapeHtml(String(content ?? '')).replace(/\n/g, '<br/>')}</div>`;
+  }
+
+  function applyStreamingDelta(textEl, delta) {
+    const escapedDelta = escapeHtml(delta).replace(/\n/g, '<br/>');
+    textEl.insertAdjacentHTML('beforeend', escapedDelta);
+  }
+
+  function isStreamingTextReady(textEl, prev, content) {
+    return textEl && prev.lastLength <= content.length;
+  }
+
+  function applyIncrementalText(el, content) {
+    const prev = streamingState.get(el) || { lastLength: 0 };
+    const textEl = el.querySelector('[data-streaming-text]');
+    if (isStreamingTextReady(textEl, prev, content)) {
+      const delta = content.slice(prev.lastLength);
+      if (delta) {
+        applyStreamingDelta(textEl, delta);
+        prev.lastLength = content.length;
+        streamingState.set(el, prev);
         return true;
       }
-
-      // Check if we can do incremental text update (no thinking, no tools)
-      const key = String(messageId);
-      const hasThinking = thinkingActiveByMessageId?.get(key) === true;
-      const hasTools = (toolCallsByMessageId?.get(key) || []).some(
-        (call) => String(call?.status || '').toLowerCase() === 'running'
-      );
-      const canIncremental = !hasThinking && !hasTools && !forceError;
-
-      if (canIncremental) {
-        // Incremental text append for streaming text content
-        const prev = streamingState.get(el) || { lastLength: 0 };
-        const textEl = el.querySelector('[data-streaming-text]');
-        if (textEl && prev.lastLength <= content.length) {
-          // Append only the new delta
-          const delta = content.slice(prev.lastLength);
-          if (delta) {
-            const escapedDelta = escapeHtml(delta).replace(/\n/g, '<br/>');
-            textEl.insertAdjacentHTML('beforeend', escapedDelta);
-            prev.lastLength = content.length;
-            streamingState.set(el, prev);
-            return true;
-          }
-        }
-        // First time or fallback: render with streaming marker
-        const html = `<div class="whitespace-pre-wrap break-words" data-streaming-text>${escapeHtml(String(content ?? '')).replace(/\n/g, '<br/>')}</div>`;
-        el.innerHTML = html;
-        streamingState.set(el, { lastLength: content.length });
-        return true;
-      }
-      // Fall through to full render for thinking/tools/error
-      streamingState.delete(el);
-    } else {
-      // Streaming ended - clear tracking and do full render
-      streamingState.delete(el);
     }
+    el.innerHTML = formatStreamingHtml(content);
+    streamingState.set(el, { lastLength: content.length });
+    return true;
+  }
 
+  function renderFullMessage(el, messageId, content, options, forceError) {
+    const { errorMessage = '', isStreaming = false, chatId = state.activeChatId } = options;
     el.innerHTML = renderAssistantMessageBody({
       messageId,
       content,
@@ -98,6 +91,26 @@ export function createChatMessageDom({
       stateMaps,
     });
     return true;
+  }
+
+  function updateMessageContentDom(messageId, content, options = {}) {
+    if (!messageId) return false;
+    const el = messagesList?.querySelector?.(`[data-message-content="${messageId}"]`);
+    if (!el) return false;
+    const { isError = false, isStreaming = false } = options;
+    const forceError = resolveForceError(el, isError);
+
+    if (isStreaming) {
+      if (hasActiveTextSelection(el)) return true;
+      if (canIncrementalStream(messageId, forceError)) {
+        return applyIncrementalText(el, content);
+      }
+      streamingState.delete(el);
+    } else {
+      streamingState.delete(el);
+    }
+
+    return renderFullMessage(el, messageId, content, options, forceError);
   }
 
   function applyAssistantErrorMessage(chatId, messageId, errorText) {

@@ -3,6 +3,12 @@
  */
 import { fetchAdminRbacRoles } from '../../../shared/api.js';
 
+// ── Time constants (seconds) ──
+const SECONDS_PER_YEAR = 31536000;
+const SECONDS_PER_MONTH = 2592000;
+const SECONDS_PER_DAY = 86400;
+const SECONDS_PER_MINUTE = 60;
+
 const escapeHtml = (value) =>
   String(value || '')
     .replace(/&/g, '&amp;')
@@ -85,11 +91,11 @@ export function timeSince(timestampMs) {
   if (!timestampMs) return 'N/A';
   const seconds = Math.floor((Date.now() - timestampMs) / 1000);
   const buckets = [
-    [31536000, 'year'],
-    [2592000, 'month'],
-    [86400, 'day'],
+    [SECONDS_PER_YEAR, 'year'],
+    [SECONDS_PER_MONTH, 'month'],
+    [SECONDS_PER_DAY, 'day'],
     [3600, 'hour'],
-    [60, 'minute'],
+    [SECONDS_PER_MINUTE, 'minute'],
   ];
   for (const [size, label] of buckets) {
     const value = Math.floor(seconds / size);
@@ -118,20 +124,24 @@ export function renderChip(label, kind = 'neutral') {
   return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide ${accessBadgeClass(kind)}">${escapeHtml(label)}</span>`;
 }
 
+const RULE_ACCESS_STATES = [
+  { match: (rule) => rule?.resource_enabled === false, label: 'Disabled', kind: 'danger' },
+  { match: (rule) => rule?.hidden_for_user, label: 'Hidden for user', kind: 'warning' },
+  {
+    match: (rule) => String(rule?.effect || '').toLowerCase() === 'deny',
+    label: 'Revoked',
+    kind: 'danger',
+  },
+  {
+    match: (rule) => String(rule?.principal_type || '').toLowerCase() === 'group',
+    label: 'Shared',
+    kind: 'shared',
+  },
+];
+
 export function getRuleAccessState(rule = {}) {
-  if (rule?.resource_enabled === false) {
-    return { label: 'Disabled', kind: 'danger' };
-  }
-  if (rule?.hidden_for_user) {
-    return { label: 'Hidden for user', kind: 'warning' };
-  }
-  if (String(rule?.effect || '').toLowerCase() === 'deny') {
-    return { label: 'Revoked', kind: 'danger' };
-  }
-  if (String(rule?.principal_type || '').toLowerCase() === 'group') {
-    return { label: 'Shared', kind: 'shared' };
-  }
-  return { label: 'Personal', kind: 'personal' };
+  const state = RULE_ACCESS_STATES.find(({ match }) => match(rule));
+  return state ? { label: state.label, kind: state.kind } : { label: 'Personal', kind: 'personal' };
 }
 
 export function renderRuleList(rules = [], { showDisabled = false } = {}) {
@@ -141,25 +151,44 @@ export function renderRuleList(rules = [], { showDisabled = false } = {}) {
   if (!visibleRules.length) {
     return '<div class="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-xs text-gray-600">No matching ACL rules</div>';
   }
+  function ruleItemClasses(rule) {
+    return (
+      'flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ' +
+      (rule?.resource_enabled === false ? 'opacity-60' : '')
+    );
+  }
+
+  function renderHiddenBadge(rule) {
+    return rule?.hidden_for_user
+      ? '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-amber-700">Hidden for user</span>'
+      : '';
+  }
+
+  function renderDisabledBadge(rule) {
+    return rule?.resource_enabled === false
+      ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-gray-500">Disabled</span>'
+      : '';
+  }
+
+  function renderRuleItem(rule) {
+    const state = getRuleAccessState(rule);
+    return `
+    <div class="${ruleItemClasses(rule)}">
+      ${renderChip(state.label, state.kind)}
+      ${renderChip(rule.effect || 'allow', rule.effect)}
+      ${renderChip(rule.principal_label || rule.principal_type, 'neutral')}
+      <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || 'All resources')}</span>
+      <span class="text-gray-600">·</span>
+      <span class="text-gray-500">${escapeHtml(rule.action || 'use')}</span>
+      ${renderHiddenBadge(rule)}
+      ${renderDisabledBadge(rule)}
+    </div>
+  `;
+  }
+
   return `
     <div class="space-y-2">
-      ${visibleRules
-        .map((rule) => {
-          const state = getRuleAccessState(rule);
-          return `
-        <div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? 'opacity-60' : ''}">
-          ${renderChip(state.label, state.kind)}
-          ${renderChip(rule.effect || 'allow', rule.effect)}
-          ${renderChip(rule.principal_label || rule.principal_type, 'neutral')}
-          <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || 'All resources')}</span>
-          <span class="text-gray-600">·</span>
-          <span class="text-gray-500">${escapeHtml(rule.action || 'use')}</span>
-          ${rule?.hidden_for_user ? '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-amber-700">Hidden for user</span>' : ''}
-          ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ''}
-        </div>
-      `;
-        })
-        .join('')}
+      ${visibleRules.map(renderRuleItem).join('')}
     </div>
   `;
 }

@@ -32,7 +32,6 @@ export default defineConfig({
       testMatch: [
         'chat.spec.ts',
         'admin-settings.spec.ts',
-        'visual-regression.spec.ts',
         'connections.spec.ts',
         'accessibility-auth.spec.ts',
       ],

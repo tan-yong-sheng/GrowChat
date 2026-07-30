@@ -1,4 +1,4 @@
-import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { clearModalHash, setModalHash, normalizeModalHash } from '../../shared/utils/modal-hash.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 
 const Z_INDEX_CLASSES = {
@@ -122,22 +122,33 @@ function resolveAdminModalPreset(preset = 'standard', overrides = {}) {
   return resolved;
 }
 
-function normalizeModalHashSource(value) {
-  return String(value || '')
-    .trim()
-    .replace(/^#+/g, '')
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
+function pickAdminModalShellConfig(o) {
+  return {
+    title: o.title,
+    subtitle: o.subtitle,
+    body: o.body,
+    footer: o.footer,
+    widthClass: o.widthClass,
+    zIndex: o.zIndex,
+    outerClass: o.outerClass,
+    overlayClass: o.overlayClass,
+    shellClass: o.shellClass,
+    headerClass: o.headerClass,
+    bodyClass: o.bodyClass,
+    footerClass: o.footerClass,
+    closeClass: o.closeClass,
+    closeAriaLabel: o.closeAriaLabel,
+    closeAttr: o.closeAttr,
+    rootAttrs: o.rootAttrs,
+  };
 }
 
 function resolveModalHash({ modalHash, rootAttrs, title } = {}) {
-  const explicit = normalizeModalHashSource(modalHash);
+  const explicit = normalizeModalHash(modalHash);
   if (explicit) return explicit;
   const rootIdMatch = String(rootAttrs || '').match(/\bid\s*=\s*["']([^"']+)["']/i);
-  if (rootIdMatch?.[1]) return normalizeModalHashSource(rootIdMatch[1]);
-  return normalizeModalHashSource(title);
+  if (rootIdMatch?.[1]) return normalizeModalHash(rootIdMatch[1]);
+  return normalizeModalHash(title);
 }
 
 function attachModalCloseHandlers(rendered, closeAttr, closeFn) {
@@ -178,25 +189,7 @@ export function createAdminModalShell(options = {}) {
     },
     options || {}
   );
-  const markup = buildAdminModalShellMarkup({
-    preset: o.preset,
-    title: o.title,
-    subtitle: o.subtitle,
-    body: o.body,
-    footer: o.footer,
-    widthClass: o.widthClass,
-    zIndex: o.zIndex,
-    outerClass: o.outerClass,
-    overlayClass: o.overlayClass,
-    shellClass: o.shellClass,
-    headerClass: o.headerClass,
-    bodyClass: o.bodyClass,
-    footerClass: o.footerClass,
-    closeClass: o.closeClass,
-    closeAriaLabel: o.closeAriaLabel,
-    closeAttr: o.closeAttr,
-    rootAttrs: o.rootAttrs,
-  });
+  const markup = buildAdminModalShellMarkup({ ...pickAdminModalShellConfig(o), preset: o.preset });
   const modal = document.createElement('div');
   modal.innerHTML = markup.trim();
   const rendered = modal.firstElementChild;
@@ -282,24 +275,7 @@ export function buildAdminModalShellMarkup(options = {}) {
     },
     options || {}
   );
-  const config = resolveAdminModalPreset(o.preset, {
-    title: o.title,
-    subtitle: o.subtitle,
-    body: o.body,
-    footer: o.footer,
-    widthClass: o.widthClass,
-    zIndex: o.zIndex,
-    outerClass: o.outerClass,
-    overlayClass: o.overlayClass,
-    shellClass: o.shellClass,
-    headerClass: o.headerClass,
-    bodyClass: o.bodyClass,
-    footerClass: o.footerClass,
-    closeClass: o.closeClass,
-    closeAriaLabel: o.closeAriaLabel,
-    closeAttr: o.closeAttr,
-    rootAttrs: o.rootAttrs,
-  });
+  const config = resolveAdminModalPreset(o.preset, pickAdminModalShellConfig(o));
   const zIndexClass = buildZIndexClass(config.zIndex);
   return `
     <div class="${config.outerClass} ${zIndexClass}" ${config.rootAttrs}>

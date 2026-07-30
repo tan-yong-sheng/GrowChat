@@ -1,3 +1,5 @@
+import { handleClickChat } from './chat-click-handler.js';
+
 export function createChatListHandlers({
   state,
   apiFetch,
@@ -25,19 +27,35 @@ export function createChatListHandlers({
     }
   },
 } = {}) {
+  const handleFetchError = async (res, action) => {
+    const payload = await res.json().catch(() => ({}));
+    alertFn(payload.error || `Failed to ${action} (${res.status})`);
+  };
+
+  function computeNextActiveChatId(wasActive, chats, fallbackId) {
+    return wasActive ? chats[0]?.id || null : fallbackId;
+  }
+
+  function buildDeleteStateUpdate(prev, id, wasActive) {
+    const nextChats = (Array.isArray(prev.chats) ? prev.chats : []).filter(
+      (chatItem) => String(chatItem.id) !== String(id)
+    );
+    const nextActiveChatId = wasActive ? nextChats[0]?.id || null : prev.activeChatId;
+    const nextMessagesByChat = { ...(prev.messagesByChat || {}) };
+    delete nextMessagesByChat[id];
+    return {
+      chats: nextChats,
+      activeChatId: nextActiveChatId,
+      messagesByChat: nextMessagesByChat,
+    };
+  }
+
   return (chat = {}) => ({
     onClick: (id) => {
-      if (isTempChatId(id)) {
-        setState({ activeChatId: id });
-        syncChatUrl(null);
-        drawMessages([]);
-        if (state.isMobile) setState({ showSidebar: false });
-        return;
-      }
-      syncChatUrl(id);
-      setState({ activeChatId: id });
-      loadMessages(id, { modelMode: 'default' });
-      if (state.isMobile) setState({ showSidebar: false });
+      handleClickChat(
+        { isTempChatId, setState, syncChatUrl, drawMessages, state, loadMessages },
+        id
+      );
     },
     rename: async (id) => {
       if (isTempChatId(id)) return;
@@ -54,8 +72,7 @@ export function createChatListHandlers({
       if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/pin`, { method: 'POST' });
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        alertFn(payload.error || `Failed to pin chat (${res.status})`);
+        await handleFetchError(res, 'pin');
         return;
       }
 
@@ -65,8 +82,7 @@ export function createChatListHandlers({
       if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/clone`, { method: 'POST' });
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        alertFn(payload.error || `Failed to duplicate chat (${res.status})`);
+        await handleFetchError(res, 'duplicate');
         return;
       }
 
@@ -109,21 +125,9 @@ export function createChatListHandlers({
       const removedChat = isTempChatId(id)
         ? null
         : prevChats.find((chatItem) => String(chatItem.id) === String(id)) || null;
-      setState((prev) => {
-        const nextChats = (Array.isArray(prev.chats) ? prev.chats : []).filter(
-          (chatItem) => String(chatItem.id) !== String(id)
-        );
-        const nextActiveChatId = wasActive ? nextChats[0]?.id || null : prev.activeChatId;
-        const nextMessagesByChat = { ...(prev.messagesByChat || {}) };
-        delete nextMessagesByChat[id];
-        return {
-          chats: nextChats,
-          activeChatId: nextActiveChatId,
-          messagesByChat: nextMessagesByChat,
-        };
-      });
+      setState((prev) => buildDeleteStateUpdate(prev, id, wasActive));
       const nextChatsSnapshot = prevChats.filter((chatItem) => String(chatItem.id) !== String(id));
-      const nextId = wasActive ? nextChatsSnapshot[0]?.id || null : state.activeChatId;
+      const nextId = computeNextActiveChatId(wasActive, nextChatsSnapshot, state.activeChatId);
       currentLeafByChatId.delete(id);
       streamingOverrideByChatId.delete(id);
       syncChatUrl(nextId, { replace: true });

@@ -2,6 +2,7 @@
  * Session Management Router
  * Handles session listing and revocation
  */
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { error } from '../utils/response.js';
 import { createRootLogger } from '../utils/logger.js';
 const logger = createRootLogger({});
@@ -15,12 +16,12 @@ const logger = createRootLogger({});
  * @param {string} path - Request path
  * @returns {Promise<Response|null>}
  */
-export async function sessionManagementRouter(req, env, _ctx, user, path) {
+export async function sessionManagementRouter({ req, env, ctx: _ctx, user, path }) {
   // Only handle /api/user/sessions paths
   if (!path.startsWith('/api/user/sessions')) return null;
 
   // Require authentication
-  if (!user) return error(req, 'Unauthorized', 401);
+  if (!user) return error(req, 'Unauthorized', HTTP_STATUS.UNAUTHORIZED);
 
   const kv = env.SESSIONS;
   if (!kv) {
@@ -29,7 +30,10 @@ export async function sessionManagementRouter(req, env, _ctx, user, path) {
     if (req.method === 'GET') {
       return Response.json({ sessions: [] });
     }
-    return Response.json({ error: 'Session storage unavailable' }, { status: 503 });
+    return Response.json(
+      { error: 'Session storage unavailable' },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE }
+    );
   }
 
   // GET /api/user/sessions - list all sessions
@@ -100,13 +104,13 @@ export async function getSessions({ userId, kv }) {
  */
 export async function revokeSession({ sessionId, userId, kv }) {
   if (!sessionId) {
-    return Response.json({ error: 'Session ID is required' }, { status: 400 });
+    return Response.json({ error: 'Session ID is required' }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const key = `session:${userId}:${sessionId}`;
   const sessionData = await kv.get(key);
   if (!sessionData) {
-    return Response.json({ error: 'Session not found' }, { status: 404 });
+    return Response.json({ error: 'Session not found' }, { status: HTTP_STATUS.NOT_FOUND });
   }
 
   let session;
@@ -114,12 +118,15 @@ export async function revokeSession({ sessionId, userId, kv }) {
     session = JSON.parse(sessionData);
   } catch {
     // Treat parse failure as corrupted data
-    return Response.json({ error: 'Session data corrupted' }, { status: 410 });
+    return Response.json({ error: 'Session data corrupted' }, { status: HTTP_STATUS.GONE });
   }
 
   // Check ownership
   if (session.userId !== userId) {
-    return Response.json({ error: 'You can only revoke your own sessions' }, { status: 403 });
+    return Response.json(
+      { error: 'You can only revoke your own sessions' },
+      { status: HTTP_STATUS.FORBIDDEN }
+    );
   }
 
   // Delete the session

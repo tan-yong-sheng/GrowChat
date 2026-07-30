@@ -53,20 +53,40 @@ function isActiveTab(container) {
   );
 }
 
+function parseUrlParams() {
+  const params = new URLSearchParams(window.location.search || '');
+  return {
+    initialGroupId: String(params.get('group') || 'all').trim() || 'all',
+    initialDeepLinkFamily: String(params.get('family') || '').trim(),
+    initialDeepLinkResource: String(params.get('resource') || '').trim(),
+    initialDeepLinkOpen: String(params.get('open') || '')
+      .trim()
+      .toLowerCase(),
+  };
+}
+
+function checkDeepLink(state, params) {
+  if (
+    FAMILIES.some((family) => family.key === params.initialDeepLinkFamily) &&
+    params.initialDeepLinkResource &&
+    (params.initialDeepLinkOpen === 'access' || params.initialDeepLinkOpen === 'acl')
+  ) {
+    state.pendingDeepLink = {
+      familyKey: params.initialDeepLinkFamily,
+      resourceId: params.initialDeepLinkResource,
+    };
+    state.activeFamily = params.initialDeepLinkFamily;
+  }
+}
+
 export function renderPoliciesSettings(container, _data = {}) {
-  const initialParams = new URLSearchParams(window.location.search || '');
-  const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
-  const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
-  const initialDeepLinkResource = String(initialParams.get('resource') || '').trim();
-  const initialDeepLinkOpen = String(initialParams.get('open') || '')
-    .trim()
-    .toLowerCase();
+  const params = parseUrlParams();
 
   const state = {
     loading: true,
     error: null,
     groups: [],
-    selectedGroupId: initialGroupId,
+    selectedGroupId: params.initialGroupId,
     query: '',
     visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
     filtersOpen: false,
@@ -90,17 +110,7 @@ export function renderPoliciesSettings(container, _data = {}) {
     deepLinkOpened: false,
   };
 
-  if (
-    FAMILIES.some((family) => family.key === initialDeepLinkFamily) &&
-    initialDeepLinkResource &&
-    (initialDeepLinkOpen === 'access' || initialDeepLinkOpen === 'acl')
-  ) {
-    state.pendingDeepLink = {
-      familyKey: initialDeepLinkFamily,
-      resourceId: initialDeepLinkResource,
-    };
-    state.activeFamily = initialDeepLinkFamily;
-  }
+  checkDeepLink(state, params);
 
   const familyLoadSeq = { connections: 0, models: 0, 'mcp-servers': 0 };
   const familyAbortControllers = { connections: null, models: null, 'mcp-servers': null };
@@ -117,6 +127,25 @@ export function renderPoliciesSettings(container, _data = {}) {
     }
   };
 
+  function shouldProcessFamily(familyKey) {
+    return Boolean(familyKey && state.familyStatus[familyKey]);
+  }
+
+  function resetFamilyStatus(familyKey) {
+    abortFamilyLoad(familyKey);
+    state.familyStatus[familyKey] = 'idle';
+    state.familyError[familyKey] = null;
+    if (familyKey === 'models') state.modelConnectionRulesById = new Map();
+  }
+
+  function maybeRenderActive(renderActive, shouldRender) {
+    if (renderActive && shouldRender && isActiveTab(container)) render();
+  }
+
+  function maybeReloadActive(reloadActive, shouldReload) {
+    if (reloadActive && shouldReload) void loadFamilyResources(state.activeFamily, { force: true });
+  }
+
   const invalidateFamilyState = (
     familyKeys = [],
     { renderActive = false, reloadActive = false } = {}
@@ -125,16 +154,15 @@ export function renderPoliciesSettings(container, _data = {}) {
     let shouldRender = false;
     let shouldReload = false;
     for (const familyKey of normalizedKeys) {
-      if (!familyKey || !state.familyStatus[familyKey]) continue;
-      abortFamilyLoad(familyKey);
-      state.familyStatus[familyKey] = 'idle';
-      state.familyError[familyKey] = null;
-      if (familyKey === 'models') state.modelConnectionRulesById = new Map();
-      shouldRender = shouldRender || state.activeFamily === familyKey;
-      shouldReload = shouldReload || state.activeFamily === familyKey;
+      if (!shouldProcessFamily(familyKey)) continue;
+      resetFamilyStatus(familyKey);
+      if (state.activeFamily === familyKey) {
+        shouldRender = true;
+        shouldReload = true;
+      }
     }
-    if (renderActive && shouldRender && isActiveTab(container)) render();
-    if (reloadActive && shouldReload) void loadFamilyResources(state.activeFamily, { force: true });
+    maybeRenderActive(renderActive, shouldRender);
+    maybeReloadActive(reloadActive, shouldReload);
   };
 
   const handleModelsInvalidation = () => {
@@ -150,25 +178,33 @@ export function renderPoliciesSettings(container, _data = {}) {
     invalidateFamilyState(['mcp-servers'], { renderActive: true, reloadActive: true });
   };
 
-  const getConnectionRulesByIdForWarnings = () => {
-    const currentConnections = Array.isArray(state.resources.connections)
-      ? state.resources.connections
-      : [];
-    if (currentConnections.length) {
-      const map = new Map();
-      for (const resource of currentConnections) {
-        const cid = String(resource?.id || '').trim();
-        if (!cid) continue;
-        map.set(
-          cid,
-          cloneAclRules(Array.isArray(resource?.rules) ? resource.rules : [], normalizeAclRule)
-        );
-      }
-      return map;
+  function resolveCurrentConnections(resources) {
+    return Array.isArray(resources) ? resources : [];
+  }
+
+  function buildConnectionRulesMap(currentConnections, normalizeRule) {
+    const map = new Map();
+    for (const resource of currentConnections) {
+      const cid = String(resource?.id || '').trim();
+      if (!cid) continue;
+      map.set(
+        cid,
+        cloneAclRules(Array.isArray(resource?.rules) ? resource.rules : [], normalizeRule)
+      );
     }
-    return state.modelConnectionRulesById instanceof Map
-      ? state.modelConnectionRulesById
-      : new Map();
+    return map;
+  }
+
+  function fallbackConnectionRulesMap(modelRules) {
+    return modelRules instanceof Map ? modelRules : new Map();
+  }
+
+  const getConnectionRulesByIdForWarnings = () => {
+    const currentConnections = resolveCurrentConnections(state.resources.connections);
+    if (currentConnections.length) {
+      return buildConnectionRulesMap(currentConnections, normalizeAclRule);
+    }
+    return fallbackConnectionRulesMap(state.modelConnectionRulesById);
   };
 
   const handleVisibilityOutsideClick = (event) => {
@@ -216,6 +252,38 @@ export function renderPoliciesSettings(container, _data = {}) {
     openDeepLinkedAccessModal,
   });
 
+  function buildGroupOptions(groups, selectedGroupId) {
+    return [
+      `<option value="all"${selectedGroupId === 'all' ? ' selected' : ''}>All groups</option>`,
+      ...groups.map(
+        (g) =>
+          `<option value="${escapeHtml(g.id)}"${selectedGroupId === g.id ? ' selected' : ''}>${escapeHtml(g.name || g.id)}</option>`
+      ),
+    ].join('');
+  }
+
+  function buildFamilyOptions(activeFamily) {
+    return FAMILIES.map(
+      (f) =>
+        `<option value="${escapeHtml(f.key)}"${activeFamily === f.key ? ' selected' : ''}>${escapeHtml(f.label)}</option>`
+    ).join('');
+  }
+
+  function computeSelectionCounts(activePaged, activeSelectedIds) {
+    const activeVisibleIds = activePaged.items.map((r) => r.id);
+    const activeVisibleSelectedCount = activeVisibleIds.filter((id) =>
+      activeSelectedIds.has(id)
+    ).length;
+    const activeAllVisibleSelected =
+      activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
+    return { activeVisibleIds, activeVisibleSelectedCount, activeAllVisibleSelected };
+  }
+
+  function countActiveVisibilityFilters(visibilityFilters) {
+    return Object.entries(visibilityFilters).filter(([k, v]) => DEFAULT_VISIBILITY_FILTERS[k] !== v)
+      .length;
+  }
+
   function render() {
     if (!isActiveTab(container)) return;
     const renderSnapshot = captureRenderState(container, {
@@ -232,30 +300,15 @@ export function renderPoliciesSettings(container, _data = {}) {
       return;
     }
 
-    const groupOptions = [
-      `<option value="all"${state.selectedGroupId === 'all' ? ' selected' : ''}>All groups</option>`,
-      ...state.groups.map(
-        (g) =>
-          `<option value="${escapeHtml(g.id)}"${state.selectedGroupId === g.id ? ' selected' : ''}>${escapeHtml(g.name || g.id)}</option>`
-      ),
-    ].join('');
-    const familyOptions = FAMILIES.map(
-      (f) =>
-        `<option value="${escapeHtml(f.key)}"${state.activeFamily === f.key ? ' selected' : ''}>${escapeHtml(f.label)}</option>`
-    ).join('');
+    const groupOptions = buildGroupOptions(state.groups, state.selectedGroupId);
+    const familyOptions = buildFamilyOptions(state.activeFamily);
     const activeFamily = FAMILIES.find((f) => f.key === state.activeFamily) || FAMILIES[0];
     const activePaged = getPagedResources(activeFamily.key);
     const activeSelectedIds = getSelectedSet(activeFamily.key);
     const activeSelectionCount = activeSelectedIds.size;
-    const activeVisibleIds = activePaged.items.map((r) => r.id);
-    const activeVisibleSelectedCount = activeVisibleIds.filter((id) =>
-      activeSelectedIds.has(id)
-    ).length;
-    const activeAllVisibleSelected =
-      activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
-    const activeVisibilityCount = Object.entries(state.visibilityFilters).filter(
-      ([k, v]) => DEFAULT_VISIBILITY_FILTERS[k] !== v
-    ).length;
+    const { activeVisibleIds, activeVisibleSelectedCount, activeAllVisibleSelected } =
+      computeSelectionCounts(activePaged, activeSelectedIds);
+    const activeVisibilityCount = countActiveVisibilityFilters(state.visibilityFilters);
     const activeFamilyStatus = state.familyStatus[activeFamily.key] || 'idle';
     const activeFamilyError = state.familyError[activeFamily.key] || '';
 

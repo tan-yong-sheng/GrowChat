@@ -32,7 +32,16 @@ function getEmailTemplate() {
   return emailTemplate;
 }
 
-const VERIFICATION_TOKEN_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
+const HOURS_PER_DAY = 24;
+const VERIFICATION_TOKEN_EXPIRY_SECONDS = HOURS_PER_DAY * 3600;
+
+async function createVerificationToken() {
+  const token = generateToken();
+  const tokenHash = await hashTokenAsync(token);
+  const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
+  const verificationId = crypto.randomUUID();
+  return { token, tokenHash, expiresAt, verificationId };
+}
 
 /**
  * Verify email address with token
@@ -87,50 +96,7 @@ export async function verifyEmail({ token, env, _logger = createLogger(env) }) {
  * @param {Object} params.env - Environment variables (for email sending)
  * @returns {Promise<Response>}
  */
-export async function resendVerification({ email, env, logger = createLogger(env) }) {
-  const db = env?.DB ? createDB(env.DB) : null;
-  if (!db) {
-    return Response.json({ error: 'Database unavailable' }, { status: 500 });
-  }
-  if (!email) {
-    return Response.json({ error: 'Email is required' }, { status: 400 });
-  }
-
-  // Find user
-  const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
-
-  // Return success even if user not found (prevents email enumeration)
-  if (!user) {
-    return Response.json({
-      message: 'If the email exists, a verification email has been sent',
-    });
-  }
-
-  // If already verified, return success without sending
-  if (user.account_status === 'active') {
-    return Response.json({
-      message: 'If the email exists, a verification email has been sent',
-    });
-  }
-
-  // Generate new verification token
-  const token = generateToken();
-  const tokenHash = await hashTokenAsync(token);
-  const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
-  const verificationId = crypto.randomUUID();
-
-  // Delete any existing verification tokens for this user
-  await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(user.id).run();
-
-  // Insert new verification token
-  await db
-    .prepare(
-      'INSERT INTO email_verifications (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)'
-    )
-    .bind(verificationId, user.id, tokenHash, expiresAt)
-    .run();
-
-  // Send verification email
+async function sendVerificationEmail(env, email, user, token) {
   try {
     const emailService = createEmailService(env);
     const verificationUrl = `${env.APP_URL || 'http://localhost:8787'}/verify?token=${token}`;
@@ -144,9 +110,47 @@ export async function resendVerification({ email, env, logger = createLogger(env
       html,
     });
   } catch (error) {
-    logger.error('Failed to send verification email', { error: error?.message || error });
-    // Don't fail the request if email send fails
+    createRootLogger({}).error('Failed to send verification email', {
+      error: error?.message || error,
+    });
   }
+}
+
+export async function resendVerification({ email, env, logger = createLogger(env) }) {
+  const db = env?.DB ? createDB(env.DB) : null;
+  if (!db) {
+    return Response.json({ error: 'Database unavailable' }, { status: 500 });
+  }
+  if (!email) {
+    return Response.json({ error: 'Email is required' }, { status: 400 });
+  }
+
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+
+  if (!user) {
+    return Response.json({
+      message: 'If the email exists, a verification email has been sent',
+    });
+  }
+
+  if (user.account_status === 'active') {
+    return Response.json({
+      message: 'If the email exists, a verification email has been sent',
+    });
+  }
+
+  const { token, tokenHash, expiresAt, verificationId } = await createVerificationToken();
+
+  await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(user.id).run();
+
+  await db
+    .prepare(
+      'INSERT INTO email_verifications (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)'
+    )
+    .bind(verificationId, user.id, tokenHash, expiresAt)
+    .run();
+
+  await sendVerificationEmail(env, logger, email, user, token);
 
   return Response.json({
     message: 'If the email exists, a verification email has been sent',
@@ -165,10 +169,7 @@ export async function createEmailVerification(userId, email, env, logger = creat
   if (!db) {
     throw new Error('Database unavailable');
   }
-  const token = generateToken();
-  const tokenHash = await hashTokenAsync(token);
-  const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
-  const verificationId = crypto.randomUUID();
+  const { token, tokenHash, expiresAt, verificationId } = await createVerificationToken();
 
   await db
     .prepare(

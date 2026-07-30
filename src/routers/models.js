@@ -11,8 +11,7 @@
  *   - models-admin-settings.js  → GET/PUT /api/admin/models
  *   - models-helpers.js         → shared utility functions
  */
-import { createDB } from '../db.js';
-import { createLogger } from '../utils/logger.js';
+import { createRouterDeps } from './router-deps.js';
 
 import { handlePublicModelsList } from './models/models-public-list.js';
 import { handlePublicModelsCrud } from './models/models-public-crud.js';
@@ -24,15 +23,20 @@ export { applyUserModelVisibilityOverrides } from './models/models-discovery.js'
 /**
  * Models Router Handler
  */
-export async function modelsRouter(req, env, ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const db = createDB(env.DB);
-  const deps = { db, logger, requestContext };
+export async function modelsRouter({
+  req,
+  env,
+  ctx,
+  user,
+  path,
+  requestId,
+  logger: providedLogger,
+} = {}) {
+  const deps = createRouterDeps(env, { requestId, logger: providedLogger });
 
   // Delegate to domain-specific sub-handlers.
   const handlers = [
-    () => handlePublicModelsList(req, env, ctx, user, path, deps),
+    () => handlePublicModelsList({ req, env, ctx, user, path, deps }),
     () => handlePublicModelsCrud(req, env, ctx, user, path, deps),
     () => handleAdminModelsAccess(req, env, ctx, user, path, deps),
     () => handleAdminModelsSettings(req, env, ctx, user, path, deps),

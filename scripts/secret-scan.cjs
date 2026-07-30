@@ -45,64 +45,77 @@ function getFileHash(filePath) {
   }
 }
 
-function scanFile(filePath, cache) {
-  const ext = path.extname(filePath).toLowerCase();
+const SKIP_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.woff',
+  '.woff2',
+  '.ttf',
+]);
+const SKIP_PATH_FRAGMENTS = ['node_modules', '.git', 'coverage', 'dist', 'build'];
+const SKIP_SUFFIXES = ['.test.js', '.spec.js', '.spec.ts'];
 
-  const skipExtensions = [
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.ico',
-    '.zip',
-    '.tar',
-    '.gz',
-    '.woff',
-    '.woff2',
-    '.ttf',
-  ];
-  if (skipExtensions.includes(ext)) return null;
+function hasSkipPathFragment(filePath) {
+  return SKIP_PATH_FRAGMENTS.some((frag) => filePath.includes(frag));
+}
 
-  if (filePath.includes('node_modules') || filePath.includes('.git')) return null;
-  if (filePath.includes('coverage') || filePath.includes('dist') || filePath.includes('build'))
-    return null;
-  if (
-    filePath.endsWith('.test.js') ||
-    filePath.endsWith('.spec.js') ||
-    filePath.endsWith('.spec.ts')
-  )
-    return null;
+function hasSkipSuffix(filePath) {
+  return SKIP_SUFFIXES.some((suffix) => filePath.endsWith(suffix));
+}
 
-  // Check cache first
-  const fileHash = getFileHash(filePath);
-  if (fileHash && cache[filePath] && cache[filePath].hash === fileHash) {
-    return null; // Cache hit, no new secrets
+function shouldSkipFile(filePath) {
+  if (SKIP_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return true;
+  if (hasSkipPathFragment(filePath)) return true;
+  return hasSkipSuffix(filePath);
+}
+
+function collectFindings(filePath, content) {
+  const findings = [];
+  for (const pattern of SECRET_PATTERNS) {
+    const matches = content.match(pattern.regex) || [];
+    if (matches.length > 0) {
+      findings.push({
+        file: filePath,
+        type: pattern.name,
+        matches: matches.slice(0, 3),
+      });
+    }
   }
+  return findings;
+}
 
+function updateFileCache(filePath, fileHash, cache) {
+  if (fileHash) {
+    cache[filePath] = { hash: fileHash };
+  }
+}
+
+function tryScanFile(filePath, fileHash, cache) {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
-    const findings = [];
-
-    for (const pattern of SECRET_PATTERNS) {
-      const matches = content.match(pattern.regex) || [];
-      if (matches.length > 0) {
-        findings.push({
-          file: filePath,
-          type: pattern.name,
-          matches: matches.slice(0, 3),
-        });
-      }
-    }
-
-    // Update cache
-    if (fileHash) {
-      cache[filePath] = { hash: fileHash };
-    }
-
+    const findings = collectFindings(filePath, content);
+    updateFileCache(filePath, fileHash, cache);
     return findings.length > 0 ? findings : null;
   } catch {
     return null;
   }
+}
+
+function isCacheHit(filePath, fileHash, cache) {
+  return fileHash && cache[filePath]?.hash === fileHash;
+}
+
+function scanFile(filePath, cache) {
+  if (shouldSkipFile(filePath)) return null;
+  const fileHash = getFileHash(filePath);
+  if (isCacheHit(filePath, fileHash, cache)) return null;
+  return tryScanFile(filePath, fileHash, cache);
 }
 
 function getStagedFiles() {
@@ -112,6 +125,30 @@ function getStagedFiles() {
   } catch {
     return [];
   }
+}
+
+function isCacheFile(file) {
+  return file === '.secrets.baseline' || file === '.secrets.cache.json';
+}
+
+function scanFilesForSecrets(files, cache) {
+  let allFindings = [];
+  let cacheHits = 0;
+  let cacheMisses = 0;
+
+  files.forEach(file => {
+    if (isCacheFile(file)) return;
+    const findings = scanFile(file, cache);
+    if (findings) {
+      allFindings = allFindings.concat(findings);
+    } else if (cache[file]) {
+      cacheHits++;
+    } else {
+      cacheMisses++;
+    }
+  });
+
+  return { allFindings, cacheHits, cacheMisses };
 }
 
 function main() {
@@ -125,23 +162,7 @@ function main() {
     process.exit(0);
   }
 
-  let allFindings = [];
-  let cacheHits = 0;
-  let cacheMisses = 0;
-
-  for (const file of stagedFiles) {
-    if (file === '.secrets.baseline' || file === '.secrets.cache.json') continue;
-
-    const findings = scanFile(file, cache);
-    if (findings) {
-      allFindings = allFindings.concat(findings);
-    } else if (cache[file]) {
-      cacheHits++;
-    } else {
-      cacheMisses++;
-    }
-  }
-
+  const { allFindings, cacheHits, cacheMisses } = scanFilesForSecrets(stagedFiles, cache);
   saveCache(cache);
 
   if (allFindings.length === 0) {

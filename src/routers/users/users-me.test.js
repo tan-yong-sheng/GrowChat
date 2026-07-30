@@ -83,14 +83,14 @@ describe('handleUsersMe', () => {
 
   describe('GET /api/users/me/permissions', () => {
     it('returns resolved permissions', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me/permissions', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/users/me/permissions',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me/permissions', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me/permissions',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.permissions).toEqual(['chat.read']);
@@ -99,14 +99,14 @@ describe('handleUsersMe', () => {
 
   describe('GET /api/users/me/roles', () => {
     it('returns user roles', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me/roles', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/users/me/roles',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me/roles', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me/roles',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.roles).toEqual([{ name: 'member' }]);
@@ -130,27 +130,27 @@ describe('handleUsersMe', () => {
         updated_at: 1,
         last_active_at: null,
       });
-      const res = await handleUsersMe(
-        makeReq('/api/users/me', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
     });
 
     it('returns 404 for missing user row', async () => {
       db.first.mockResolvedValue(null);
-      const res = await handleUsersMe(
-        makeReq('/api/users/me', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(404);
     });
 
@@ -170,14 +170,14 @@ describe('handleUsersMe', () => {
         updated_at: 1,
         last_active_at: null,
       });
-      const res = await handleUsersMe(
-        makeReq('/api/users/me?include=permissions,roles', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me?include=permissions,roles', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -203,14 +203,14 @@ describe('handleUsersMe', () => {
         return null;
       });
       db.run.mockResolvedValue(undefined);
-      const res = await handleUsersMe(
-        makeReq('/api/users/me', 'PUT', { name: 'Updated' }),
-        env,
-        ctx,
-        user,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me', 'PUT', { name: 'Updated' }),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
     });
 
@@ -219,14 +219,14 @@ describe('handleUsersMe', () => {
       mocks.buildSelfProfileUpdate.mockImplementation(() => {
         throw new ValidationError('bad input');
       });
-      const res = await handleUsersMe(
-        makeReq('/api/users/me', 'PUT', { name: '' }),
-        env,
-        ctx,
-        user,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me', 'PUT', { name: '' }),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(400);
     });
   });
@@ -252,14 +252,14 @@ describe('handleUsersMe', () => {
         return null;
       });
       db.run.mockResolvedValue(undefined);
-      const res = await handleUsersMe(
-        makeReq('/api/users/me/update', 'POST', { name: 'Updated' }),
-        env,
-        ctx,
-        user,
-        '/api/users/me/update',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me/update', 'POST', { name: 'Updated' }),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/users/me/update',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -268,77 +268,77 @@ describe('handleUsersMe', () => {
     const pendingUser = { sub: 'u1', account_status: 'pending' };
 
     it('rejects GET /api/users/me with 403', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me', 'GET'),
-        env,
-        ctx,
-        pendingUser,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: pendingUser,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
       const payload = await res.json();
       expect(payload.error).toBe('Account pending approval.');
     });
 
     it('rejects GET /api/users/me/permissions with 403', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me/permissions', 'GET'),
-        env,
-        ctx,
-        pendingUser,
-        '/api/users/me/permissions',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me/permissions', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: pendingUser,
+        path: '/api/users/me/permissions',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
     });
 
     it('rejects GET /api/users/me/roles with 403', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me/roles', 'GET'),
-        env,
-        ctx,
-        pendingUser,
-        '/api/users/me/roles',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me/roles', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: pendingUser,
+        path: '/api/users/me/roles',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
     });
 
     it('rejects PUT /api/users/me with 403', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me', 'PUT', { name: 'Updated' }),
-        env,
-        ctx,
-        pendingUser,
-        '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me', 'PUT', { name: 'Updated' }),
+        env: env,
+        ctx: ctx,
+        user: pendingUser,
+        path: '/api/users/me',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
     });
 
     it('rejects POST /api/users/me/update with 403', async () => {
-      const res = await handleUsersMe(
-        makeReq('/api/users/me/update', 'POST', { name: 'Updated' }),
-        env,
-        ctx,
-        pendingUser,
-        '/api/users/me/update',
-        { _db: db, _logger: logger, _requestContext: {} }
-      );
+      const res = await handleUsersMe({
+        req: makeReq('/api/users/me/update', 'POST', { name: 'Updated' }),
+        env: env,
+        ctx: ctx,
+        user: pendingUser,
+        path: '/api/users/me/update',
+        deps: { _db: db, _logger: logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
     });
   });
 
   it('returns null for unrecognized paths', async () => {
-    const result = await handleUsersMe(
-      makeReq('/api/unknown', 'GET'),
-      env,
-      ctx,
-      user,
-      '/api/unknown',
-      { _db: db, _logger: logger, _requestContext: {} }
-    );
+    const result = await handleUsersMe({
+      req: makeReq('/api/unknown', 'GET'),
+      env: env,
+      ctx: ctx,
+      user: user,
+      path: '/api/unknown',
+      deps: { _db: db, _logger: logger, _requestContext: {} },
+    });
     expect(result).toBeNull();
   });
 });

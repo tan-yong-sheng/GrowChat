@@ -7,6 +7,14 @@
 
 import { createDB } from '../db.js';
 import { createRootLogger } from '../utils/logger.js';
+import { getAuditLog } from './authorize-audit.js';
+
+export { getAuditLog };
+
+const BASE_36_RADIX = 36;
+const ID_RANDOM_LENGTH = 8;
+const HTTP_STATUS_FORBIDDEN_DEFAULT = 403;
+
 const rootLogger = createRootLogger({});
 
 /**
@@ -52,21 +60,9 @@ export async function resolvePermissions(db, user, logger = rootLogger) {
 }
 
 /**
- * Authorize a user action with deny-by-default
- *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} user - User object with sub (user ID) and role
- * @param {Object} options - Authorization options
- * @param {string} options.action - Permission action (e.g., 'admin.user.write')
- * @param {string} options.resource - Resource type (optional)
- * @param {string} options.resourceId - Resource ID (optional)
- * @returns {Promise<Object>} { allow: boolean, reason?: string }
+ * Check whether the user passes basic authorization preconditions
  */
-export async function authorize(env, user, options = {}, logger = rootLogger) {
-  // Default deny
-  const { action } = options;
-
-  // Validate inputs
+function isValidAuthorizationRequest(action, user) {
   if (!action || typeof action !== 'string') {
     return {
       allow: false,
@@ -75,8 +71,6 @@ export async function authorize(env, user, options = {}, logger = rootLogger) {
       action: 'unknown',
     };
   }
-
-  // Check user exists and is active
   if (!user?.sub) {
     return {
       allow: false,
@@ -85,14 +79,22 @@ export async function authorize(env, user, options = {}, logger = rootLogger) {
       action,
     };
   }
+  return null;
+}
+
+/**
+ * Authorize a user action with deny-by-default
+ */
+export async function authorize(env, user, options = {}, logger = rootLogger) {
+  const { action } = options;
+
+  const invalid = isValidAuthorizationRequest(action, user);
+  if (invalid) return invalid;
 
   try {
     const db = createDB(env.DB);
-
-    // Resolve user's permissions
     const permissions = await resolvePermissions(db, user);
 
-    // Check if user has required permission
     if (permissions.includes(action)) {
       return {
         allow: true,
@@ -101,7 +103,6 @@ export async function authorize(env, user, options = {}, logger = rootLogger) {
       };
     }
 
-    // User lacks permission
     return {
       allow: false,
       code: 'forbidden',
@@ -132,22 +133,33 @@ export async function authorize(env, user, options = {}, logger = rootLogger) {
  * @returns {Promise<void>}
  */
 export async function logAuditEvent(env, event, logger = rootLogger) {
-  const { actor_id, action, resource_type, resource_id, metadata } = event;
+  const db = createDB(env.DB);
+  await logAuditEventImpl(event, db, logger);
+}
 
-  if (!actor_id || !action || !resource_type) {
-    logger.warn('Audit event missing required fields', { event });
-    return;
-  }
-
+/**
+ * Internal audit log implementation
+ *
+ * @param {Object} event - Audit event
+ * @param {Object} db - Database instance
+ * @param {Object} logger - Logger instance
+ * @returns {Promise<void>}
+ */
+async function logAuditEventImpl(event, db, logger) {
   try {
-    const id = generateId('audit');
-    const metadataJson = metadata ? JSON.stringify(metadata) : null;
-    const created_at = Math.floor(Date.now() / 1000);
+    const { actor_id, action, resource_type, resource_id, metadata = {} } = event;
 
-    await env.DB.prepare(
-      `INSERT INTO audit_log (id, actor_id, action, resource_type, resource_id, metadata, created_at)
+    if (!actor_id || !action || !resource_type) return;
+
+    const id = generateId('audit');
+    const created_at = new Date().toISOString();
+    const metadataJson = JSON.stringify(metadata);
+
+    await db
+      .prepare(
+        `INSERT INTO audit_logs (id, actor_id, action, resource_type, resource_id, metadata, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
+      )
       .bind(id, actor_id, action, resource_type, resource_id, metadataJson, created_at)
       .run();
   } catch (err) {
@@ -163,25 +175,25 @@ export async function logAuditEvent(env, event, logger = rootLogger) {
  * @returns {string} Unique ID with prefix
  */
 function generateId(prefix) {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
+  const timestamp = Date.now().toString(BASE_36_RADIX);
+  const random = Math.random().toString(BASE_36_RADIX).substring(2, ID_RANDOM_LENGTH);
   return `${prefix}-${timestamp}-${random}`;
 }
 
 /**
- * Check if user has specific permission
+ * Check if user has a specific permission
  *
- * @param {Object} options - Options object {env, user, permission, context}
- * @param {Object} options.env - Cloudflare environment with DB binding
- * @param {Object} options.user - User object
- * @param {string} options.permission - Permission key to check
- * @param {Object} [options.context] - Optional context
+ * @param {Object} env - Cloudflare environment with DB binding
+ * @param {Object} user - User object
+ * @param {string} permission - Permission key to check
+ * @param {Object} options - Additional options
+ * @param {Object} options.context - Additional context for logging
  * @returns {Promise<boolean>} True if user has permission
  */
-export async function hasPermission({ env, user, permission, context }) {
+export async function hasPermission(env, user, permission, options = {}) {
   const decision = await authorize(env, user, {
     action: permission,
-    context,
+    context: options.context,
   });
   return decision.allow === true;
 }
@@ -206,7 +218,7 @@ export async function requireAdmin({ env, user }) {
       unauthorized: 401,
       not_found: 404,
     };
-    const statusCode = statusCodeMap[decision.code] || 403;
+    const statusCode = statusCodeMap[decision.code] || HTTP_STATUS_FORBIDDEN_DEFAULT;
     const error = new Error(decision.reason || 'Forbidden');
     error.code = decision.code;
     error.statusCode = statusCode;
@@ -260,104 +272,6 @@ export async function getRoleUserCount(env, roleName, excludeUserId, logger = ro
 export async function isLastOwnerOfRole(env, userId, roleName, _logger = rootLogger) {
   const count = await getRoleUserCount(env, roleName, userId);
   return count === 0;
-}
-
-/**
- * Get audit log entries
- *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} options - Query options
- * @param {string} options.actor_id - Filter by actor ID (optional)
- * @param {string} options.action - Filter by action (optional)
- * @param {string} options.resource_type - Filter by resource type (optional)
- * @param {string} options.resource_id - Filter by resource ID (optional)
- * @param {number} options.limit - Limit results (default 100, max 500)
- * @param {number} options.offset - Offset for pagination (default 0)
- * @returns {Promise<Object>} { entries, total, limit, offset }
- */
-export async function getAuditLog(env, options = {}, logger = rootLogger) {
-  const { actor_id, action, resource_type, resource_id, limit = 100, offset = 0 } = options;
-
-  // Validate and cap limit
-  const safeLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 500);
-  const safeOffset = Math.max(parseInt(offset) || 0, 0);
-
-  try {
-    // Build WHERE clause
-    const conditions = [];
-    const bindings = [];
-
-    if (actor_id) {
-      conditions.push('actor_id = ?');
-      bindings.push(actor_id);
-    }
-
-    if (action) {
-      conditions.push('action = ?');
-      bindings.push(action);
-    }
-
-    if (resource_type) {
-      conditions.push('resource_type = ?');
-      bindings.push(resource_type);
-    }
-
-    if (resource_id) {
-      conditions.push('resource_id = ?');
-      bindings.push(resource_id);
-    }
-
-    const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
-
-    // Get total count
-    const countQuery = `SELECT COUNT(*) as count FROM audit_log${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery)
-      .bind(...bindings)
-      .first();
-    const total = countResult?.count || 0;
-
-    // Get entries
-    const entriesQuery = `
-      SELECT id, actor_id, action, resource_type, resource_id, metadata, created_at
-      FROM audit_log
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `;
-
-    const allBindings = [...bindings, safeLimit, safeOffset];
-    const entriesResult = await env.DB.prepare(entriesQuery)
-      .bind(...allBindings)
-      .all();
-
-    // Parse metadata JSON
-    const entries = (entriesResult.results || []).map((entry) => ({
-      ...entry,
-      metadata: (() => {
-        if (!entry.metadata) return null;
-        try {
-          return JSON.parse(entry.metadata);
-        } catch {
-          return null;
-        }
-      })(),
-    }));
-
-    return {
-      entries,
-      total,
-      limit: safeLimit,
-      offset: safeOffset,
-    };
-  } catch (err) {
-    logger.error('Failed to get audit log', { error: err?.message || err });
-    return {
-      entries: [],
-      total: 0,
-      limit: safeLimit,
-      offset: safeOffset,
-    };
-  }
 }
 
 /**

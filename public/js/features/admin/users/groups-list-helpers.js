@@ -18,23 +18,25 @@ export function getGroupModalTheme() {
   };
 }
 
+function compareGroupNames(a, b) {
+  const nameA = String(a?.name || '').toLowerCase();
+  const nameB = String(b?.name || '').toLowerCase();
+  return nameA.localeCompare(nameB);
+}
+
+function compareGroupMembersThenNames(a, b) {
+  const countDiff = (b?.member_count || 0) - (a?.member_count || 0);
+  if (countDiff !== 0) return countDiff;
+  return compareGroupNames(a, b);
+}
+
 export function sortGroups(groups = [], sortKey = 'members') {
   const list = Array.isArray(groups) ? groups.slice() : [];
   if (sortKey === 'name') {
-    return list.sort((a, b) => {
-      const nameA = String(a?.name || '').toLowerCase();
-      const nameB = String(b?.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
+    return list.sort(compareGroupNames);
   }
 
-  return list.sort((a, b) => {
-    const countDiff = (b?.member_count || 0) - (a?.member_count || 0);
-    if (countDiff !== 0) return countDiff;
-    const nameA = String(a?.name || '').toLowerCase();
-    const nameB = String(b?.name || '').toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
+  return list.sort(compareGroupMembersThenNames);
 }
 
 export function nextGroupSort(current = 'members') {

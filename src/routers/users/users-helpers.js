@@ -1,5 +1,8 @@
-import { loadUserToolServers } from '../../admin/tool-servers.js';
+import { loadUserToolServers } from '../../admin/tool-servers-user.js';
 import { createRootLogger } from '../../utils/logger.js';
+import { parseJsonObject, parseJsonObjectOrDefault } from '../../utils/json.js';
+export { parseJsonObject };
+export const parseSettings = parseJsonObjectOrDefault;
 const rootLogger = createRootLogger({});
 
 export function normalizeAccountStatus(value, fallback = 'active') {
@@ -77,16 +80,6 @@ export async function loadModelEnabledMap(db, _logger = rootLogger) {
   }
 }
 
-export function parseJsonObject(raw) {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
-  try {
-    const parsed = JSON.parse(String(raw));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function saveUserToolServerJson(db, userId, serverId, server) {
   await db.run(
     `UPDATE user_tool_servers
@@ -100,24 +93,14 @@ export async function findUserToolServerByOauthState(db, state) {
   if (!db || !state) return null;
   await loadUserToolServers(db, '__oauth__');
   const rows = await db.all('SELECT id, user_id, server_json FROM user_tool_servers');
+  return findOauthStateRow(rows, state);
+}
+
+function findOauthStateRow(rows, state) {
   for (const row of Array.isArray(rows) ? rows : []) {
     const server = parseJsonObject(row.server_json);
     if (server?.oauth_state !== state) continue;
-    return {
-      ...server,
-      id: row.id,
-      user_id: row.user_id,
-    };
+    return { ...server, id: row.id, user_id: row.user_id };
   }
   return null;
-}
-
-export function parseSettings(raw) {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
 }

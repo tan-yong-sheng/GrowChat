@@ -2,6 +2,9 @@
  * Utility functions for the connection modal.
  */
 
+import { escapeHtml } from '../utils/dom-escape.js';
+export { escapeHtml };
+
 export function normalizeProviderType(value) {
   return (
     String(value || '')
@@ -90,15 +93,6 @@ export const STANDARD_MODAL_PRESET = {
   overlayClass: 'absolute inset-0 bg-primary/25 backdrop-blur-sm z-0',
   zIndex: 150,
 };
-
-export function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 export function formatHeadersValue(headers) {
   if (

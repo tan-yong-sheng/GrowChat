@@ -1,5 +1,37 @@
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 
+function shouldSkipResume(chatId, messageId, state, getActiveStreamAbort, streamSession) {
+  if (!chatId || !messageId) return true;
+  if (getActiveStreamAbort() && state.activeChatId === chatId) return true;
+  const existing = streamSession?.getResumeStream?.(chatId);
+  if (existing && String(existing.messageId) === String(messageId)) return true;
+  return false;
+}
+
+function stopPriorStreams(chatId, streamSession) {
+  const existing = streamSession?.getResumeStream?.(chatId);
+  if (existing) streamSession?.stopResumeStream?.(chatId);
+  streamSession?.stopStreamPolling?.(chatId);
+}
+
+function initResumeAssistantText(
+  chatId,
+  messageId,
+  lastSeq,
+  getMessageById,
+  extractThinkingBlocksFn,
+  messageBlocksById,
+  toolCallsByMessageId
+) {
+  const existingMsg = getMessageById(chatId, messageId);
+  if (lastSeq > 0 && existingMsg?.content) {
+    return extractThinkingBlocksFn(existingMsg.content).cleaned || '';
+  }
+  messageBlocksById.delete(String(messageId));
+  toolCallsByMessageId.delete(String(messageId));
+  return '';
+}
+
 export async function startChatResumeStream({
   chatId,
   messageId,
@@ -26,26 +58,23 @@ export async function startChatResumeStream({
   toolCallsByMessageId = new Map(),
   streamingOverrideByChat = new Map(),
 }) {
-  if (!chatId || !messageId) return;
-  if (getActiveStreamAbort() && state.activeChatId === chatId) return;
-  const existing = streamSession?.getResumeStream?.(chatId);
-  if (existing && String(existing.messageId) === String(messageId)) return;
-  if (existing) streamSession?.stopResumeStream?.(chatId);
-  streamSession?.stopStreamPolling?.(chatId);
+  if (shouldSkipResume(chatId, messageId, state, getActiveStreamAbort, streamSession)) return;
+  stopPriorStreams(chatId, streamSession);
 
   const lastSeq = getMessageSeq(messageId);
   const controller = new AbortController();
   streamSession?.setResumeStream?.(chatId, { controller, messageId });
   setStreamingState(chatId, true);
 
-  const existingMsg = getMessageById(chatId, messageId);
-  let assistantText = '';
-  if (lastSeq > 0 && existingMsg?.content) {
-    assistantText = extractThinkingBlocksFn(existingMsg.content).cleaned || '';
-  } else {
-    messageBlocksById.delete(String(messageId));
-    toolCallsByMessageId.delete(String(messageId));
-  }
+  let assistantText = initResumeAssistantText(
+    chatId,
+    messageId,
+    lastSeq,
+    getMessageById,
+    extractThinkingBlocksFn,
+    messageBlocksById,
+    toolCallsByMessageId
+  );
 
   let errorMessage = null;
   let errorActive = false;
@@ -64,6 +93,58 @@ export async function startChatResumeStream({
       streaming,
     });
 
+  function handleReasoningStart(payload) {
+    if (!thinkingStartByMessageId.has(String(messageId))) {
+      thinkingStartByMessageId.set(String(messageId), Date.now());
+    }
+    thinkingActiveByMessageId.set(String(messageId), true);
+    ensureThinkingBlock(messageBlocksById, messageId);
+    applyAssistantText(true);
+  }
+
+  function handleReasoningDelta(payload) {
+    const delta = String(payload.delta || '');
+    if (!delta) return;
+    appendBlock(messageBlocksById, messageId, 'thinking', delta);
+    thinkingActiveByMessageId.set(String(messageId), true);
+    applyAssistantText(true);
+  }
+
+  function handleReasoningEnd(payload) {
+    const duration = Number(payload.duration_ms);
+    if (Number.isFinite(duration) && duration > 0) {
+      thinkingDurationByMessageId.set(String(messageId), duration);
+    }
+    thinkingActiveByMessageId.delete(String(messageId));
+  }
+
+  function handleToolEvent(payload) {
+    updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
+    applyAssistantText(true);
+  }
+
+  function handleStreamError(payload) {
+    errorMessage = payload.message || payload.error || 'LLM request failed';
+    errorActive = true;
+    assistantText = '';
+    applyAssistantText(false);
+  }
+
+  function handleTextDelta(delta) {
+    if (!delta) return;
+    assistantText += delta;
+    appendBlock(messageBlocksById, messageId, 'text', delta);
+    applyAssistantText(true);
+  }
+
+  const eventHandlers = {
+    reasoning_start: handleReasoningStart,
+    reasoning_delta: handleReasoningDelta,
+    reasoning_end: handleReasoningEnd,
+    tool_status: handleToolEvent,
+    tool_result: handleToolEvent,
+  };
+
   try {
     const res = await apiFetch(
       `/api/chats/${chatId}/messages/${messageId}/resume?after_seq=${lastSeq}`,
@@ -80,46 +161,11 @@ export async function startChatResumeStream({
     await consumeSseTextStream(res.body, {
       onEvent: (payload) => {
         notePayloadSeq(payload, messageId);
-        if (payload?.event === 'reasoning_start') {
-          if (!thinkingStartByMessageId.has(String(messageId))) {
-            thinkingStartByMessageId.set(String(messageId), Date.now());
-          }
-          thinkingActiveByMessageId.set(String(messageId), true);
-          ensureThinkingBlock(messageBlocksById, messageId);
-          applyAssistantText(true);
-        }
-        if (payload?.event === 'reasoning_delta') {
-          const delta = String(payload.delta || '');
-          if (delta) {
-            appendBlock(messageBlocksById, messageId, 'thinking', delta);
-            thinkingActiveByMessageId.set(String(messageId), true);
-            applyAssistantText(true);
-          }
-        }
-        if (payload?.event === 'reasoning_end') {
-          const duration = Number(payload.duration_ms);
-          if (Number.isFinite(duration) && duration > 0) {
-            thinkingDurationByMessageId.set(String(messageId), duration);
-          }
-          thinkingActiveByMessageId.delete(String(messageId));
-        }
-        if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-          updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
-          applyAssistantText(true);
-        }
-        if (payload?.error) {
-          errorMessage = payload.message || payload.error || 'LLM request failed';
-          errorActive = true;
-          assistantText = '';
-          applyAssistantText(false);
-        }
+        const handler = eventHandlers[payload?.event];
+        if (handler) handler(payload);
+        if (payload?.error) handleStreamError(payload);
       },
-      onDelta: (delta) => {
-        if (!delta) return;
-        assistantText += delta;
-        appendBlock(messageBlocksById, messageId, 'text', delta);
-        applyAssistantText(true);
-      },
+      onDelta: handleTextDelta,
     });
     const startedAt = thinkingStartByMessageId.get(String(messageId));
     if (startedAt && !thinkingDurationByMessageId.has(String(messageId))) {

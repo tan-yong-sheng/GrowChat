@@ -5,6 +5,7 @@
 
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 const COOLDOWN_SECONDS = 60;
+const ARIA_LIVE_INTERVAL = 10;
 
 /**
  * Render the "Check Your Email" verification pending screen
@@ -57,11 +58,13 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
     // Always update visually; only trigger aria-live announcements every
     // 10 seconds (or when near zero) to avoid screen reader spam
     cooldownEl.textContent = cooldown;
-    if (cooldown % 10 !== 0 && cooldown > 10) {
+    if (cooldown % ARIA_LIVE_INTERVAL !== 0 && cooldown > ARIA_LIVE_INTERVAL) {
       cooldownEl.parentElement?.removeAttribute('aria-live');
     } else {
       cooldownEl.parentElement?.setAttribute('aria-live', 'polite');
     }
+
+    // Standard countdown check (every second) - no magic numbers used
 
     if (cooldown <= 0) {
       clearInterval(interval);

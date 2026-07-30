@@ -1,5 +1,6 @@
 import { state, setState, subscribe } from '../store.js';
 import { renderSidebar } from './sidebar.js';
+import { toggleSidebar } from './sidebar-helpers.js';
 
 export function renderWorkspaceSidebar({
   homeHref = '/',
@@ -112,15 +113,7 @@ function createModalEnsurer({ container, showFlag, importPath, renderFn, renderA
 }
 
 function createEventHandlers(elements, navigateToHome, guardNavigation, modalEnsurers) {
-  const onToggleSidebar = () => {
-    if (state.isMobile) {
-      setState({ showSidebar: !state.showSidebar });
-    } else if (!state.showSidebar) {
-      setState({ showSidebar: true });
-    } else {
-      setState({ sidebarCollapsed: !state.sidebarCollapsed });
-    }
-  };
+  const onToggleSidebar = () => toggleSidebar(state, setState);
 
   const onOpenSearch = async () => {
     await modalEnsurers.search.ensure();

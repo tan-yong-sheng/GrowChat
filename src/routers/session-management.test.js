@@ -96,12 +96,24 @@ describe('Session Management', () => {
     const mockDeleteReq = { method: 'DELETE', headers: { get: vi.fn(() => null) } };
 
     it('returns null for non-session paths', async () => {
-      const result = await sessionManagementRouter(mockReq, {}, {}, null, '/api/users/me');
+      const result = await sessionManagementRouter({
+        req: mockReq,
+        env: {},
+        ctx: {},
+        user: null,
+        path: '/api/users/me',
+      });
       expect(result).toBeNull();
     });
 
     it('returns 401 when not authenticated', async () => {
-      const result = await sessionManagementRouter(mockReq, {}, {}, null, '/api/user/sessions');
+      const result = await sessionManagementRouter({
+        req: mockReq,
+        env: {},
+        ctx: {},
+        user: null,
+        path: '/api/user/sessions',
+      });
       expect(result.status).toBe(401);
     });
 
@@ -109,7 +121,13 @@ describe('Session Management', () => {
       const env = { SESSIONS: mockKV };
       const user = { sub: 'user-1' };
       mockKV.list.mockResolvedValue({ keys: [] });
-      const result = await sessionManagementRouter(mockReq, env, {}, user, '/api/user/sessions');
+      const result = await sessionManagementRouter({
+        req: mockReq,
+        env: env,
+        ctx: {},
+        user: user,
+        path: '/api/user/sessions',
+      });
       expect(result.status).toBe(200);
       const body = await result.json();
       expect(body.sessions).toEqual([]);
@@ -120,50 +138,50 @@ describe('Session Management', () => {
       const user = { sub: 'user-1' };
       mockKV.get.mockResolvedValue(JSON.stringify({ userId: 'user-1', device: 'Chrome' }));
       mockKV.delete.mockResolvedValue(undefined);
-      const result = await sessionManagementRouter(
-        mockDeleteReq,
-        env,
-        {},
-        user,
-        '/api/user/sessions/session-1'
-      );
+      const result = await sessionManagementRouter({
+        req: mockDeleteReq,
+        env: env,
+        ctx: {},
+        user: user,
+        path: '/api/user/sessions/session-1',
+      });
       expect(result.status).toBe(200);
     });
 
     it('returns 503 when env.SESSIONS missing on DELETE', async () => {
-      const result = await sessionManagementRouter(
-        mockDeleteReq,
-        {},
-        {},
-        { sub: 'user-1' },
-        '/api/user/sessions/session-1'
-      );
+      const result = await sessionManagementRouter({
+        req: mockDeleteReq,
+        env: {},
+        ctx: {},
+        user: { sub: 'user-1' },
+        path: '/api/user/sessions/session-1',
+      });
       expect(result.status).toBe(503);
       const body = await result.json();
       expect(body.error).toContain('unavailable');
     });
 
     it('returns empty sessions when env.SESSIONS missing on GET', async () => {
-      const result = await sessionManagementRouter(
-        mockReq,
-        {},
-        {},
-        { sub: 'user-1' },
-        '/api/user/sessions'
-      );
+      const result = await sessionManagementRouter({
+        req: mockReq,
+        env: {},
+        ctx: {},
+        user: { sub: 'user-1' },
+        path: '/api/user/sessions',
+      });
       expect(result.status).toBe(200);
       const body = await result.json();
       expect(body.sessions).toEqual([]);
     });
 
     it('returns null for exact DELETE /api/user/sessions with no id', async () => {
-      const result = await sessionManagementRouter(
-        mockDeleteReq,
-        { SESSIONS: mockKV },
-        {},
-        { sub: 'user-1' },
-        '/api/user/sessions'
-      );
+      const result = await sessionManagementRouter({
+        req: mockDeleteReq,
+        env: { SESSIONS: mockKV },
+        ctx: {},
+        user: { sub: 'user-1' },
+        path: '/api/user/sessions',
+      });
       expect(result).toBeNull();
     });
   });

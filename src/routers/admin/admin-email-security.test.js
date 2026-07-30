@@ -75,14 +75,13 @@ describe('handleAdminEmailSecurity', () => {
   describe('GET /api/admin/email-config', () => {
     it('returns email provider config', async () => {
       mocks.getConfigValue.mockResolvedValue('re_test_123');
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.email_provider).toBe('resend');
@@ -91,14 +90,13 @@ describe('handleAdminEmailSecurity', () => {
 
     it('returns unconfigured when no key', async () => {
       mocks.getConfigValue.mockResolvedValue(null);
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.resend_api_key_configured).toBe(false);
@@ -106,14 +104,13 @@ describe('handleAdminEmailSecurity', () => {
 
     it('returns 500 on error', async () => {
       mocks.getConfigValue.mockRejectedValue(new Error('fail'));
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(500);
     });
   });
@@ -121,50 +118,46 @@ describe('handleAdminEmailSecurity', () => {
   describe('PUT /api/admin/email-config', () => {
     it('rejects unauthenticated', async () => {
       mocks.ensureAdminMutationAccess.mockResolvedValue({ allow: false, reason: 'no' });
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'PUT', { resend_api_key: 're_test' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'PUT', { resend_api_key: 're_test' }),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
     });
 
     it('requires resend_api_key', async () => {
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'PUT', {}),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'PUT', {}),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(400);
     });
 
     it('rejects empty resend_api_key', async () => {
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'PUT', { resend_api_key: '  ' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'PUT', { resend_api_key: '  ' }),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(400);
     });
 
     it('saves and returns success', async () => {
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'PUT', { resend_api_key: 're_test_123' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'PUT', { resend_api_key: 're_test_123' }),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       expect(mocks.ensureAdminMutationAccess).toHaveBeenCalledWith({
         env,
@@ -178,53 +171,49 @@ describe('handleAdminEmailSecurity', () => {
 
     it('returns 500 on save failure', async () => {
       mocks.setConfigValue.mockRejectedValue(new Error('fail'));
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config', 'PUT', { resend_api_key: 're_test' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config', 'PUT', { resend_api_key: 're_test' }),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(500);
     });
   });
 
   describe('POST /api/admin/email-config/test', () => {
     it('requires email field', async () => {
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config/test', 'POST', {}),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config/test',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config/test', 'POST', {}),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config/test',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(400);
     });
 
     it('validates email format', async () => {
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config/test', 'POST', { email: 'invalid' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config/test',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config/test', 'POST', { email: 'invalid' }),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config/test',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(400);
     });
 
     it('rejects when API key not configured', async () => {
       mocks.getConfigValue.mockResolvedValue(null);
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config/test',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+        env: env,
+        user: user,
+        path: '/api/admin/email-config/test',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(400);
     });
 
@@ -233,14 +222,13 @@ describe('handleAdminEmailSecurity', () => {
       const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
       vi.stubGlobal('fetch', fetchMock);
       try {
-        const res = await handleAdminEmailSecurity(
-          makeReq('/api/admin/email-config/test', 'POST', { email: '  Test@Example.COM  ' }),
-          env,
-          ctx,
-          user,
-          '/api/admin/email-config/test',
-          { db, logger, _requestContext: {} }
-        );
+        const res = await handleAdminEmailSecurity({
+          req: makeReq('/api/admin/email-config/test', 'POST', { email: '  Test@Example.COM  ' }),
+          env: env,
+          user: user,
+          path: '/api/admin/email-config/test',
+          deps: { db, logger, _requestContext: {} },
+        });
         expect(res.status).toBe(200);
         expect(fetchMock).toHaveBeenCalledOnce();
         const [url, init] = fetchMock.mock.calls[0];
@@ -267,14 +255,13 @@ describe('handleAdminEmailSecurity', () => {
         vi.fn().mockResolvedValue(new Response('{"message":"error"}', { status: 422 }))
       );
       try {
-        const res = await handleAdminEmailSecurity(
-          makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
-          env,
-          ctx,
-          user,
-          '/api/admin/email-config/test',
-          { db, logger, _requestContext: {} }
-        );
+        const res = await handleAdminEmailSecurity({
+          req: makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+          env: env,
+          user: user,
+          path: '/api/admin/email-config/test',
+          deps: { db, logger, _requestContext: {} },
+        });
         expect(res.status).toBe(400);
       } finally {
         vi.unstubAllGlobals();
@@ -285,14 +272,13 @@ describe('handleAdminEmailSecurity', () => {
       mocks.getConfigValue.mockResolvedValue('re_test');
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
       try {
-        const res = await handleAdminEmailSecurity(
-          makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
-          env,
-          ctx,
-          user,
-          '/api/admin/email-config/test',
-          { db, logger, _requestContext: {} }
-        );
+        const res = await handleAdminEmailSecurity({
+          req: makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+          env: env,
+          user: user,
+          path: '/api/admin/email-config/test',
+          deps: { db, logger, _requestContext: {} },
+        });
         expect(res.status).toBe(500);
       } finally {
         vi.unstubAllGlobals();
@@ -302,14 +288,13 @@ describe('handleAdminEmailSecurity', () => {
 
   describe('GET /api/admin/security-config', () => {
     it('returns rate limits and token TTLs', async () => {
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/security-config', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/security-config',
-        { db, logger, _requestContext: {} }
-      );
+      const res = await handleAdminEmailSecurity({
+        req: makeReq('/api/admin/security-config', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/security-config',
+        deps: { db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.rate_limits).toEqual({
@@ -332,14 +317,13 @@ describe('handleAdminEmailSecurity', () => {
         throw new Error('crash');
       });
       try {
-        const res = await handleAdminEmailSecurity(
-          makeReq('/api/admin/security-config', 'GET'),
-          env,
-          ctx,
-          user,
-          '/api/admin/security-config',
-          { db, logger, _requestContext: {} }
-        );
+        const res = await handleAdminEmailSecurity({
+          req: makeReq('/api/admin/security-config', 'GET'),
+          env: env,
+          user: user,
+          path: '/api/admin/security-config',
+          deps: { db, logger, _requestContext: {} },
+        });
         expect(res.status).toBe(500);
       } finally {
         stringifySpy.mockRestore();
@@ -348,14 +332,13 @@ describe('handleAdminEmailSecurity', () => {
   });
 
   it('returns null for unrecognized paths', async () => {
-    const result = await handleAdminEmailSecurity(
-      makeReq('/api/admin/unknown', 'GET'),
-      env,
-      ctx,
-      user,
-      '/api/admin/unknown',
-      { db, logger, _requestContext: {} }
-    );
-    expect(result).toBeNull();
+    const res = await handleAdminEmailSecurity({
+      req: makeReq('/api/admin/unknown', 'GET'),
+      env: env,
+      user: user,
+      path: '/api/admin/unknown',
+      deps: { db, logger, _requestContext: {} },
+    });
+    expect(res).toBeNull();
   });
 });

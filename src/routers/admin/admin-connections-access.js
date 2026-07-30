@@ -3,15 +3,227 @@
  */
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
+import { validateAndFilterAclRules } from './admin-acl-filter-access-shared.js';
+import {
+  parseIdsFromUrl,
+  loadGroups,
+  getValidGroupIds,
+  extractResourceIdFromPath,
+  projectRuleAuditFields,
+} from './admin-acl-groups-shared.js';
 import {
   buildConnectionAclRuleSaveStatements,
   loadConnectionAclRules,
   normalizeConnectionAclRule,
   saveConnectionAclRulesForConnection,
 } from '../../utils/connection-acl.js';
-import { ensureAdminAclAccess } from './admin-helpers.js';
+import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
+
+const MAX_ACCESS_UPDATES = 200;
+
+/**
+ * Find an enabled connection by ID, or return an error response.
+ * @param {string} connectionId
+ * @param {Array|ArrayLike} allConnections
+ * @param {Request} req
+ * @returns {{ connection: object } | { error: Response }}
+ */
+function findEnabledConnection(connectionId, allConnections, req) {
+  const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
+    (conn) => String(conn.id || '') === String(connectionId)
+  );
+  if (!currentConnection || currentConnection.enabled === false) {
+    return { error: error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT) };
+  }
+  return { connection: currentConnection };
+}
+
+async function handleConnectionsAccessList(req, db, logger) {
+  try {
+    const ids = parseIdsFromUrl(new URL(req.url));
+    const groups = await loadGroups(db);
+    const rules = await loadConnectionAclRules(db, null, ids.length ? ids : null);
+    return json(req, { connection_ids: ids, groups, rules });
+  } catch (err) {
+    logger.error('Load connection access failed', { error: err?.message || err });
+    return error(req, 'Failed to load connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+function normalizeConnectionUpdate(update, req) {
+  const connectionId = String(update?.connection_id || update?.connectionId || '').trim();
+  if (!connectionId) {
+    return { error: error(req, 'connection_id is required', HTTP_STATUS.BAD_REQUEST) };
+  }
+  return { connectionId };
+}
+
+function requireEditableConnection(connectionId, allConnections, req) {
+  const { connection: currentConnection } = findEnabledConnection(
+    connectionId,
+    allConnections,
+    req
+  );
+  if (!currentConnection || currentConnection.enabled === false) {
+    return {
+      error: error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT),
+    };
+  }
+  return {};
+}
+
+function validateConnectionRuleUpdate(update, connectionId, validGroupIds, req) {
+  const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+    rules: update?.rules,
+    resourceId: connectionId,
+    resourceIdKey: 'connection_id',
+    normalizeRule: normalizeConnectionAclRule,
+    validGroupIds,
+    invalidTypeMessage: 'Invalid principal_type for connection access',
+    req,
+  });
+  if (errResp) return { error: errResp };
+  return { filteredRules };
+}
+
+function buildBulkAclStatements(db, updates, allConnections, validGroupIds, req) {
+  const statements = [];
+  const normalizedUpdates = [];
+  let includeSchemaStatements = true;
+
+  for (const update of updates) {
+    const { connectionId, error: idError } = normalizeConnectionUpdate(update, req);
+    if (idError) return { error: idError };
+
+    const { error: editError } = requireEditableConnection(connectionId, allConnections, req);
+    if (editError) return { error: editError };
+
+    const { filteredRules, error: ruleError } = validateConnectionRuleUpdate(
+      update,
+      connectionId,
+      validGroupIds,
+      req
+    );
+    if (ruleError) return { error: ruleError };
+
+    const { statements: aclStatements } = buildConnectionAclRuleSaveStatements(
+      db,
+      connectionId,
+      filteredRules,
+      { includeSchemaStatements }
+    );
+    includeSchemaStatements = false;
+    statements.push(...aclStatements);
+    normalizedUpdates.push({ connection_id: connectionId, rules: filteredRules });
+  }
+
+  return { statements, normalizedUpdates };
+}
+
+async function handleConnectionsAccessBulkPut(req, env, user, db, logger) {
+  const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'connection');
+  if (denied) return denied;
+
+  const updates = Array.isArray(body.updates) ? body.updates : [];
+  if (!updates.length) {
+    return error(req, 'No connection access updates provided', HTTP_STATUS.BAD_REQUEST);
+  }
+  if (updates.length > MAX_ACCESS_UPDATES) {
+    return error(
+      req,
+      'Too many access updates (max ' + MAX_ACCESS_UPDATES + ')',
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+
+  try {
+    const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+    const validGroupIds = await getValidGroupIds(db);
+    const {
+      statements,
+      normalizedUpdates,
+      error: buildError,
+    } = buildBulkAclStatements(db, updates, allConnections, validGroupIds, req);
+    if (buildError) return buildError;
+
+    await chunkedBatch(db, statements);
+    await logAuditEvent(
+      env,
+      {
+        actor_id: user.sub,
+        action: 'connection_access_updated',
+        resource_type: 'connection',
+        resource_id: 'connection-access',
+        metadata: { updates: normalizedUpdates.length },
+      },
+      logger
+    );
+    return json(req, { ok: true, updates: normalizedUpdates });
+  } catch (err) {
+    logger.error('Bulk connection access update failed', { error: err?.message || err });
+    return error(req, 'Failed to update connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async function handleConnectionAccessGet(req, db, connectionId, logger) {
+  try {
+    const groups = await loadGroups(db);
+    const rules = await loadConnectionAclRules(db, connectionId);
+    return json(req, { connection_id: connectionId, groups, rules });
+  } catch (err) {
+    logger.error('Load connection access failed', { error: err?.message || err });
+    return error(req, 'Failed to load connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async function handleConnectionAccessPut(req, env, user, db, connectionId, logger) {
+  const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'connection');
+  if (denied) return denied;
+
+  try {
+    const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+    const { connection: currentConnection } = findEnabledConnection(
+      connectionId,
+      allConnections,
+      req
+    );
+    if (!currentConnection || currentConnection.enabled === false) {
+      return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);
+    }
+    const validGroupIds = await getValidGroupIds(db);
+    const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+      rules: body.rules,
+      resourceId: connectionId,
+      resourceIdKey: 'connection_id',
+      normalizeRule: normalizeConnectionAclRule,
+      validGroupIds,
+      invalidTypeMessage: 'Invalid principal_type for connection access',
+      req,
+    });
+    if (errResp) return errResp;
+
+    const savedRules = await saveConnectionAclRulesForConnection(db, connectionId, filteredRules);
+    const auditFields = savedRules.map(projectRuleAuditFields);
+    await logAuditEvent(
+      env,
+      {
+        actor_id: user.sub,
+        action: 'connection_access_updated',
+        resource_type: 'connection',
+        resource_id: connectionId,
+        metadata: { rules: auditFields },
+      },
+      logger
+    );
+    return json(req, { connection_id: connectionId, rules: auditFields });
+  } catch (err) {
+    logger.error('Update connection access failed', { error: err?.message || err });
+    return error(req, 'Failed to update connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
 
 /**
  * Handle handleAdminConnectionsAccess routes.
@@ -26,258 +238,23 @@ export async function handleAdminConnectionsAccess(
   { db, logger, _requestContext }
 ) {
   if (req.method === 'GET' && path === '/api/admin/openai/connections/access') {
-    try {
-      const url = new URL(req.url);
-      const ids = String(url.searchParams.get('ids') || '')
-        .split(',')
-        .map((value) => decodeURIComponent(String(value || '').trim()))
-        .filter(Boolean);
-      const groups = await db.all(
-        `SELECT id, name, description, is_system, created_at, updated_at
-         FROM groups
-         ORDER BY is_system DESC, name ASC`
-      );
-      const rules = await loadConnectionAclRules(db, null, ids.length ? ids : null);
-      return json(req, {
-        connection_ids: ids,
-        groups,
-        rules,
-      });
-    } catch (err) {
-      logger.error('Load connection access failed', { error: err?.message || err });
-      return error(req, 'Failed to load connection access', 500);
-    }
+    return handleConnectionsAccessList(req, db, logger);
   }
 
   if (req.method === 'PUT' && path === '/api/admin/openai/connections/access') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
-    if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
-    }
-
-    const updates = Array.isArray(body.updates) ? body.updates : [];
-    if (!updates.length) {
-      return error(req, 'No connection access updates provided', 400);
-    }
-    if (updates.length > 200) {
-      return error(req, 'Too many access updates (max 200)', 400);
-    }
-
-    try {
-      const allConnections = await getAllOpenAIConnectionConfigs(env, {
-        includeDisabled: true,
-      });
-      const groups = await db.all('SELECT id FROM groups');
-      const validGroupIds = new Set(groups.map((group) => group.id));
-      const statements = [];
-      const normalizedUpdates = [];
-      let includeSchemaStatements = true;
-
-      for (const update of updates) {
-        const connectionId = String(update?.connection_id || update?.connectionId || '').trim();
-        if (!connectionId) {
-          return error(req, 'connection_id is required', 400);
-        }
-        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
-          (conn) => String(conn.id || '') === String(connectionId)
-        );
-        if (!currentConnection || currentConnection.enabled === false) {
-          return error(req, 'Disabled connections cannot be edited', 409);
-        }
-        const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
-        const filteredRules = [];
-        const invalidPrincipalTypes = [];
-        for (const rule of incomingRules) {
-          const normalized = normalizeConnectionAclRule({
-            ...rule,
-            connection_id: connectionId,
-          });
-          if (!normalized) continue;
-          if (normalized.principal_type !== 'group') {
-            invalidPrincipalTypes.push(normalized.principal_type);
-            continue;
-          }
-          if (!validGroupIds.has(normalized.principal_id)) continue;
-          filteredRules.push(normalized);
-        }
-        if (invalidPrincipalTypes.length) {
-          return error(req, 'Invalid principal_type for connection access', 400, {
-            invalid: Array.from(new Set(invalidPrincipalTypes)),
-          });
-        }
-        const { statements: aclStatements } = buildConnectionAclRuleSaveStatements(
-          db,
-          connectionId,
-          filteredRules,
-          { includeSchemaStatements }
-        );
-        includeSchemaStatements = false;
-        statements.push(...aclStatements);
-        normalizedUpdates.push({
-          connection_id: connectionId,
-          rules: filteredRules,
-        });
-      }
-
-      await chunkedBatch(db, statements);
-      await logAuditEvent(
-        env,
-        {
-          actor_id: user.sub,
-          action: 'connection_access_updated',
-          resource_type: 'connection',
-          resource_id: 'connection-access',
-          metadata: { updates: normalizedUpdates.length },
-        },
-        logger
-      );
-      return json(req, {
-        ok: true,
-        updates: normalizedUpdates,
-      });
-    } catch (err) {
-      logger.error('Bulk connection access update failed', { error: err?.message || err });
-      return error(req, 'Failed to update connection access', 500);
-    }
+    return handleConnectionsAccessBulkPut(req, env, user, db, logger);
   }
 
   const connectionAccessMatch = path.match(/^\/api\/admin\/openai\/connections\/([^/]+)\/access$/);
   if (connectionAccessMatch) {
-    const connectionId = (() => {
-      try {
-        return decodeURIComponent(connectionAccessMatch[1]);
-      } catch {
-        return connectionAccessMatch[1];
-      }
-    })();
-
+    const connectionId = extractResourceIdFromPath(connectionAccessMatch);
     if (req.method === 'GET') {
-      try {
-        const groups = await db.all(
-          `SELECT id, name, description, is_system, created_at, updated_at
-           FROM groups
-           ORDER BY is_system DESC, name ASC`
-        );
-        const rules = await loadConnectionAclRules(db, connectionId);
-        return json(req, {
-          connection_id: connectionId,
-          groups,
-          rules,
-        });
-      } catch (err) {
-        logger.error('Load connection access failed', { error: err?.message || err });
-        return error(req, 'Failed to load connection access', 500);
-      }
+      return handleConnectionAccessGet(req, db, connectionId, logger);
     }
-
     if (req.method === 'PUT') {
-      let body;
-      try {
-        body = await req.json();
-      } catch {
-        return error(req, 'Invalid JSON body', 400);
-      }
-
-      // Connection access writes are ACL-sensitive and must stay explicit here.
-      const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
-      if (!aclDecision.allow) {
-        const statusCodeMap = {
-          server_error: 500,
-          unauthorized: 401,
-          not_found: 404,
-        };
-        const statusCode = statusCodeMap[aclDecision.code] || 403;
-        return error(req, aclDecision.reason || 'Forbidden', statusCode);
-      }
-
-      try {
-        const allConnections = await getAllOpenAIConnectionConfigs(env, {
-          includeDisabled: true,
-        });
-        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
-          (conn) => String(conn.id || '') === String(connectionId)
-        );
-        if (!currentConnection || currentConnection.enabled === false) {
-          return error(req, 'Disabled connections cannot be edited', 409);
-        }
-        const groups = await db.all('SELECT id FROM groups');
-        const validGroupIds = new Set(groups.map((group) => group.id));
-        const incomingRules = Array.isArray(body.rules) ? body.rules : [];
-        const filteredRules = [];
-        const invalidPrincipalTypes = [];
-        for (const rule of incomingRules) {
-          const normalized = normalizeConnectionAclRule({
-            ...rule,
-            connection_id: connectionId,
-          });
-          if (!normalized) continue;
-          if (normalized.principal_type !== 'group') {
-            invalidPrincipalTypes.push(normalized.principal_type);
-            continue;
-          }
-          if (!validGroupIds.has(normalized.principal_id)) continue;
-          filteredRules.push(normalized);
-        }
-        if (invalidPrincipalTypes.length) {
-          return error(req, 'Invalid principal_type for connection access', 400, {
-            invalid: Array.from(new Set(invalidPrincipalTypes)),
-          });
-        }
-
-        const savedRules = await saveConnectionAclRulesForConnection(
-          db,
-          connectionId,
-          filteredRules
-        );
-
-        await logAuditEvent(
-          env,
-          {
-            actor_id: user.sub,
-            action: 'connection_access_updated',
-            resource_type: 'connection',
-            resource_id: connectionId,
-            metadata: {
-              rules: savedRules.map((rule) => ({
-                principal_type: rule.principal_type,
-                principal_id: rule.principal_id,
-                effect: rule.effect,
-                action: rule.action,
-              })),
-            },
-          },
-          logger
-        );
-
-        return json(req, {
-          connection_id: connectionId,
-          rules: savedRules.map((rule) => ({
-            principal_type: rule.principal_type,
-            principal_id: rule.principal_id,
-            effect: rule.effect,
-            action: rule.action,
-          })),
-        });
-      } catch (err) {
-        logger.error('Update connection access failed', { error: err?.message || err });
-        return error(req, 'Failed to update connection access', 500);
-      }
+      return handleConnectionAccessPut(req, env, user, db, connectionId, logger);
     }
-
-    return error(req, 'Method not allowed', 405);
+    return error(req, 'Method not allowed', HTTP_STATUS.METHOD_NOT_ALLOWED);
   }
 
   return null;

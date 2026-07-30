@@ -31,12 +31,12 @@ describe('app route helpers', () => {
 
   it('injects temp chats only when needed and resolves active chat ids', () => {
     const chats = [{ id: 'c1' }];
-    const nextChats = injectTempChat(chats, 'temp-2', 'm1');
+    const nextChats = injectTempChat({ chats, routeChatId: 'temp-2', modelId: 'm1' });
 
     expect(nextChats[0].id).toBe('temp-2');
-    expect(resolveActiveChatId('c9', chats, false)).toBe('c9');
-    expect(resolveActiveChatId(null, chats, false)).toBe('c1');
-    expect(resolveActiveChatId(null, chats, true)).toBeNull();
+    expect(resolveActiveChatId({ routeChatId: 'c9', chats, isHomeRoute: false })).toBe('c9');
+    expect(resolveActiveChatId({ routeChatId: null, chats, isHomeRoute: false })).toBe('c1');
+    expect(resolveActiveChatId({ routeChatId: null, chats, isHomeRoute: true })).toBeNull();
   });
 
   it('guards realtime startup on local routes', () => {
@@ -45,5 +45,3 @@ describe('app route helpers', () => {
     expect(shouldStartRealtime(new URL('https://example.com/admin'))).toBe(false);
   });
 });
-
-

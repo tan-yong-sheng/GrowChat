@@ -1,6 +1,7 @@
 /**
  * Constants and helper functions for session bootstrap.
  */
+import { decodeJwtPayload } from '../shared/api/auth.js';
 
 export const INITIAL_CHAT_LIMIT = 30;
 
@@ -88,18 +89,11 @@ export function installKnownErrorSuppressors() {
 }
 
 export function isAccessTokenNearExpiry(token, thresholdSeconds = 300) {
-  const parts = String(token || '').split('.');
-  if (parts.length < 2) return true;
-  const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-  const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
-  try {
-    const decoded = JSON.parse(atob(padded));
-    const exp = Number(decoded?.exp || 0);
-    if (!Number.isFinite(exp)) return true;
-    return exp <= Math.floor(Date.now() / 1000) + thresholdSeconds;
-  } catch {
-    return true;
-  }
+  const decoded = decodeJwtPayload(token);
+  if (!decoded || typeof decoded !== 'object') return true;
+  const exp = Number(decoded.exp || 0);
+  if (!Number.isFinite(exp)) return true;
+  return exp <= Math.floor(Date.now() / 1000) + thresholdSeconds;
 }
 
 let shortcutsInitialized = false;

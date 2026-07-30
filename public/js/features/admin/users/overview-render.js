@@ -16,6 +16,98 @@ import {
   renderRuleList,
 } from './overview-helpers.js';
 
+function countDisabledRules(allRules) {
+  return allRules.filter((rule) => rule?.resource_enabled === false).length;
+}
+
+function resolveAccessFamilies(access) {
+  return [
+    ['Models', access.models || []],
+    ['Connections', access.connections || []],
+    ['MCP Servers', access.mcp_servers || []],
+  ];
+}
+
+function buildStatusChip(status) {
+  return renderChip(status || 'active', status === 'pending' ? 'shared' : 'admin');
+}
+
+function buildPendingBanner(status) {
+  return status === 'pending'
+    ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>'
+    : '';
+}
+
+function buildDisabledToggleLabel(showDisabled, disabledRuleCount) {
+  return showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`;
+}
+
+function buildAccessInspectorHeader(user, disabledRuleCount, showDisabled) {
+  const primaryRole = String(user.primary_role || 'member').trim();
+  return `
+    <div class="rounded-lg border border-gray-100 bg-gray-50/70 px-4 py-3">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
+            ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
+            ${buildStatusChip(user.account_status)}
+          </div>
+          <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
+          ${buildPendingBanner(user.account_status)}
+        </div>
+        ${renderButton({
+          label: buildDisabledToggleLabel(showDisabled, disabledRuleCount),
+          variant: 'secondary',
+          className: `px-2.5 py-1 text-label-sm uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
+          dataAttrs: { 'toggle-disabled-rules': '' },
+        })}
+      </div>
+    </div>
+  `;
+}
+
+function buildGroupsSection(groups) {
+  return `
+    <section class="space-y-2">
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Groups</div>
+      <div class="flex flex-wrap gap-2">
+        ${groups.length ? groups.map((group) => renderChip(group.name || group.id, 'neutral')).join('') : '<span class="text-xs text-gray-600">No group memberships</span>'}
+      </div>
+    </section>
+  `;
+}
+
+function buildRolePermissionsSection(rolePermissions) {
+  return `
+    <section class="space-y-2">
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Role Permissions</div>
+      <div class="flex flex-wrap gap-2">
+        ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, 'admin')).join('') : '<span class="text-xs text-gray-600">No resolved permissions</span>'}
+      </div>
+    </section>
+  `;
+}
+
+function buildResourceFamilySections(families, showDisabled) {
+  return families
+    .map(([label, rules]) => {
+      const visibleCount = rules.filter(
+        (rule) => showDisabled || rule?.resource_enabled !== false
+      ).length;
+      return `
+        <section class="space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">${escapeHtml(label)}</div>
+            <div class="text-label-sm text-gray-500">${visibleCount} rule${visibleCount === 1 ? '' : 's'}</div>
+          </div>
+          ${renderRuleList(rules, { showDisabled })}
+        </section>
+      `;
+    })
+    .join('');
+}
+
 export function renderAccessInspectorContent(payload, showDisabled = false) {
   const user = payload?.user || {};
   const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -26,63 +118,15 @@ export function renderAccessInspectorContent(payload, showDisabled = false) {
     ...(access.connections || []),
     ...(access.mcp_servers || []),
   ];
-  const disabledRuleCount = allRules.filter((rule) => rule?.resource_enabled === false).length;
-  const primaryRole = String(user.primary_role || 'member').trim();
-  const families = [
-    ['Models', access.models || []],
-    ['Connections', access.connections || []],
-    ['MCP Servers', access.mcp_servers || []],
-  ];
+  const disabledRuleCount = countDisabledRules(allRules);
+  const families = resolveAccessFamilies(access);
 
   return `
     <div class="space-y-4">
-      <div class="rounded-lg border border-gray-100 bg-gray-50/70 px-4 py-3">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="space-y-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
-              ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
-              ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
-            </div>
-            <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
-            ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
-          </div>
-          ${renderButton({
-            label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
-            variant: 'secondary',
-            className: `px-2.5 py-1 text-label-sm uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
-            dataAttrs: { 'toggle-disabled-rules': '' },
-          })}
-        </div>
-      </div>
-
-      <section class="space-y-2">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Groups</div>
-        <div class="flex flex-wrap gap-2">
-          ${groups.length ? groups.map((group) => renderChip(group.name || group.id, 'neutral')).join('') : '<span class="text-xs text-gray-600">No group memberships</span>'}
-        </div>
-      </section>
-
-      <section class="space-y-2">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Role Permissions</div>
-        <div class="flex flex-wrap gap-2">
-          ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, 'admin')).join('') : '<span class="text-xs text-gray-600">No resolved permissions</span>'}
-        </div>
-      </section>
-
-      ${families
-        .map(
-          ([label, rules]) => `
-        <section class="space-y-2">
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">${escapeHtml(label)}</div>
-            <div class="text-label-sm text-gray-500">${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length} rule${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length === 1 ? '' : 's'}</div>
-          </div>
-          ${renderRuleList(rules, { showDisabled })}
-        </section>
-      `
-        )
-        .join('')}
+      ${buildAccessInspectorHeader(user, disabledRuleCount, showDisabled)}
+      ${buildGroupsSection(groups)}
+      ${buildRolePermissionsSection(rolePermissions)}
+      ${buildResourceFamilySections(families, showDisabled)}
     </div>
   `;
 }
@@ -104,6 +148,28 @@ export function renderAclInspectorModal(
   });
 }
 
+function buildUserAvatarHtml(u, name) {
+  if (u.avatar)
+    return `<img class="w-full h-full object-cover" src="${escapeHtml(u.avatar)}" alt="">`;
+  if (!name) return '??';
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+}
+
+function buildUserDeleteButtonHtml(u, name, normalizedRole) {
+  if (normalizedRole === 'admin') return '';
+  return `
+    <button class="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" title="Delete record">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
+        <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
+      </svg>
+    </button>`;
+}
+
 export function renderUserRows(users) {
   return users
     .map((u) => {
@@ -122,18 +188,7 @@ export function renderUserRows(users) {
       <td class="px-3 py-4 font-medium text-gray-900 overflow-hidden">
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-label-sm font-bold text-gray-600 overflow-hidden shrink-0">
-            ${
-              u.avatar
-                ? `<img class="w-full h-full object-cover" src="${escapeHtml(u.avatar)}" alt="">`
-                : name
-                  ? name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')
-                      .toUpperCase()
-                      .substring(0, 2)
-                  : '??'
-            }
+            ${buildUserAvatarHtml(u, name)}
           </div>
           <div class="truncate">${escapeHtml(name)}</div>
         </div>
@@ -157,17 +212,7 @@ export function renderUserRows(users) {
               <path d="M15.53 3.47a.75.75 0 0 1 1.06 0l1.44 1.44a.75.75 0 0 1 0 1.06l-1.44 1.44-2.5-2.5 1.44-1.44Z" />
             </svg>
           </button>
-          ${
-            normalizedRole === 'admin'
-              ? ''
-              : `
-          <button class="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" title="Delete record">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
-              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
-            </svg>
-          </button>
-          `
-          }
+          ${buildUserDeleteButtonHtml(u, name, normalizedRole)}
         </div>
       </td>
     </tr>`;

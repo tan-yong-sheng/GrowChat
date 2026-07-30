@@ -1,3 +1,5 @@
+const SIDEBAR_MIN_WIDTH = 200;
+
 import { state, setState, subscribe } from '../store.js';
 import { deriveSidebarLayout } from './sidebar-helpers.js';
 
@@ -57,7 +59,7 @@ function attachResizeListeners(handle, isResizingRef) {
 
   const onMouseMove = (e) => {
     if (!isResizingRef.value || state.sidebarCollapsed) return;
-    const newWidth = Math.max(200, Math.min(window.innerWidth / 2, e.clientX));
+    const newWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(window.innerWidth / 2, e.clientX));
     setState({ sidebarWidth: newWidth });
   };
 

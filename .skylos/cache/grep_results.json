@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "entries": {
+    "v3:group:serial_typescript:resolveProperty:resolveProperty:function:5042b34c06d6eeda": {
+      "results": ["{}"],
+      "last_access": 1783928743.969987,
+      "created": 1783928743.9699886
+    },
+    "v3:group:serial_typescript:resolveProperty:resolveProperty:function:1b7ca3f9070ec1a2": {
+      "results": ["{}"],
+      "last_access": 1784309323.2318976,
+      "created": 1784309323.231898
+    },
+    "v3:group:serial_typescript:filterResourcesByQueryAndVisibility:filterResourcesByQueryAndVisibility:function:f14cbec0ce76e447": {
+      "results": ["{}"],
+      "last_access": 1784309339.8553421,
+      "created": 1784309339.8553426
+    }
+  }
+}

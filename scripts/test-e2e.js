@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable max-lines -- single-file orchestrator with many distinct phases */
+/* single-file orchestrator with many distinct phases */
 /**
  * E2E test orchestration with ownership-based cleanup.
  *
@@ -48,7 +48,10 @@ const STATE_DIR = '.wrangler/state-e2e';
 const RUNNER_PID_FILE = path.join(STATE_DIR, '.runner-pid');
 const WRANGLER_PIDS_FILE = path.join(STATE_DIR, '.wrangler-pids');
 const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 };
+const CONFLICT_STATUS = 409;
 const KILL_TREE_TIMEOUT_MS = 3000;
+const PID_EXIT_POLL_MS = 50;
+const HTTP_READY_MAX_ATTEMPTS = 60;
 
 let wranglerProc = null;
 let runnerLockAcquired = false;
@@ -60,21 +63,41 @@ function log(...a) {
 // ── .dev.vars loader ──────────────────────────────────────────────────────────
 
 function stripQuotes(v) {
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))
-    return v.slice(1, -1);
+  const q = v[0];
+  if ((q === '"' || q === "'") && v.endsWith(q)) return v.slice(1, -1);
   return v;
+}
+
+function isAlwaysOverride(name) {
+  return ['TEST_EMAIL', 'TEST_PASSWORD'].includes(name);
+}
+
+function isCommentOrBlank(t) {
+  return !t || t.startsWith('#');
+}
+
+function parseEnvLine(t) {
+  return t.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/) || null;
+}
+
+function shouldSetVar(m, always) {
+  return !process.env[m[1]] || always;
 }
 
 function loadDevVars() {
   try {
-    for (const line of readFileSync('.dev.vars', 'utf8').split('\n')) {
+    const content = readFileSync('.dev.vars', 'utf8');
+    const lines = content.split('\n');
+    lines.forEach((line) => {
       const t = line.trim();
-      if (!t || t.startsWith('#')) continue;
-      const m = t.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
-      const always = ['TEST_EMAIL', 'TEST_PASSWORD'].includes(m?.[1]);
-      if (!m || (process.env[m[1]] && !always)) continue;
-      process.env[m[1]] = stripQuotes(m[2].trim());
-    }
+      if (isCommentOrBlank(t)) return;
+      const m = parseEnvLine(t);
+      if (!m) return;
+      const always = isAlwaysOverride(m[1]);
+      if (shouldSetVar(m, always)) {
+        process.env[m[1]] = stripQuotes(m[2].trim());
+      }
+    });
   } catch {
     /* no .dev.vars */
   }
@@ -115,53 +138,70 @@ function collectDescendants(parentPid) {
  * children even if they were reparented after our parent died. Then awaits
  * until the PID is actually dead (with a short poll) so callers don't race
  * against zombie ports. */
-async function killProcessTree(pid) {
-  if (!pid) return;
-  // First signal the whole process group — catches descendants, reparented
-  // orphans, and grandchildren we can't see via pgrep -P.
+function signalProcessGroup(pid) {
   try {
     process.kill(-pid, 'SIGKILL');
   } catch {
     /* not a group leader or already dead */
   }
-  // Then belt-and-suspenders: kill by PID and any visible descendants.
+}
+
+function signalProcess(pid) {
   try {
     process.kill(pid, 'SIGKILL');
   } catch {
     /* */
   }
-  for (const d of collectDescendants(pid)) {
-    if (!isPidAlive(d)) continue;
-    try {
-      process.kill(d, 'SIGKILL');
-    } catch {
-      /* */
-    }
-  }
-  // Wait for the PID to actually exit (signal-flush race on slow runners).
+}
+
+async function waitForProcessExit(pid) {
   const deadline = Date.now() + KILL_TREE_TIMEOUT_MS;
   while (isPidAlive(pid) && Date.now() < deadline) {
-    await sleep(50);
+    await sleep(PID_EXIT_POLL_MS);
   }
+}
+
+async function killProcessTree(pid) {
+  if (!pid) return;
+  // First signal the whole process group — catches descendants, reparented
+  // orphans, and grandchildren we can't see via pgrep -P.
+  signalProcessGroup(pid);
+  // Then belt-and-suspenders: kill by PID and any visible descendants.
+  signalProcess(pid);
+  for (const d of collectDescendants(pid)) {
+    if (!isPidAlive(d)) continue;
+    signalProcess(d);
+  }
+  // Wait for the PID to actually exit (signal-flush race on slow runners).
+  await waitForProcessExit(pid);
 }
 
 /** Kill all PIDs recorded in WRANGLER_PIDS_FILE (and their descendants).
  * This is the ONLY mechanism for killing wrangler — never blind port-based kills. */
-async function killRecordedWranglerPids() {
+function readRecordedPids() {
   let raw;
   try {
     raw = readFileSync(WRANGLER_PIDS_FILE, 'utf8');
   } catch {
-    return;
+    return [];
   }
-  const pids = raw.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
-  if (!pids.length) return;
+  return raw.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
+}
 
+function collectAllPidsToKill(pids) {
   const toKill = new Set();
   for (const pid of pids) {
     toKill.add(pid);
     for (const d of collectDescendants(pid)) toKill.add(d);
   }
+  return toKill;
+}
+
+async function killRecordedWranglerPids() {
+  const pids = readRecordedPids();
+  if (!pids.length) return;
+
+  const toKill = collectAllPidsToKill(pids);
   log(`  Killing ${toKill.size} recorded wrangler process(es)...`);
   for (const pid of toKill) await killProcessTree(pid);
 }
@@ -274,7 +314,25 @@ function isD1File(filePath) {
   }
 }
 
-// eslint-disable-next-line complexity
+function isSqliteFile(name) {
+  return name !== 'metadata.sqlite' && name.endsWith('.sqlite');
+}
+
+function scanSqliteFiles(parentDir) {
+  let files;
+  try {
+    files = readdirSync(parentDir);
+  } catch {
+    return null;
+  }
+
+  const found = files?.find((f) => {
+    const nested = path.join(parentDir, f);
+    return isSqliteFile(f) && isD1File(nested) ? nested : false;
+  });
+  return found || null;
+}
+
 function findD1Sqlite(pd) {
   const dir = path.join(pd, 'v3', 'd1', 'miniflare-D1DatabaseObject');
   let entries;
@@ -284,24 +342,38 @@ function findD1Sqlite(pd) {
     return null;
   }
 
-  for (const name of entries) {
-    if (name === 'metadata.sqlite') continue;
-    if (!name.endsWith('.sqlite')) continue;
+  const sqlitePaths = entries?.filter((n) => isSqliteFile(n));
+  const candidate = sqlitePaths?.find((name) => {
     const direct = path.join(dir, name);
-    if (isD1File(direct)) return direct;
-    let files;
-    try {
-      files = readdirSync(path.join(dir, name));
-    } catch {
-      continue;
-    }
-    for (const f of files) {
-      if (f === 'metadata.sqlite' || !f.endsWith('.sqlite')) continue;
-      const nested = path.join(dir, name, f);
-      if (isD1File(nested)) return nested;
-    }
-  }
-  return null;
+    return isD1File(direct) ? direct : scanSqliteFiles(direct) || null;
+  });
+  return candidate || null;
+}
+
+/** Run a sqlite3 command by piping stdin to it. Returns when the child exits.
+ *
+ * The `action` param is used only in error messages for context.
+ */
+async function runSqlite3Stdin(dbPath, stdinContent, action) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      const msg = stderr.trim();
+      if (msg) log(`    sqlite3: ${msg}`);
+      if (code !== 0 && code !== null) {
+        reject(new Error(`sqlite3 exited with code ${code} ${action}: ${msg}`));
+        return;
+      }
+      resolve();
+    });
+    child.stdin.write(stdinContent);
+    child.stdin.end();
+  });
 }
 
 // ── D1 init helpers ───────────────────────────────────────────────────────────
@@ -319,7 +391,22 @@ function cleanupStateDir() {
   mkdirSync(STATE_DIR, { recursive: true });
 }
 
-// eslint-disable-next-line max-statements
+async function tryFetchRoot(port) {
+  try {
+    return await fetch(`http://127.0.0.1:${port}/`);
+  } catch {
+    return null;
+  }
+}
+
+async function tryFetchHealth(port) {
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/health`);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function bootWranglerForD1Init() {
   log(`Creating D1 file via wrangler dev (port ${PORT})...`);
   const tmp = spawn(
@@ -333,26 +420,7 @@ async function bootWranglerForD1Init() {
   );
   recordWranglerPid(tmp.pid);
 
-  let httpReady = false;
-  let dbPath = null;
-  for (let i = 0; i < 60; i++) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/`);
-      if (r.ok && !httpReady) {
-        httpReady = true;
-        log('  wrangler HTTP-ready, triggering D1 init...');
-        await fetch(`http://127.0.0.1:${PORT}/api/health`);
-        await sleep(1000);
-      }
-      if (httpReady) {
-        dbPath = findD1Sqlite(STATE_DIR);
-        if (dbPath) break;
-      }
-    } catch {
-      /* not ready */
-    }
-    await sleep(500);
-  }
+  const dbPath = await waitForWranglerReady();
   // Stop tmp wrangler BEFORE applying migrations so it doesn't hold the file lock
   // or cache an empty schema. Record the dbPath while wrangler is still alive so
   // we know the exact file wrangler opened. killProcessTree polls for actual
@@ -364,6 +432,25 @@ async function bootWranglerForD1Init() {
   }
   log(`D1 database: ${path.basename(path.dirname(dbPath))}/${path.basename(dbPath)}`);
   return dbPath;
+}
+
+function isOkResponse(r) {
+  return r && r.ok;
+}
+
+async function waitForWranglerReady() {
+  for (let i = 0; i < HTTP_READY_MAX_ATTEMPTS; i++) {
+    const r = await tryFetchRoot(PORT);
+    if (isOkResponse(r)) {
+      log('  wrangler HTTP-ready, triggering D1 init...');
+      await tryFetchHealth(PORT);
+      await sleep(1000);
+      const dbPath = findD1Sqlite(STATE_DIR);
+      if (dbPath) return dbPath;
+    }
+    await sleep(500);
+  }
+  return null;
 }
 
 async function applyMigrations(dbPath) {
@@ -379,54 +466,20 @@ async function applyMigrations(dbPath) {
   for (const file of files) {
     const sqlPath = path.join(process.cwd(), 'migrations', file);
     log(`  Applying ${file}...`);
-    await new Promise((resolve, reject) => {
-      const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
-      let stderr = '';
-      child.stderr.on('data', (d) => {
-        stderr += d.toString();
-      });
-      child.on('error', reject);
-      child.on('close', (code) => {
-        const msg = stderr.trim();
-        if (msg) log(`    sqlite3: ${msg}`);
-        if (code !== 0 && code !== null) {
-          reject(new Error(`sqlite3 exited with code ${code} applying ${file}: ${msg}`));
-          return;
-        }
-        resolve();
-      });
-      child.stdin.write(readFileSync(sqlPath));
-      child.stdin.end();
-    });
+    await runSqlite3Stdin(dbPath, readFileSync(sqlPath), `applying ${file}`);
     log(`  ✓ ${file}`);
   }
 }
 
 async function enablePublicRegistration(dbPath) {
   log('Enabling public registration...');
-  await new Promise((resolve, reject) => {
-    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
-    let stderr = '';
-    child.stderr.on('data', (d) => {
-      stderr += d.toString();
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      const msg = stderr.trim();
-      if (msg) log(`    sqlite3: ${msg}`);
-      if (code !== 0 && code !== null) {
-        reject(new Error(`sqlite3 exited with code ${code} enabling registration: ${msg}`));
-        return;
-      }
-      resolve();
-    });
-    child.stdin.write(
-      'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
-        "('public_registration_status', 'active', unixepoch()), " +
-        "('public_registration', 'true', unixepoch());\n"
-    );
-    child.stdin.end();
-  });
+  await runSqlite3Stdin(
+    dbPath,
+    'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
+      "('public_registration_status', 'active', unixepoch()), " +
+      "('public_registration', 'true', unixepoch());\n",
+    'enabling registration'
+  );
   log('Public registration enabled.');
 }
 
@@ -518,12 +571,19 @@ async function killDevServer() {
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
 
-async function seedUser() {
+function readSeedCredentials() {
   const { TEST_EMAIL: email, TEST_PASSWORD: password } = process.env;
   if (!email || !password) {
     log('TEST_EMAIL/TEST_PASSWORD not set');
-    return;
+    return null;
   }
+  return { email, password };
+}
+
+async function seedUser() {
+  const credentials = readSeedCredentials();
+  if (!credentials) return;
+  const { email, password } = credentials;
   log(`Seeding test user: ${email}`);
   const res = await fetch(`${BASE_URL}/api/auth/register`, {
     method: 'POST',
@@ -534,7 +594,7 @@ async function seedUser() {
     log('Test user seeded.');
     return;
   }
-  if (res.status === 409) {
+  if (res.status === CONFLICT_STATUS) {
     log('Test user already exists.');
     return;
   }

@@ -173,7 +173,7 @@ describe('auth-password-reset: security regressions', () => {
     };
     const env = { CACHE: {} };
 
-    await handleResetPassword(req, env, db);
+    await handleResetPassword({ req, env, db });
 
     expect(db.batch).toHaveBeenCalledTimes(1);
     const batched = db.batch.mock.calls[0][0];
@@ -195,7 +195,7 @@ describe('auth-password-reset: security regressions', () => {
     };
     const env = { CACHE: {} };
 
-    await handleResetPassword(req, env, db);
+    await handleResetPassword({ req, env, db });
 
     expect(mocks.checkRateLimit).toHaveBeenCalledWith(
       env,
@@ -212,7 +212,7 @@ describe('auth-password-reset: security regressions', () => {
     };
     const env = { CACHE: {} };
 
-    await handleResetPassword(req, env, db);
+    await handleResetPassword({ req, env, db });
 
     expect(mocks.bumpSessionVersion).toHaveBeenCalledWith(
       env,
@@ -236,7 +236,7 @@ describe('auth-password-reset: security regressions', () => {
     };
     const env = { CACHE: {} };
 
-    await handleResetPassword(req, env, db);
+    await handleResetPassword({ req, env, db });
 
     expect(db.batch).toHaveBeenCalledTimes(1);
     const batched = db.batch.mock.calls[0][0];
@@ -274,7 +274,7 @@ describe('auth-password-reset: security regressions', () => {
     };
     const env = { CACHE: {} };
 
-    await handleResetPassword(req, env, db);
+    await handleResetPassword({ req, env, db });
 
     const allSql = [
       ...db.run.mock.calls.map(([sql]) => String(sql)),

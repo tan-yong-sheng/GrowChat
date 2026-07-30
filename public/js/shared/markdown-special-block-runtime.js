@@ -122,17 +122,26 @@ export function loadExternalStylesheet(href) {
   return promise;
 }
 
+const GRAPHVIZ_PATHS = [
+  ['window', 'Graphviz'],
+  ['Graphviz'],
+  ['window', 'graphviz'],
+  ['graphviz'],
+  ['window', '@hpcc-js/wasm', 'Graphviz'],
+  ['@hpcc-js/wasm', 'Graphviz'],
+  ['window', '@hpcc-js/wasm', 'graphviz'],
+  ['@hpcc-js/wasm', 'graphviz'],
+];
+
 function getGlobalGraphviz() {
-  return (
-    globalThis?.window?.Graphviz ||
-    globalThis?.Graphviz ||
-    globalThis?.window?.graphviz ||
-    globalThis?.graphviz ||
-    globalThis?.window?.['@hpcc-js/wasm']?.Graphviz ||
-    globalThis?.['@hpcc-js/wasm']?.Graphviz ||
-    globalThis?.window?.['@hpcc-js/wasm']?.graphviz ||
-    globalThis?.['@hpcc-js/wasm']?.graphviz
-  );
+  for (const path of GRAPHVIZ_PATHS) {
+    let obj = globalThis;
+    for (const key of path) {
+      obj = obj && obj[key];
+    }
+    if (obj) return obj;
+  }
+  return undefined;
 }
 
 export async function ensureKatexRuntime() {
@@ -225,76 +234,131 @@ function loadGraphvizRenderer() {
   return graphvizRendererPromise;
 }
 
+function setPreviewEmpty(previewEl, block, kind) {
+  previewEl.innerHTML = `<div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div>`;
+  if (block) setSpecialBlockError(block, '');
+}
+
+function handlePreviewError(previewEl, block, err) {
+  previewEl.innerHTML = '';
+  if (block) applySpecialBlockMode(block, 'code');
+  if (block)
+    setSpecialBlockError(block, err?.message || String(err) || 'Unable to render preview.');
+}
+
+async function renderKatexPreview(text, previewEl, block) {
+  await ensureKatexRuntime();
+  const katex = globalThis?.window?.katex || globalThis?.katex;
+  if (!katex || typeof katex.renderToString !== 'function') {
+    throw new Error('KaTeX unavailable');
+  }
+  setSafeHtml(
+    previewEl,
+    katex.renderToString(text, {
+      displayMode: true,
+      throwOnError: true,
+      output: 'html',
+    })
+  );
+  if (block) setSpecialBlockError(block, '');
+}
+
+function initMermaidIfNeeded(mermaid) {
+  if (!mermaidInitialized && typeof mermaid.initialize === 'function') {
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
+    mermaidInitialized = true;
+  }
+}
+
+async function renderMermaidWithRun(mermaid, text, previewEl, renderId) {
+  previewEl.innerHTML = `<div class="mermaid" data-markdown-special-diagram="${renderId}">${escapeHtml(text)}</div>`;
+  const diagramEl = previewEl.querySelector('[data-markdown-special-diagram]');
+  await Promise.resolve(mermaid.run({ nodes: [diagramEl] }));
+}
+
+function invokeMermaidRender(mermaid, renderId, text, resolve, reject) {
+  try {
+    const maybe = mermaid.render(renderId, text, (svgCode) => resolve(svgCode));
+    if (typeof maybe?.then === 'function') {
+      maybe.then((result) => resolve(result?.svg || result || '')).catch(reject);
+    } else if (typeof maybe === 'string') {
+      resolve(maybe);
+    }
+  } catch (err) {
+    reject(err);
+  }
+}
+
+async function renderMermaidWithLegacy(mermaid, text, renderId) {
+  const svg = await new Promise((resolve, reject) =>
+    invokeMermaidRender(mermaid, renderId, text, resolve, reject)
+  );
+  return String(svg || '');
+}
+
+async function runMermaidRender(mermaid, text, previewEl, renderId) {
+  if (typeof mermaid.run === 'function') {
+    await renderMermaidWithRun(mermaid, text, previewEl, renderId);
+    return;
+  }
+  const svg = await renderMermaidWithLegacy(mermaid, text, renderId);
+  setSafeHtml(previewEl, svg);
+}
+
+function resolveMermaidInstance() {
+  return globalThis?.window?.mermaid || globalThis?.mermaid;
+}
+
+function isMermaidRenderable(mermaid) {
+  return mermaid && (typeof mermaid.run === 'function' || typeof mermaid.render === 'function');
+}
+
+function buildMermaidRenderId(block) {
+  return `gc-mermaid-${block?.dataset?.markdownSpecialId || crypto.randomUUID()}`;
+}
+
+async function renderMermaidPreview(text, previewEl, block) {
+  await ensureMermaidRuntime();
+  const mermaid = resolveMermaidInstance();
+  if (!isMermaidRenderable(mermaid)) {
+    throw new Error('Mermaid unavailable');
+  }
+  initMermaidIfNeeded(mermaid);
+  const renderId = buildMermaidRenderId(block);
+  await runMermaidRender(mermaid, text, previewEl, renderId);
+  if (block) setSpecialBlockError(block, '');
+}
+
+async function renderGraphvizPreview(text, previewEl, block) {
+  const renderer = await loadGraphvizRenderer();
+  if (!renderer || typeof renderer.dot !== 'function') throw new Error('Graphviz unavailable');
+  const svg = await Promise.resolve(renderer.dot(text));
+  setSafeHtml(previewEl, String(svg || ''));
+  if (block) setSpecialBlockError(block, '');
+}
+
 export async function renderSpecialPreview(kind, source, previewEl, block) {
   if (!previewEl) return false;
   const text = String(source ?? '').trim();
   if (!text) {
-    previewEl.innerHTML = `<div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div>`;
-    if (block) setSpecialBlockError(block, '');
+    setPreviewEmpty(previewEl, block, kind);
     return false;
   }
   try {
     if (kind === 'katex') {
-      await ensureKatexRuntime();
-      const katex = globalThis?.window?.katex || globalThis?.katex;
-      if (!katex || typeof katex.renderToString !== 'function')
-        throw new Error('KaTeX unavailable');
-      setSafeHtml(
-        previewEl,
-        katex.renderToString(text, {
-          displayMode: true,
-          throwOnError: true,
-          output: 'html',
-        })
-      );
-      if (block) setSpecialBlockError(block, '');
+      await renderKatexPreview(text, previewEl, block);
       return true;
     }
     if (kind === 'mermaid') {
-      await ensureMermaidRuntime();
-      const mermaid = globalThis?.window?.mermaid || globalThis?.mermaid;
-      if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function'))
-        throw new Error('Mermaid unavailable');
-      if (!mermaidInitialized && typeof mermaid.initialize === 'function') {
-        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
-        mermaidInitialized = true;
-      }
-      const renderId = `gc-mermaid-${block?.dataset?.markdownSpecialId || crypto.randomUUID()}`;
-      previewEl.innerHTML = `<div class="mermaid" data-markdown-special-diagram="${renderId}">${escapeHtml(text)}</div>`;
-      const diagramEl = previewEl.querySelector('[data-markdown-special-diagram]');
-      if (typeof mermaid.run === 'function') {
-        await Promise.resolve(mermaid.run({ nodes: [diagramEl] }));
-      } else {
-        const svg = await new Promise((resolve, reject) => {
-          try {
-            const maybe = mermaid.render(renderId, text, (svgCode) => resolve(svgCode));
-            if (typeof maybe?.then === 'function') {
-              maybe.then((result) => resolve(result?.svg || result || '')).catch(reject);
-            } else if (typeof maybe === 'string') {
-              resolve(maybe);
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-        setSafeHtml(previewEl, String(svg || ''));
-      }
-      if (block) setSpecialBlockError(block, '');
+      await renderMermaidPreview(text, previewEl, block);
       return true;
     }
     if (kind === 'graphviz') {
-      const renderer = await loadGraphvizRenderer();
-      if (!renderer || typeof renderer.dot !== 'function') throw new Error('Graphviz unavailable');
-      const svg = await Promise.resolve(renderer.dot(text));
-      setSafeHtml(previewEl, String(svg || ''));
-      if (block) setSpecialBlockError(block, '');
+      await renderGraphvizPreview(text, previewEl, block);
       return true;
     }
   } catch (err) {
-    previewEl.innerHTML = '';
-    if (block) applySpecialBlockMode(block, 'code');
-    if (block)
-      setSpecialBlockError(block, err?.message || String(err) || 'Unable to render preview.');
+    handlePreviewError(previewEl, block, err);
     return false;
   }
   return false;

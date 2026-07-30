@@ -1,33 +1,26 @@
-import { error, json } from '../utils/response.js';
+import { error } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
-import { createRealtimeEvent } from '../features/realtime/realtime.js';
+import { requireOwnedChat } from './chat-core.js';
+import { MAX_ATTACHMENTS, normalizeAttachmentIds } from '../chat/attachments.js';
+import { loadAndValidateAttachments } from './chat-attachment-helpers.js';
 import {
-  requireOwnedChat,
-  getMessageSnapshot,
-  normalizeErrorMessage,
-  resolveDefaultModel,
-  loadAttachmentDocuments,
-  buildAttachmentParts,
-} from './chat-core.js';
-import {
-  MAX_ATTACHMENTS,
-  STRICT_ATTACHMENT_CAPS,
-  formatUnsupportedAttachmentMessage,
-  getAttachmentKinds,
-  getModelAttachmentCapsEntry,
-  getUnsupportedAttachmentKinds,
-  getUnsupportedAttachmentKindsStrict,
-  loadModelAttachmentCaps,
-  mergeTextAttachmentParts,
-  normalizeAttachmentIds,
-  isSupportedAttachmentType,
-} from '../chat/attachments.js';
-import {
-  ensureModelAllowed,
+  buildUserMessageContent,
   normalizeSelectedToolNames,
-  publishRealtimeNow,
   requireChatPermission,
+  resolveChatModel,
 } from './chat-message-helpers.js';
+import {
+  createAssistantBranchMessage,
+  createUserBranchMessage,
+} from './chat-message-branch-persistence.js';
+
+const HTTP_NOT_FOUND = 404;
+const HTTP_BAD_REQUEST = 400;
+const ROLE_USER = 'user';
+const ROLE_ASSISTANT = 'assistant';
+const HISTORY_LIMIT = 30;
+const INHERITED_MENTION_TYPES = [null, 'attachment'];
+const NO_TABLE_ERROR_PATTERN = /no such table:\s*message_documents/i;
 
 async function getBranchHistory(db, leafMessageId, chatId) {
   return db.all(
@@ -45,7 +38,7 @@ async function getBranchHistory(db, leafMessageId, chatId) {
 			SELECT role, content, created_at, rowid
 			FROM lineage
 			ORDER BY created_at DESC, rowid DESC
-			LIMIT 30
+			LIMIT ${HISTORY_LIMIT}
 		) ORDER BY created_at ASC, rowid ASC`,
     [leafMessageId, chatId, chatId]
   );
@@ -66,258 +59,326 @@ export async function handleBranchMessage({
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
 
-  const owned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (owned.error) return owned.error;
-  const chat = owned.chat;
-
-  const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
-  if (permissionError) return permissionError;
+  const accessResult = await acquireBranchAccess({ req, env, db, user, chatId });
+  if (accessResult.error) return accessResult.error;
+  const { chat } = accessResult;
 
   const sourceMsg = await db.first(
     'SELECT role, parent_id, model, citations FROM messages WHERE id = ? AND chat_id = ?',
     [msgId, chatId]
   );
-  if (!sourceMsg) return error(req, 'Message not found', 404);
+  if (!sourceMsg) return error(req, 'Message not found', HTTP_NOT_FOUND);
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return error(req, 'Invalid JSON body', 400);
+  const parsed = await parseBranchBody(req, sourceMsg);
+  if (parsed.error) return parsed.error;
+  const { body, content, role, noReply, selectedToolNames } = parsed;
+
+  if (role === ROLE_ASSISTANT && noReply) {
+    return handleAssistantBranch({
+      req,
+      env,
+      db,
+      user,
+      chatId,
+      msgId,
+      sourceMsg,
+      content,
+      originSessionId,
+    });
   }
 
+  return handleUserBranch({
+    req,
+    env,
+    ctx,
+    db,
+    user,
+    chatId,
+    sourceMsg,
+    body,
+    content,
+    selectedToolNames,
+    attachmentIds: parsed.attachmentIds,
+    logger,
+    chat,
+    msgId,
+    originSessionId,
+    assistantStreamRunner,
+  });
+}
+
+async function handleAssistantBranch({
+  req,
+  env,
+  db,
+  user,
+  chatId,
+  msgId,
+  sourceMsg,
+  content,
+  originSessionId,
+}) {
+  return createAssistantBranchMessage({
+    req,
+    env,
+    db,
+    user,
+    chatId,
+    msgId,
+    sourceMsg,
+    content,
+    originSessionId,
+  });
+}
+
+async function handleUserBranch({
+  req,
+  env,
+  ctx,
+  db,
+  user,
+  chatId,
+  sourceMsg,
+  body,
+  content,
+  selectedToolNames,
+  attachmentIds,
+  logger,
+  chat,
+  msgId,
+  originSessionId,
+  assistantStreamRunner,
+}) {
+  const execution = await prepareBranchExecution({
+    req,
+    env,
+    db,
+    user,
+    chat,
+    body,
+    msgId,
+    logger,
+    providedIds: attachmentIds,
+  });
+  if (execution.error) return execution.error;
+  const { model, providerInfo, attachmentDocs, attachmentParts, attachmentKinds } = execution;
+
+  const newUserMsgId = await createUserBranchMessage({
+    req,
+    env,
+    db,
+    user,
+    chatId,
+    sourceMsg,
+    content,
+    model,
+    attachmentDocs,
+    originSessionId,
+  });
+
+  const history = await buildBranchHistory({
+    db,
+    chatId,
+    newUserMsgId,
+    content,
+    attachmentParts,
+  });
+
+  return runBranchAssistantStream({
+    req,
+    env,
+    ctx,
+    db,
+    user,
+    chatId,
+    newUserMsgId,
+    model,
+    history,
+    attachmentKinds,
+    providerInfo,
+    selectedToolNames,
+    assistantStreamRunner,
+  });
+}
+
+async function acquireBranchAccess({ req, env, db, user, chatId }) {
+  const owned = await requireOwnedChat(req, db, chatId, user.sub);
+  if (owned.error) return { error: owned.error };
+  const permissionError = await requireChatPermission({
+    req,
+    env,
+    user,
+    action: 'chat.write',
+    chatId,
+  });
+  if (permissionError) return { error: permissionError };
+  return { chat: owned.chat };
+}
+
+async function prepareBranchExecution({
+  req,
+  env,
+  db,
+  user,
+  chat,
+  body,
+  msgId,
+  logger,
+  providedIds,
+}) {
+  const modelDecision = await resolveBranchModel({ req, env, db, user, chat, body });
+  if (modelDecision?.error) return { error: modelDecision.error };
+  const { model, providerInfo } = modelDecision;
+
+  const attachmentResult = await resolveBranchAttachments({
+    req,
+    env,
+    db,
+    user,
+    msgId,
+    model,
+    providedIds,
+    logger,
+  });
+  if (attachmentResult.error) return { error: attachmentResult.error };
+
+  return {
+    model,
+    providerInfo,
+    attachmentDocs: attachmentResult.attachmentDocs,
+    attachmentParts: attachmentResult.attachmentParts,
+    attachmentKinds: attachmentResult.attachmentKinds,
+  };
+}
+
+async function parseRequestJson(req) {
+  try {
+    return { body: await req.json() };
+  } catch {
+    return { error: error(req, 'Invalid JSON body', HTTP_BAD_REQUEST) };
+  }
+}
+
+function normalizeBranchRole(body) {
+  return String(body.role || ROLE_USER)
+    .trim()
+    .toLowerCase();
+}
+
+function validateBranchRole(role, noReply, sourceMsg, req) {
+  if (role !== ROLE_USER && role !== ROLE_ASSISTANT) {
+    return { error: error(req, "role must be 'user' or 'assistant'", HTTP_BAD_REQUEST) };
+  }
+  if (role === ROLE_USER && noReply) {
+    return {
+      error: error(req, 'User message branching does not support no_reply=true', HTTP_BAD_REQUEST),
+    };
+  }
+  if (role === ROLE_ASSISTANT && !noReply) {
+    return {
+      error: error(req, 'Assistant message branching requires no_reply=true', HTTP_BAD_REQUEST),
+    };
+  }
+  if (sourceMsg.role !== role) {
+    return {
+      error: error(req, `Cannot branch a ${sourceMsg.role} message as ${role}`, HTTP_BAD_REQUEST),
+    };
+  }
+  return null;
+}
+
+function buildBranchResult({ body, content, role, noReply, selectedToolNames }) {
+  return {
+    body,
+    content,
+    role,
+    noReply,
+    selectedToolNames,
+    attachmentIds: normalizeAttachmentIds(Array.isArray(body.attachments) ? body.attachments : []),
+  };
+}
+
+async function parseBranchBody(req, sourceMsg) {
+  const parsed = await parseRequestJson(req);
+  if (parsed.error) return parsed;
+  const { body } = parsed;
+
   const content = String(body.content || '').trim();
-  if (!content) return error(req, 'content is required', 400);
+  if (!content) {
+    return { error: error(req, 'content is required', HTTP_BAD_REQUEST) };
+  }
 
   const selectedToolNames = normalizeSelectedToolNames(
     body.selected_tool_names || body.tool_names || body.tools
   );
 
-  const role = String(body.role || 'user')
-    .trim()
-    .toLowerCase();
-  if (role !== 'user' && role !== 'assistant') {
-    return error(req, "role must be 'user' or 'assistant'", 400);
-  }
-
+  const role = normalizeBranchRole(body);
   const noReply = body.no_reply === true;
+  const roleError = validateBranchRole(role, noReply, sourceMsg, req);
+  if (roleError) return roleError;
 
-  if (role === 'user' && noReply) {
-    return error(req, 'User message branching does not support no_reply=true', 400);
-  }
-  if (role === 'assistant' && !noReply) {
-    return error(req, 'Assistant message branching requires no_reply=true', 400);
-  }
-  if (sourceMsg.role !== role) {
-    return error(req, `Cannot branch a ${sourceMsg.role} message as ${role}`, 400);
-  }
+  return buildBranchResult({ body, content, role, noReply, selectedToolNames });
+}
 
-  if (role === 'assistant' && noReply) {
-    const newAssistantMsgId = crypto.randomUUID();
-    await db.batch([
-      db.prepare(
-        'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
-        [
-          newAssistantMsgId,
-          chatId,
-          'assistant',
-          content,
-          sourceMsg.model,
-          sourceMsg.citations,
-          sourceMsg.parent_id,
-        ]
-      ),
-      db.prepare(
-        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-        [newAssistantMsgId, chatId, user.sub]
-      ),
-    ]);
-    const newMsg = await db.first(
-      'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
-      [newAssistantMsgId]
-    );
-    const updatedChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
-    await publishRealtimeNow(
-      env,
-      createRealtimeEvent({
-        type: 'message.completed',
-        userId: user.sub,
-        chatId,
-        messageId: newAssistantMsgId,
-        originSessionId,
-        data: {
-          role: 'assistant',
-          model: sourceMsg.model,
-          message: newMsg,
-          chat: updatedChat,
-        },
-      })
-    );
-    return json(req, { message: newMsg }, 200);
-  }
+async function resolveBranchModel({ req, env, db, user, chat, body }) {
+  return resolveChatModel({
+    req,
+    env,
+    db,
+    user,
+    modelOrChat: { model: body.model || chat.model },
+  });
+}
 
-  let model = String(body.model || chat.model || '').trim();
-  if (!model) {
-    model = await resolveDefaultModel(env, db, user.sub);
-  }
-  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
-  if (modelDecision?.error) return modelDecision.error;
-  const providerInfo = modelDecision.providerInfo;
+function buildInheritedAttachmentQuery() {
+  const placeholders = INHERITED_MENTION_TYPES.map(() => '?').join(', ');
+  return `SELECT document_id FROM message_documents WHERE message_id = ? AND (mention_type IS NULL OR mention_type IN (${placeholders}))`;
+}
 
-  let attachmentParts = [];
-  let attachmentDocs = [];
-  let attachmentKinds = [];
-  let attachmentIds = normalizeAttachmentIds(
-    Array.isArray(body.attachments) ? body.attachments : []
-  );
-
-  if (attachmentIds.length === 0) {
-    try {
-      const inherited = await db.all(
-        `SELECT document_id FROM message_documents WHERE message_id = ? AND (mention_type IS NULL OR mention_type = 'attachment')`,
-        [msgId]
-      );
-      attachmentIds = normalizeAttachmentIds(inherited.map((row) => row.document_id));
-    } catch (err) {
-      if (!/no such table:\s*message_documents/i.test(String(err?.message || ''))) {
-        logger.warn('Failed to load inherited attachments', {
-          error: String(err?.message || err),
-        });
-      }
+async function loadInheritedAttachmentIds({ db, msgId, logger }) {
+  try {
+    const query = buildInheritedAttachmentQuery();
+    const params = [msgId, ...INHERITED_MENTION_TYPES];
+    const inherited = await db.all(query, params);
+    return normalizeAttachmentIds(inherited.map((row) => row.document_id));
+  } catch (err) {
+    if (!NO_TABLE_ERROR_PATTERN.test(String(err?.message || ''))) {
+      logger.warn('Failed to load inherited attachments', {
+        error: String(err?.message || err),
+      });
     }
+    return [];
+  }
+}
+
+async function resolveBranchAttachments({ req, env, db, user, msgId, model, providedIds, logger }) {
+  let attachmentIds = providedIds;
+  if (attachmentIds.length === 0) {
+    attachmentIds = await loadInheritedAttachmentIds({ db, msgId, logger });
   }
 
   if (attachmentIds.length > MAX_ATTACHMENTS) {
-    return error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400);
+    return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, HTTP_BAD_REQUEST) };
   }
 
-  if (attachmentIds.length > 0) {
-    if (!env.FILES) {
-      return error(req, 'FILES binding missing', 500);
-    }
-    try {
-      attachmentDocs = await loadAttachmentDocuments(db, user.sub, attachmentIds);
-    } catch (err) {
-      return error(req, normalizeErrorMessage(err, 'Invalid attachments'), 400);
-    }
+  return loadAndValidateAttachments({ req, env, db, user, attachmentIds, model });
+}
 
-    const unsupported = attachmentDocs.filter((doc) => {
-      const type = String(doc.content_type || '').trim();
-      return !isSupportedAttachmentType(type);
-    });
-    if (unsupported.length > 0) {
-      const list = unsupported.map((doc) => doc.filename || doc.id).join(', ');
-      return error(req, `Unsupported attachment type for: ${list}`, 400);
-    }
-
-    try {
-      attachmentParts = await buildAttachmentParts(env, attachmentDocs);
-    } catch (err) {
-      return error(req, normalizeErrorMessage(err, 'Failed to load attachments'), 400);
-    }
-  }
-
-  if (attachmentDocs.length > 0) {
-    attachmentKinds = getAttachmentKinds(attachmentDocs);
-    const nonLocalKinds = attachmentKinds.filter((kind) => kind !== 'text');
-    const caps = await loadModelAttachmentCaps(db);
-    const modelCaps = getModelAttachmentCapsEntry(caps, model);
-
-    const unsupported = nonLocalKinds.length
-      ? STRICT_ATTACHMENT_CAPS
-        ? getUnsupportedAttachmentKindsStrict(modelCaps, nonLocalKinds)
-        : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds)
-      : [];
-    if (attachmentKinds.includes('text') && modelCaps?.text !== true) {
-      unsupported.push('text');
-    }
-
-    if (unsupported.length > 0) {
-      return error(req, 'attachments_not_supported', 400, {
-        message: modelCaps
-          ? formatUnsupportedAttachmentMessage(unsupported)
-          : 'Attachment capabilities not configured for this model.',
-        unsupported_types: unsupported,
-        resumable: false,
-      });
-    }
-    attachmentKinds = nonLocalKinds;
-  }
-
-  const newUserMsgId = crypto.randomUUID();
-  const branchStatements = [
-    db
-      .prepare(
-        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
-      )
-      .bind(newUserMsgId, chatId, 'user', content, model, sourceMsg.parent_id),
-    db
-      .prepare(
-        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
-      )
-      .bind(newUserMsgId, chatId, user.sub),
-  ];
-  // Include attachment links in the same atomic batch
-  for (const doc of attachmentDocs) {
-    branchStatements.push(
-      db
-        .prepare(
-          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-        )
-        .bind(crypto.randomUUID(), newUserMsgId, doc.id, 'attachment')
-    );
-  }
-  await db.batch(branchStatements);
-
-  const createdBranchUserMessage = await getMessageSnapshot(db, newUserMsgId);
-  const updatedBranchChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
-
-  if (createdBranchUserMessage && attachmentDocs.length > 0) {
-    createdBranchUserMessage.attachments = attachmentDocs.map((doc) => ({
-      id: doc.id,
-      filename: doc.filename,
-      content_type: doc.content_type,
-      file_size: doc.file_size,
-    }));
-  }
-
-  await publishRealtimeNow(
-    env,
-    createRealtimeEvent({
-      type: 'message.created',
-      userId: user.sub,
-      chatId,
-      messageId: newUserMsgId,
-      originSessionId,
-      data: {
-        role: 'user',
-        model,
-        message: createdBranchUserMessage,
-        chat: updatedBranchChat,
-      },
-    })
-  );
-
-  const history = await getBranchHistory(db, newUserMsgId, chatId);
-
-  if (attachmentParts.length > 0) {
-    const lastIdx = history.length - 1;
-    if (lastIdx >= 0 && history[lastIdx]?.role === 'user') {
-      const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
-      if (hasNonText) {
-        history[lastIdx] = {
-          role: 'user',
-          content: [{ type: 'text', text: content }, ...attachmentParts],
-        };
-      } else {
-        history[lastIdx] = {
-          role: 'user',
-          content: mergeTextAttachmentParts(content, attachmentParts),
-        };
-      }
-    }
-  }
-
+async function runBranchAssistantStream({
+  req,
+  env,
+  ctx,
+  db,
+  user,
+  chatId,
+  newUserMsgId,
+  model,
+  history,
+  attachmentKinds,
+  providerInfo,
+  selectedToolNames,
+  assistantStreamRunner,
+}) {
   const { response } = await assistantStreamRunner({
     req,
     env,
@@ -334,6 +395,22 @@ export async function handleBranchMessage({
     providerFamily: providerInfo.providerFamily,
     selectedToolNames,
   });
-
   return response;
+}
+
+async function buildBranchHistory({ db, chatId, newUserMsgId, content, attachmentParts }) {
+  const history = await getBranchHistory(db, newUserMsgId, chatId);
+
+  if (attachmentParts.length > 0) {
+    const lastIdx = history.length - 1;
+    if (lastIdx >= 0 && history[lastIdx]?.role === ROLE_USER) {
+      history[lastIdx] = buildUserBranchContent(content, attachmentParts);
+    }
+  }
+
+  return history;
+}
+
+function buildUserBranchContent(content, attachmentParts) {
+  return buildUserMessageContent(content, attachmentParts);
 }

@@ -482,3 +482,4 @@ describe('admin integrations settings', () => {
     expect(toolToggle?.getAttribute('data-tool-name')).toBe('tool" onclick="pwn()');
   });
 });
+console.log('test running');

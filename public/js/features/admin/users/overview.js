@@ -1,9 +1,15 @@
 /**
  * Admin users overview page renderer.
  */
-import { apiFetch } from '../../../shared/api.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
-import { getActionError, loadAdminRoles } from './overview-helpers.js';
+import { loadAdminRoles } from './overview-helpers.js';
+import {
+  adminApiFetch,
+  validateFormCheck,
+  buildUserPayloadFromForm,
+  isFormDirty,
+  bindDirtyListeners,
+} from './overview-shared.js';
 import { renderAddUserModal } from './overview-render.js';
 import { createOverviewController } from './overview-controller.js';
 
@@ -175,11 +181,11 @@ export function renderUserOverview(container, data, actions) {
     await actions.reload({ preserveContent: true });
   });
 
+  const computeTotalPages = () =>
+    Math.max(1, Math.ceil((data.total || 0) / (data.pagination?.pageSize || 20)));
+
   nextButton?.addEventListener('click', async () => {
-    const totalPages = Math.max(
-      1,
-      Math.ceil((data.total || 0) / (data.pagination?.pageSize || 20))
-    );
+    const totalPages = computeTotalPages();
     if (data.pagination.page >= totalPages) return;
     data.pagination.page += 1;
     await actions.reload({ preserveContent: true });
@@ -210,8 +216,8 @@ export function renderUserOverview(container, data, actions) {
     const csvTab = modal?.querySelector('[data-add-user-tab="csv"]');
     const saveBtn = modal?.querySelector('#add-user-save-btn');
     const fields = {
-      primaryRole: form?.querySelector('[name="primary_role"]'),
-      accountStatus: form?.querySelector('[name="account_status"]'),
+      primary_role: form?.querySelector('[name="primary_role"]'),
+      account_status: form?.querySelector('[name="account_status"]'),
       name: form?.querySelector('[name="name"]'),
       email: form?.querySelector('[name="email"]'),
       password: form?.querySelector('[name="password"]'),
@@ -226,35 +232,34 @@ export function renderUserOverview(container, data, actions) {
       password: '',
       csv: '',
     };
-    const isDirty = () =>
-      String(fields.primaryRole?.value || 'member') !== baseValues.primary_role ||
-      String(fields.accountStatus?.value || 'active') !== baseValues.account_status ||
-      String(fields.name?.value || '').trim() !== baseValues.name ||
-      String(fields.email?.value || '').trim() !== baseValues.email ||
-      String(fields.password?.value || '').trim() !== baseValues.password ||
-      String(fields.csv?.value || '').trim() !== baseValues.csv;
     const syncDirty = () => {
-      modalState.dirty = isDirty();
+      modalState.dirty = isFormDirty(fields, baseValues);
       setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: false });
     };
     const close = () => {
       modal?.remove();
     };
+    const applyAddUserTabClasses = (tabEl, active) => {
+      if (!tabEl) return;
+      tabEl.setAttribute('aria-pressed', String(active));
+      const classes = [
+        ['text-gray-900', active],
+        ['border-gray-900', active],
+        ['text-gray-600', !active],
+        ['border-transparent', !active],
+      ];
+      for (const [cls, condition] of classes) {
+        tabEl.classList.toggle(cls, condition);
+      }
+    };
+
     const setTab = (tab) => {
       const isForm = tab === 'form';
       modalState.activeTab = tab;
       form?.classList.toggle('hidden', !isForm);
       csvForm?.classList.toggle('hidden', isForm);
-      formTab?.setAttribute('aria-pressed', String(isForm));
-      csvTab?.setAttribute('aria-pressed', String(!isForm));
-      formTab?.classList.toggle('text-gray-900', isForm);
-      formTab?.classList.toggle('border-gray-900', isForm);
-      formTab?.classList.toggle('text-gray-600', !isForm);
-      formTab?.classList.toggle('border-transparent', !isForm);
-      csvTab?.classList.toggle('text-gray-900', !isForm);
-      csvTab?.classList.toggle('border-gray-900', !isForm);
-      csvTab?.classList.toggle('text-gray-600', isForm);
-      csvTab?.classList.toggle('border-transparent', isForm);
+      applyAddUserTabClasses(formTab, isForm);
+      applyAddUserTabClasses(csvTab, !isForm);
       syncDirty();
     };
     formTab?.addEventListener('click', () => setTab('form'));
@@ -264,68 +269,54 @@ export function renderUserOverview(container, data, actions) {
         close();
       }
     });
+    async function submitCsvImport() {
+      if (!validateFormCheck(csvForm)) return;
+      await adminApiFetch('/api/admin/users/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          csv: String(csvForm.querySelector('[name="csv"]').value || '').trim(),
+        }),
+      });
+      actions.invalidateCache?.();
+      await actions.reload?.({ preserveContent: true });
+    }
+
+    async function submitUserForm() {
+      if (!validateFormCheck(form)) return;
+      const payload = buildUserPayloadFromForm(form);
+      const { json: responsePayload } = await adminApiFetch('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      actions.prependUser(responsePayload.user);
+    }
+
+    function showSaveUserError(err) {
+      const errorEl = modal?.querySelector('#add-user-error');
+      if (!errorEl) return;
+      errorEl.textContent = err?.message || 'Failed to save user.';
+      errorEl.classList.remove('hidden');
+    }
+
     const saveCurrent = () => {
       void (async () => {
         try {
           if (modalState.activeTab === 'csv') {
-            if (typeof csvForm?.reportValidity === 'function' && !csvForm.reportValidity()) return;
-            const fd = new FormData(csvForm);
-            const csv = String(fd.get('csv') || '').trim();
-            const res = await apiFetch('/api/admin/users/import', {
-              method: 'POST',
-              body: JSON.stringify({ csv }),
-            });
-            const responsePayload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(
-                getActionError(responsePayload, `Failed to import users (${res.status})`)
-              );
-            }
-            actions.invalidateCache?.();
-            await actions.reload?.({ preserveContent: true });
+            await submitCsvImport();
           } else {
-            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
-            const fd = new FormData(form);
-            const payload = {
-              primary_role: String(fd.get('primary_role') || 'member').trim(),
-              account_status: String(fd.get('account_status') || 'active'),
-              name: String(fd.get('name') || '').trim(),
-              email: String(fd.get('email') || '').trim(),
-              password: String(fd.get('password') || ''),
-            };
-            const res = await apiFetch('/api/admin/users', {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            });
-            const responsePayload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(
-                getActionError(responsePayload, `Failed to create user (${res.status})`)
-              );
-            }
-            actions.prependUser(responsePayload.user);
+            await submitUserForm();
           }
           close();
         } catch (err) {
-          const errorEl = modal?.querySelector('#add-user-error');
-          if (errorEl) {
-            errorEl.textContent = err?.message || 'Failed to save user.';
-            errorEl.classList.remove('hidden');
-          }
+          showSaveUserError(err);
         }
       })();
     };
     saveBtn?.addEventListener('click', () => {
       saveCurrent();
     });
-    form?.querySelectorAll('input, select, textarea').forEach((el) => {
-      el.addEventListener('input', syncDirty);
-      el.addEventListener('change', syncDirty);
-    });
-    csvForm?.querySelectorAll('input, select, textarea').forEach((el) => {
-      el.addEventListener('input', syncDirty);
-      el.addEventListener('change', syncDirty);
-    });
+    bindDirtyListeners(form, syncDirty);
+    bindDirtyListeners(csvForm, syncDirty);
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
       saveCurrent();

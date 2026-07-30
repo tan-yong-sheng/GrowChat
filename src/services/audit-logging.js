@@ -10,7 +10,10 @@ const logger = createRootLogger({});
 
 const AUDIT_LOG_PREFIX = 'audit:';
 const AUDIT_LOG_TTL_DAYS = 90;
-const AUDIT_LOG_TTL_SECONDS = AUDIT_LOG_TTL_DAYS * 24 * 60 * 60;
+const HOURS_PER_DAY = 24;
+const AUDIT_LOG_TTL_SECONDS = AUDIT_LOG_TTL_DAYS * HOURS_PER_DAY * 3600;
+const EVENT_ID_RANDOM_BASE = 36;
+const EVENT_ID_RANDOM_LENGTH = 11;
 
 /**
  * Security event types
@@ -42,7 +45,9 @@ export async function logSecurityEvent({ env, eventType, details = {} } = {}) {
   }
 
   const timestamp = new Date().toISOString();
-  const eventId = `${AUDIT_LOG_PREFIX}${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  const eventId = `${AUDIT_LOG_PREFIX}${Date.now()}-${Math.random()
+    .toString(EVENT_ID_RANDOM_BASE)
+    .substring(2, EVENT_ID_RANDOM_LENGTH)}`;
 
   const event = {
     id: eventId,
@@ -61,7 +66,7 @@ export async function logSecurityEvent({ env, eventType, details = {} } = {}) {
   }
 }
 
-const LOGIN_LOCKOUT_WINDOW_MS = 60 * 60 * 1000;
+const LOGIN_LOCKOUT_WINDOW_MS = 3600 * 1000;
 
 /**
  * Read the list of failed login attempt timestamps currently stored for an

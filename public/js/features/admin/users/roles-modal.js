@@ -17,6 +17,16 @@ import {
   renderPermissionGroup,
 } from './roles-helpers.js';
 
+function buildInitialRoleDraft(isNew, sourceRole, nextCustomIndex) {
+  return isNew
+    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
+        isNew: true,
+        sourceRoleId: 'member',
+        nextCustomIndex,
+      })
+    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+}
+
 export function openRoleModal(
   container,
   state,
@@ -24,13 +34,7 @@ export function openRoleModal(
   { roleId = null, isNew = false, onSaveRole = null, onDeleteRole = null } = {}
 ) {
   const sourceRole = roleId ? state.roles.find((role) => role.id === roleId) || null : null;
-  const baseRole = isNew
-    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
-        isNew: true,
-        sourceRoleId: 'member',
-        nextCustomIndex: state.nextCustomIndex,
-      })
-    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+  const baseRole = buildInitialRoleDraft(isNew, sourceRole, state.nextCustomIndex);
 
   const modalState = {
     query: '',
@@ -75,28 +79,37 @@ export function openRoleModal(
     });
   };
 
-  const syncShell = () => {
-    const namePreview = modal.querySelector('[data-role-name-preview]');
-    const summaryPreview = modal.querySelector('[data-role-summary-preview]');
-    const systemNote = modal.querySelector('[data-role-system-note]');
-    const nameInput = modal.querySelector('#role-name');
+  function syncNamePreview(el) {
+    if (el) el.textContent = String(modalState.draft.name || '');
+  }
 
-    if (namePreview) namePreview.textContent = String(modalState.draft.name || '');
-    if (summaryPreview) {
-      summaryPreview.textContent = `${formatRoleSummary(modalState.draft)} · ${isSystemRole ? 'system' : 'custom'}`;
-    }
-    if (systemNote) {
-      if (isSystemRole) {
-        systemNote.textContent = 'System template names are fixed. Edit permissions only.';
-      }
-    }
-    if (nameInput && !isSystemRole) {
-      nameInput.value = String(modalState.draft.name || '');
-    }
-    const clearContainer = modal.querySelector('#role-permission-clear-container');
-    if (clearContainer) {
-      clearContainer.classList.toggle('hidden', !String(modalState.query || '').trim());
-    }
+  function syncSummaryPreview(el) {
+    if (!el) return;
+    const roleKind = isSystemRole ? 'system' : 'custom';
+    el.textContent = `${formatRoleSummary(modalState.draft)} · ${roleKind}`;
+  }
+
+  function syncSystemNote(el) {
+    if (!el || !isSystemRole) return;
+    el.textContent = 'System template names are fixed. Edit permissions only.';
+  }
+
+  function syncNameInput(el) {
+    if (!el || isSystemRole) return;
+    el.value = String(modalState.draft.name || '');
+  }
+
+  function syncClearContainer(el) {
+    if (!el) return;
+    el.classList.toggle('hidden', !String(modalState.query || '').trim());
+  }
+
+  const syncShell = () => {
+    syncNamePreview(modal.querySelector('[data-role-name-preview]'));
+    syncSummaryPreview(modal.querySelector('[data-role-summary-preview]'));
+    syncSystemNote(modal.querySelector('[data-role-system-note]'));
+    syncNameInput(modal.querySelector('#role-name'));
+    syncClearContainer(modal.querySelector('#role-permission-clear-container'));
   };
 
   const renderPermissionPane = () => {
@@ -257,30 +270,57 @@ export function openRoleModal(
     }
   };
 
-  const saveRole = async () => {
-    if (!modalState.dirty || modalState.saving) return;
+  const SAVE_BUTTON_CLASSES = {
+    enabledClass:
+      'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
+    disabledClass:
+      'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+  };
+
+  function validateRoleName() {
     const trimmedName = String(modalState.draft.name || '').trim();
     if (!trimmedName) {
       modalState.error = 'Role name is required.';
       noteEl.textContent = modalState.error;
-      return;
+      return null;
     }
+    return trimmedName;
+  }
+
+  function buildRolePayload(trimmedName) {
+    return {
+      name: trimmedName,
+      permissions: Array.from(modalState.draft.permissions || []),
+    };
+  }
+
+  function setSaveButtonSaving() {
+    setModalSaveButtonState(saveBtn, {
+      enabled: false,
+      saving: true,
+      label: 'Save',
+      ...SAVE_BUTTON_CLASSES,
+    });
+  }
+
+  function setSaveButtonIdle(enabled) {
+    setModalSaveButtonState(saveBtn, {
+      enabled,
+      saving: false,
+      label: 'Save',
+      ...SAVE_BUTTON_CLASSES,
+    });
+  }
+
+  const saveRole = async () => {
+    if (!modalState.dirty || modalState.saving) return;
+    const trimmedName = validateRoleName();
+    if (!trimmedName) return;
 
     try {
       modalState.saving = true;
-      setModalSaveButtonState(saveBtn, {
-        enabled: false,
-        saving: true,
-        label: 'Save',
-        enabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
-        disabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
-      });
-      const payload = {
-        name: trimmedName,
-        permissions: Array.from(modalState.draft.permissions || []),
-      };
+      setSaveButtonSaving();
+      const payload = buildRolePayload(trimmedName);
       if (typeof onSaveRole === 'function') {
         await onSaveRole(modalState.isNew, modalState.draft.id, payload);
       }
@@ -290,15 +330,7 @@ export function openRoleModal(
       noteEl.textContent = modalState.error;
     } finally {
       modalState.saving = false;
-      setModalSaveButtonState(saveBtn, {
-        enabled: modalState.dirty,
-        saving: false,
-        label: 'Save',
-        enabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
-        disabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
-      });
+      setSaveButtonIdle(modalState.dirty);
     }
   };
 
@@ -310,13 +342,7 @@ export function openRoleModal(
   });
 
   resetBtn?.addEventListener('click', () => {
-    modalState.draft = modalState.isNew
-      ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
-          isNew: true,
-          sourceRoleId: 'member',
-          nextCustomIndex: state.nextCustomIndex,
-        })
-      : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+    modalState.draft = buildInitialRoleDraft(modalState.isNew, sourceRole, state.nextCustomIndex);
     modalState.query = '';
     modalState.advanced = true;
     modalState.groupCollapsed = { ...DEFAULT_GROUP_COLLAPSE };

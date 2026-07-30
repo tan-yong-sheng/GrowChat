@@ -2,11 +2,13 @@
 // Split from original chat.js for line-count compliance.
 
 import { rollbackOptimisticConversation } from './chat-message-stream-temp-chat.js';
+import { appendEmptyChatStateItem } from './chat-sidebar-helpers.js';
 import { renderChat as _renderChat } from './chat-html.js';
 import { getWireChatDeps } from './chat-wire-deps.js';
 import { initWireChat } from './chat-wire-init.js';
 import { setupWireChatFeatures } from './chat-wire-setup.js';
 import { setupWireChatControllers } from './chat-wire-controllers.js';
+import { toggleThinkingSection, toggleToolSection } from './chat-message-interactions.js';
 
 export function renderChat(container) {
   return _renderChat(container, wireChat);
@@ -21,13 +23,11 @@ function wireChat(root) {
   // prettier-ignore
   const {
     PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener,  buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
-    currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureChatListHandlers, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
-    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
-    loadMessagesImpl, maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, newChatBtn, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openArchivedModal, openCitation, openSearchBtn,
-    pruneTempChats, recentChatIds, refreshChatListObserver, refreshChatListObserverImpl, refreshShareState, refreshShareStateImpl, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
-    destroyShellEvents, setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
-    startNewChatImpl, streamSession, streamingOverrideByChat, syncChatUrl, syncChatUrlImpl, thinkingActiveByMessageId, thinkingCollapsedByKey, thinkingDurationByMessageId, thinkingStartByMessageId, toggleChatsBtn, toggleChatsIcon, toggleSidebarDesktop,
-    toggleSidebarMobile, toolCallsByMessageId, toolExpandedByKey, uiResources, unbindToolServersInvalidationListener, updateChatTitleLocal, updateMessageContentDom, welcomeScreenContainer
+    currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
+    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadMessages,
+    maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openCitation,     pruneTempChats, recentChatIds, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
+    destroyShellEvents, setBranchSelection, setDraftAttachments, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebarBackdrop, startNewChat,
+    streamSession, streamingOverrideByChat, syncChatUrl, thinkingActiveByMessageId, thinkingCollapsedByKey, thinkingDurationByMessageId, thinkingStartByMessageId,     toolCallsByMessageId, toolExpandedByKey, uiResources, unbindToolServersInvalidationListener, updateChatTitleLocal, updateMessageContentDom, welcomeScreenContainer
   } = ctx;
   let activeStreamAbort = ctx.activeStreamAbort;
   let chatMessageFlow = ctx.chatMessageFlow;
@@ -35,9 +35,9 @@ function wireChat(root) {
   let sidebarHydrationWarmupTimer = ctx.sidebarHydrationWarmupTimer;
   // prettier-ignore
   const {
-    apiFetch, appendBlock, createChatDataController, createChatMessageStream, createChatShellController, ensureThinkingBlock, extractThinkingBlocks, formatApiErrorMessage,
+    apiFetch, appendBlock, createChatDataController, createChatMessageStream, ensureThinkingBlock, extractThinkingBlocks, formatApiErrorMessage,
     renderMessageInput, renderModelSelector, renderPlaceholder, setState, state, subscribe, touchRecentChat, updateToolCallState,
-    toggleArchiveChat, fetchChats, fetchSharedChats
+    fetchChats, fetchSharedChats
   } = deps;
 
   const dataController = createChatDataController({
@@ -149,48 +149,65 @@ function wireChat(root) {
     });
   }
   drawPlaceholder();
+  function buildChatButton(chat, activeId, handlers) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
+    button.textContent = chat?.title || 'Untitled Chat';
+    button.addEventListener('click', () => {
+      handlers.onClick?.(chat?.id);
+    });
+    return button;
+  }
+  function appendLoadingRow(fragment) {
+    const loadingRow = document.createElement('div');
+    loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
+    loadingRow.textContent = 'Loading more chats...';
+    const loadingItem = document.createElement('li');
+    loadingItem.appendChild(loadingRow);
+    fragment.appendChild(loadingItem);
+  }
+  function appendMoreSentinel(fragment) {
+    const sentinel = document.createElement('div');
+    sentinel.id = 'chat-list-load-more';
+    sentinel.className = 'h-6';
+    const sentinelItem = document.createElement('li');
+    sentinelItem.appendChild(sentinel);
+    fragment.appendChild(sentinelItem);
+  }
+  function buildFallbackChatListFragment(chats, activeId) {
+    const fallbackFragment = document.createDocumentFragment();
+    const chatItems = Array.isArray(chats) ? chats : [];
+    if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
+      appendEmptyChatStateItem(fallbackFragment);
+    } else {
+      chatItems.slice(0, 24).forEach((chat) => {
+        const handlers = getChatHandlers(chat);
+        const item = document.createElement('li');
+        item.appendChild(buildChatButton(chat, activeId, handlers));
+        fallbackFragment.appendChild(item);
+      });
+    }
+    if (state?.chatsPagination?.loading) {
+      appendLoadingRow(fallbackFragment);
+    } else if (state?.chatsPagination?.hasMore) {
+      appendMoreSentinel(fallbackFragment);
+    }
+    return fallbackFragment;
+  }
+  function buildPinnedToggle() {
+    pinnedSectionCollapsed = !pinnedSectionCollapsed;
+    try {
+      localStorage.setItem(PINNED_COLLAPSED_KEY, pinnedSectionCollapsed ? '1' : '0');
+    } catch {
+      /* ignored */
+    }
+    drawChats(state.chats, state.activeChatId);
+  }
   function drawChats(chats, activeId) {
     if (!ctx.buildChatSidebarListFragmentImpl) {
       scheduleSidebarHydrationWarmup();
-      const fallbackFragment = document.createDocumentFragment();
-      const chatItems = Array.isArray(chats) ? chats : [];
-      if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
-        const emptyState = document.createElement('div');
-        emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
-        emptyState.textContent = 'No chat sessions yet.';
-        const emptyItem = document.createElement('li');
-        emptyItem.appendChild(emptyState);
-        fallbackFragment.appendChild(emptyItem);
-      } else {
-        chatItems.slice(0, 24).forEach((chat) => {
-          const handlers = getChatHandlers(chat);
-          const item = document.createElement('li');
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
-          button.textContent = chat?.title || 'Untitled Chat';
-          button.addEventListener('click', () => {
-            handlers.onClick?.(chat?.id);
-          });
-          item.appendChild(button);
-          fallbackFragment.appendChild(item);
-        });
-      }
-      if (state?.chatsPagination?.loading) {
-        const loadingRow = document.createElement('div');
-        loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
-        loadingRow.textContent = 'Loading more chats...';
-        const loadingItem = document.createElement('li');
-        loadingItem.appendChild(loadingRow);
-        fallbackFragment.appendChild(loadingItem);
-      } else if (state?.chatsPagination?.hasMore) {
-        const sentinel = document.createElement('div');
-        sentinel.id = 'chat-list-load-more';
-        sentinel.className = 'h-6';
-        const sentinelItem = document.createElement('li');
-        sentinelItem.appendChild(sentinel);
-        fallbackFragment.appendChild(sentinelItem);
-      }
+      const fallbackFragment = buildFallbackChatListFragment(chats, activeId);
       chatList.innerHTML = '';
       chatList.appendChild(fallbackFragment);
       return;
@@ -201,15 +218,7 @@ function wireChat(root) {
       models: state.models,
       state,
       isPinnedSectionCollapsed: pinnedSectionCollapsed,
-      onPinnedToggle: () => {
-        pinnedSectionCollapsed = !pinnedSectionCollapsed;
-        try {
-          localStorage.setItem(PINNED_COLLAPSED_KEY, pinnedSectionCollapsed ? '1' : '0');
-        } catch {
-          /* ignored */
-        }
-        drawChats(state.chats, state.activeChatId);
-      },
+      onPinnedToggle: buildPinnedToggle,
       getChatHandlers,
     });
     chatList.innerHTML = '';
@@ -217,8 +226,25 @@ function wireChat(root) {
   }
   ctx.drawChats = drawChats;
   window.addEventListener('growchat:realtime', onRealtimeEvent);
+  function preparePrompt(text) {
+    return String(text || '').trim();
+  }
+
+  function rollbackOptimisticSend(optimisticState) {
+    if (!optimisticState) return;
+    const tempChatId = optimisticState.optimistic?.tempChatId;
+    if (tempChatId) {
+      rollbackOptimisticConversation({ setState, tempChatId });
+    }
+  }
+
+  function finishSendError(err, hooks) {
+    console.error('sendMessage init failed:', err);
+    hooks.onFinished?.();
+  }
+
   async function sendMessage(text, hooks = {}, options = {}) {
-    const prompt = String(text || '').trim();
+    const prompt = preparePrompt(text);
     if (!prompt) {
       hooks.onFinished?.();
       return;
@@ -234,15 +260,8 @@ function wireChat(root) {
       await ensureMessageSequenceTracker();
       return chatMessageFlow?.sendWithOptimisticState?.(prompt, hooks, options, optimisticState);
     } catch (err) {
-      console.error('sendMessage init failed:', err);
-      // Roll back the optimistic temp chat if one was created
-      if (optimisticState) {
-        const tempChatId = optimisticState.optimistic?.tempChatId;
-        if (tempChatId) {
-          rollbackOptimisticConversation({ setState, tempChatId });
-        }
-      }
-      hooks.onFinished?.();
+      rollbackOptimisticSend(optimisticState);
+      finishSendError(err, hooks);
     }
   }
   messageInputContainer.addEventListener(
@@ -256,38 +275,8 @@ function wireChat(root) {
   );
   const handleMessageListInteractionFallback = (event) => {
     if (!event?.target) return;
-    const thinkingTarget = event.target.closest?.('[data-thinking-toggle]');
-    if (thinkingTarget) {
-      const key = thinkingTarget.getAttribute('data-thinking-toggle');
-      if (!key) return;
-      const isCollapsed = thinkingCollapsedByKey.get(key) ?? false;
-      const next = !isCollapsed;
-      thinkingCollapsedByKey.set(key, next);
-      const body = messagesList?.querySelector(`[data-thinking-body="${key}"]`);
-      const chevron = messagesList?.querySelector(`[data-thinking-chevron="${key}"]`);
-      if (body) body.classList.toggle('hidden', next);
-      if (chevron) {
-        chevron.classList.toggle('-rotate-90', next);
-        chevron.classList.toggle('rotate-0', !next);
-      }
-      return;
-    }
-    const toolTarget = event.target.closest?.('[data-tool-toggle]');
-    if (toolTarget) {
-      const key = toolTarget.getAttribute('data-tool-toggle');
-      if (!key) return;
-      const expanded = toolExpandedByKey.get(key) === true;
-      const next = !expanded;
-      toolExpandedByKey.set(key, next);
-      const body = messagesList?.querySelector(`[data-tool-body="${key}"]`);
-      const chevron = messagesList?.querySelector(`[data-tool-chevron="${key}"]`);
-      if (body) body.classList.toggle('hidden', !next);
-      if (chevron) {
-        chevron.classList.toggle('-rotate-90', !next);
-        chevron.classList.toggle('rotate-0', next);
-      }
-      return;
-    }
+    if (toggleThinkingSection(event, messagesList, thinkingCollapsedByKey)) return;
+    if (toggleToolSection(event, messagesList, toolExpandedByKey)) return;
     const citationTarget = event.target.closest?.('[data-citation-id]');
     if (citationTarget) {
       const id = citationTarget.getAttribute('data-citation-id');
@@ -312,32 +301,32 @@ function wireChat(root) {
       maybeRefreshChatListObserver();
     });
   };
-  const unsubscribe = subscribe((currentState) => {
-    if (currentState.showSearch) {
-      ensureSearchModal();
-    }
-    if (currentState.showFiles) {
-      ensureFilesModal();
-    }
+  const updateSidebarBackdrop = (currentState) => {
     if (currentState.showSidebar && currentState.isMobile) {
       sidebarBackdrop.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
-    } else {
-      sidebarBackdrop.classList.add('hidden');
-      if (
-        !currentState.showSearch &&
-        !shareModalContainer.innerHTML &&
-        !archivedModalContainer.innerHTML
-      ) {
-        document.body.style.overflow = '';
-      }
+      return;
     }
+    sidebarBackdrop.classList.add('hidden');
+    if (
+      !currentState.showSearch &&
+      !shareModalContainer.innerHTML &&
+      !archivedModalContainer.innerHTML
+    ) {
+      document.body.style.overflow = '';
+    }
+  };
+
+  const updateActiveChat = (currentState) => {
     if (currentState.activeChatId && currentState.activeChatId !== lastActiveChatId) {
       if (lastActiveChatId) streamSession.stopStreamPolling(lastActiveChatId);
       void ensureRealtimeController();
       touchRecentChat(recentChatIds, currentState.activeChatId);
       schedulePrune();
     }
+  };
+
+  const updateChatList = (currentState) => {
     const chatListChanged = currentState.chats !== lastChatsRef;
     const activeChanged = currentState.activeChatId !== lastActiveChatId;
     lastActiveChatId = currentState.activeChatId;
@@ -351,6 +340,18 @@ function wireChat(root) {
     } else {
       maybeRefreshChatListObserver();
     }
+  };
+
+  const unsubscribe = subscribe((currentState) => {
+    if (currentState.showSearch) {
+      ensureSearchModal();
+    }
+    if (currentState.showFiles) {
+      ensureFilesModal();
+    }
+    updateSidebarBackdrop(currentState);
+    updateActiveChat(currentState);
+    updateChatList(currentState);
   });
   chatListContainerEl?.addEventListener('wheel', onChatListInteraction, {
     once: true,
@@ -396,7 +397,15 @@ function wireChat(root) {
     await ensureMessageSequenceTracker();
     return chatMessageFlow?.startResumeStream?.(chatId, messageId);
   }
-  return () => {
+  function maybeCall(fn) {
+    if (typeof fn === 'function') fn();
+  }
+
+  function removeEventListenerIfPresent(target, ...args) {
+    if (target) target.removeEventListener(...args);
+  }
+
+  function clearChatTimers() {
     if (sidebarHydrationWarmupTimer) {
       clearTimeout(sidebarHydrationWarmupTimer);
       sidebarHydrationWarmupTimer = null;
@@ -405,26 +414,38 @@ function wireChat(root) {
       cancelAnimationFrame(pendingChatListRaf);
       pendingChatListRaf = null;
     }
+  }
+
+  function disposeChatModals() {
+    maybeCall(destroySearchModal);
+    maybeCall(destroyFilesModal);
+    maybeCall(destroyModelSelector);
+    maybeCall(destroySidebar);
+    maybeCall(inputComponent?.destroy);
+    maybeCall(destroyPlaceholder);
+    maybeCall(destroyChatFileEvents);
+    maybeCall(destroyMessageListInteractions);
+  }
+
+  function removeChatEventListeners() {
+    window.removeEventListener('growchat:realtime', onRealtimeEvent);
+    unbindToolServersInvalidationListener();
+    removeEventListenerIfPresent(chatListContainerEl, 'wheel', onChatListInteraction);
+    removeEventListenerIfPresent(chatListContainerEl, 'touchstart', onChatListInteraction);
+    removeEventListenerIfPresent(chatListContainerEl, 'scroll', onChatListInteraction);
+    removeEventListenerIfPresent(messagesList, 'click', onMessageListInteraction, true);
+    maybeCall(destroyShellEvents);
+    maybeCall(shellController.dispose);
+  }
+
+  return () => {
+    clearChatTimers();
     if (activeStreamAbort) activeStreamAbort();
     streamSession.dispose();
     unsubscribe();
     uiResources.clearAttachmentCaches();
-    destroySearchModal?.();
-    destroyFilesModal?.();
-    destroyModelSelector?.();
-    destroySidebar?.();
-    inputComponent?.destroy?.();
-    destroyPlaceholder?.();
-    destroyChatFileEvents?.();
-    destroyMessageListInteractions?.();
-    window.removeEventListener('growchat:realtime', onRealtimeEvent);
-    unbindToolServersInvalidationListener();
-    chatListContainerEl?.removeEventListener('wheel', onChatListInteraction);
-    chatListContainerEl?.removeEventListener('touchstart', onChatListInteraction);
-    chatListContainerEl?.removeEventListener('scroll', onChatListInteraction);
-    messagesList?.removeEventListener('click', onMessageListInteraction, true);
-    destroyShellEvents?.();
-    shellController.dispose?.();
+    disposeChatModals();
+    removeChatEventListeners();
     root.__cleanup = null;
   };
 }

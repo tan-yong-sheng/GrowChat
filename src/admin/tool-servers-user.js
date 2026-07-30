@@ -1,4 +1,5 @@
 import { isValidHttpUrl, mergeToolServer } from './tool-servers-utils.js';
+import { parseJsonObject } from '../utils/json.js';
 
 async function ensureUserToolServersTable(db) {
   await db.run(
@@ -16,19 +17,8 @@ async function ensureUserToolServersTable(db) {
   );
 }
 
-function parseToolServerJson(raw) {
-  if (!raw) return null;
-  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
-  try {
-    const parsed = JSON.parse(String(raw));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function normalizeUserToolServerRecord(raw, userId = '') {
-  const parsed = parseToolServerJson(raw);
+  const parsed = parseJsonObject(raw);
   if (!parsed) return null;
   const merged = mergeToolServer(null, parsed);
   if (!merged.url) return null;
@@ -53,7 +43,7 @@ export async function loadUserToolServers(db, userId) {
   return (Array.isArray(rows) ? rows : [])
     .map((row) =>
       normalizeUserToolServerRecord(
-        { ...(parseToolServerJson(row.server_json) || {}), id: row.id, user_id: row.user_id },
+        { ...(parseJsonObject(row.server_json) || {}), id: row.id, user_id: row.user_id },
         row.user_id
       )
     )
@@ -71,7 +61,7 @@ export async function getUserToolServer(db, userId, serverId) {
   );
   if (!row) return null;
   return normalizeUserToolServerRecord(
-    { ...(parseToolServerJson(row.server_json) || {}), id: row.id, user_id: row.user_id },
+    { ...(parseJsonObject(row.server_json) || {}), id: row.id, user_id: row.user_id },
     row.user_id
   );
 }

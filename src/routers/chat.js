@@ -19,6 +19,7 @@ import { recordAttachmentCapabilityFailure } from '../chat/attachments.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { SseLineParser, streamLLM } from '../llm.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
+import { pickToolBaseFields } from '../shared/tool-servers-shared.js';
 import { MessageQueueDO } from '../durable/message-queue.js';
 import { chatCollectionRouter } from './chat-collection.js';
 import { chatMessageRouter } from './chat-message.js';
@@ -50,9 +51,7 @@ function serializeAllowedToolServers(servers = []) {
             String(tool?.name || '').trim()
         )
         .map((tool) => ({
-          name: String(tool.name || '').trim(),
-          title: String(tool.title || '').trim(),
-          description: String(tool.description || '').trim(),
+          ...pickToolBaseFields(tool),
           enabled: true,
           visible_for_user: tool.visible_for_user !== false,
           hidden_for_user: tool.hidden_for_user === true,
@@ -97,20 +96,11 @@ const assistantStreamRunner = createAssistantRunner({
   sleep,
   createLogger,
 });
+export async function chatRouter({ req, env, ctx, user, path }) {
+  if (!isChatPath(path)) return null;
 
-export async function chatRouter(req, env, ctx, user, path, _requestContext = {}) {
-  const isChatPath =
-    path === '/api/chats' ||
-    path === '/api/tool-servers' ||
-    path === '/api/chats/shared' ||
-    path === '/api/chats/archived' ||
-    /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(
-      path
-    );
-  if (!isChatPath) return null;
-
-  const unauthorized = requireAuth(req, user);
-  if (unauthorized) return unauthorized;
+  const authorized = requireAuth(req, user);
+  if (authorized) return authorized;
 
   const db = createDB(env.DB);
   const originSessionId = getOriginSessionId(req);
@@ -120,7 +110,14 @@ export async function chatRouter(req, env, ctx, user, path, _requestContext = {}
     return json(req, { servers: serializeAllowedToolServers(servers) });
   }
 
-  const collectionResponse = await chatCollectionRouter(req, env, user, path, originSessionId, db);
+  const collectionResponse = await chatCollectionRouter({
+    req,
+    env,
+    user,
+    path,
+    originSessionId,
+    db,
+  });
   if (collectionResponse) return collectionResponse;
 
   const messageResponse = await chatMessageRouter({
@@ -136,6 +133,18 @@ export async function chatRouter(req, env, ctx, user, path, _requestContext = {}
   if (messageResponse) return messageResponse;
 
   return null;
+}
+
+function isChatPath(path) {
+  return (
+    path === '/api/chats' ||
+    path === '/api/tool-servers' ||
+    path === '/api/chats/shared' ||
+    path === '/api/chats/archived' ||
+    /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(
+      path
+    )
+  );
 }
 
 export class RealtimeHubDO extends MessageQueueDO {}

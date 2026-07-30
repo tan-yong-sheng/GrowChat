@@ -85,6 +85,259 @@ export function prepareSendOptimisticUI({
  * optimistic state produced by prepareSendOptimisticUI so it can skip
  * re-running the synchronous setup.
  */
+
+const MAX_TITLE_SNIPPET_LENGTH = 60;
+const EMPTY_TITLE = 'New Chat';
+const FAILED_CONNECT_MESSAGE = 'Failed to connect to the server.';
+const TITLE_API_FAILURE_MESSAGE = 'Request failed.';
+
+function applyAssistantContentUpdate(messagesByChat, text, tempAssistantId) {
+  const currentMessages = [...(messagesByChat || [])];
+  const idx = currentMessages.findIndex((m) => String(m?.id || '') === String(tempAssistantId));
+  if (idx < 0) return currentMessages;
+  currentMessages[idx] = { ...currentMessages[idx], content: text, done: true };
+  return currentMessages;
+}
+
+function buildTitleSnippet(text) {
+  return String(text || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, MAX_TITLE_SNIPPET_LENGTH);
+}
+
+function resolveSelectedToolNames({ options, chatId, getDraftToolNames }) {
+  if (Array.isArray(options?.selectedToolNames)) {
+    return options.selectedToolNames.filter(Boolean);
+  }
+  const draft = getDraftToolNames(chatId);
+  if (Array.isArray(draft)) return draft.filter(Boolean);
+  return null;
+}
+
+function buildChatMessagePayload({ text, state, draftAttachments, selectedToolNames }) {
+  const attachmentIds = (draftAttachments || []).map((item) => item?.id).filter(Boolean);
+  const payload = {
+    message: text,
+    model: state.activeModelId || undefined,
+  };
+  if (attachmentIds.length) payload.attachments = attachmentIds;
+  if (selectedToolNames !== null) payload.selected_tool_names = selectedToolNames;
+  return payload;
+}
+
+async function promoteTempChat({ ctx }) {
+  const {
+    optimisticState,
+    state,
+    setState,
+    apiFetch,
+    currentLeafByChatId,
+    streamingOverrideByChat,
+    syncChatUrl,
+  } = ctx;
+  const { optimistic } = optimisticState;
+  if (!optimistic?.tempChatId) return optimisticState.chatId;
+  const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
+  const payload = modelToUse ? { model: modelToUse } : {};
+  try {
+    const res = await apiFetch('/api/chats', { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) {
+      rollbackOptimisticConversation({
+        state,
+        setState,
+        tempChatId: optimistic.tempChatId,
+        isTempChatId: ctx.isTempChatId,
+      });
+      return null;
+    }
+    const data = await res.json();
+    return promoteOptimisticConversation({
+      state,
+      setState,
+      tempChatId: optimistic.tempChatId,
+      realChat: data.chat,
+      currentLeafByChatId,
+      streamingOverrideByChat,
+      syncChatUrl,
+    });
+  } catch {
+    rollbackOptimisticConversation({
+      state,
+      setState,
+      tempChatId: optimistic.tempChatId,
+      isTempChatId: ctx.isTempChatId,
+    });
+    return null;
+  }
+}
+
+function shouldAutoTitleChat({ state, chatId, hadMessagesBefore, optimisticAutoTitle }) {
+  if (optimisticAutoTitle) return false;
+  if (hadMessagesBefore) return false;
+  const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
+  if (!existingChat) return true;
+  return !existingChat.title || existingChat.title === EMPTY_TITLE;
+}
+
+async function applyAutoTitleIfNeeded({ ctx, text, chatId }) {
+  const { optimisticState, state, apiFetch, updateChatTitleLocal } = ctx;
+  if (
+    !shouldAutoTitleChat({
+      state,
+      chatId,
+      hadMessagesBefore: optimisticState.hadMessagesBefore,
+      optimisticAutoTitle: optimisticState.optimistic?.autoTitle,
+    })
+  ) {
+    return;
+  }
+  const snippet = buildTitleSnippet(text);
+  if (!snippet) return;
+  updateChatTitleLocal(chatId, snippet);
+  if (!String(chatId).startsWith('temp-')) {
+    apiFetch(`/api/chats/${chatId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title: snippet }),
+    }).catch(() => {});
+  }
+}
+
+function createAbortControllerWithHandlers({ ctx, hooks }) {
+  const controller = new AbortController();
+  const abortHandler = () => controller.abort();
+  ctx.setActiveStreamAbort(abortHandler);
+  ctx.setGlobalStreamAbort(abortHandler);
+  hooks.onAbortable?.(abortHandler);
+  return { controller, abortHandler };
+}
+
+function buildFinishEarly({ ctx, chatId, hooks, abortHandler }) {
+  return () => {
+    ctx.clearGlobalStreamAbort(abortHandler);
+    ctx.setActiveStreamAbort(null);
+    ctx.setStreamingState(chatId, false);
+    hooks.onFinished?.();
+  };
+}
+
+function buildCommitPartialStreamText({ ctx, chatId, tempAssistantId, getStreamState }) {
+  return () => {
+    const st = getStreamState();
+    const text = String(st.assistantText || '').trim();
+    if (!text || !tempAssistantId) return;
+    const currentMessages = applyAssistantContentUpdate(
+      ctx.state.messagesByChat[chatId],
+      text,
+      tempAssistantId
+    );
+    ctx.setState((prev) => ({
+      messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
+    }));
+    ctx.streamingOverrideByChat.delete(chatId);
+  };
+}
+
+function buildStreamHandlerDeps({ ctx, chatId, tempAssistantId, tempUserId, getStreamState }) {
+  return {
+    chatId,
+    tempAssistantId,
+    tempUserId,
+    replaceTempMessageId: ctx.replaceTempMessageId,
+    applyAssistantText: (streaming = true) => {
+      const s = getStreamState();
+      applyStreamingAssistantText({
+        state: ctx.state,
+        setState: ctx.setState,
+        streamingOverrideByChat: ctx.streamingOverrideByChat,
+        updateMessageContentDom: ctx.updateMessageContentDom,
+        chatId,
+        messageId: s.assistantMessageId,
+        assistantText: s.assistantText,
+        errorActive: s.errorActive,
+        errorMessage: s.errorMessage,
+        streaming,
+      });
+    },
+    ensureThinkingBlock: ctx.ensureThinkingBlock,
+    appendBlock: ctx.appendBlock,
+    updateToolCallState: ctx.updateToolCallState,
+    notePayloadSeq: ctx.notePayloadSeq,
+    thinkingStartByMessageId: ctx.thinkingStartByMessageId,
+    thinkingDurationByMessageId: ctx.thinkingDurationByMessageId,
+    thinkingActiveByMessageId: ctx.thinkingActiveByMessageId,
+    toolCallsByMessageId: ctx.toolCallsByMessageId,
+    messageBlocksById: ctx.messageBlocksById,
+    resolveTempMessageId: ctx.resolveTempMessageId,
+    onUserMessageStart: (cId, nextId) => {
+      ctx.currentLeafByChatId.set(cId, nextId);
+    },
+    onAssistantMessageStart: (cId, msgId) => {
+      ctx.currentLeafByChatId.set(cId, msgId);
+    },
+    errorStrategy: 'append',
+  };
+}
+
+function buildFinalizeDeps({ ctx, chatId, tempUserId, getStreamState }) {
+  return {
+    getStreamState,
+    thinkingStartByMessageId: ctx.thinkingStartByMessageId,
+    thinkingDurationByMessageId: ctx.thinkingDurationByMessageId,
+    thinkingActiveByMessageId: ctx.thinkingActiveByMessageId,
+    applyStreamingAssistantText,
+    state: ctx.state,
+    setState: ctx.setState,
+    streamingOverrideByChat: ctx.streamingOverrideByChat,
+    updateMessageContentDom: ctx.updateMessageContentDom,
+    chatId,
+    buildFallbackAssistantMessage: ctx.buildFallbackAssistantMessage,
+    resolveTempMessageId: ctx.resolveTempMessageId,
+    tempUserId,
+    loadMessages: ctx.loadMessages,
+    activeModelId: ctx.state.activeModelId,
+    activeChatId: ctx.state.activeChatId,
+  };
+}
+
+function buildHandleCatchDeps({ ctx, chatId, tempUserId, getStreamState }) {
+  return {
+    getStreamState,
+    applyStreamingAssistantText,
+    state: ctx.state,
+    setState: ctx.setState,
+    streamingOverrideByChat: ctx.streamingOverrideByChat,
+    updateMessageContentDom: ctx.updateMessageContentDom,
+    chatId,
+    buildFallbackAssistantMessage: ctx.buildFallbackAssistantMessage,
+    resolveTempMessageId: ctx.resolveTempMessageId,
+    tempUserId,
+    loadMessages: ctx.loadMessages,
+    activeModelId: ctx.state.activeModelId,
+    activeChatId: ctx.state.activeChatId,
+  };
+}
+
+async function postChatMessageRequest({ ctx, chatId, text, signal }) {
+  const { state, apiFetch, draftAttachments, getDraftToolNames, options } = ctx;
+  const selectedToolNames = resolveSelectedToolNames({ options, chatId, getDraftToolNames });
+  const payload = buildChatMessagePayload({ text, state, draftAttachments, selectedToolNames });
+  return apiFetch(`/api/chats/${chatId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+async function parseErrorResponse(res, formatApiErrorMessage) {
+  try {
+    const errPayload = await res.json();
+    return formatApiErrorMessage(errPayload, FAILED_CONNECT_MESSAGE) || FAILED_CONNECT_MESSAGE;
+  } catch {
+    return FAILED_CONNECT_MESSAGE;
+  }
+}
+
 export async function startChatSendMessageWithOptimistic({
   text,
   hooks = {},
@@ -115,7 +368,7 @@ export async function startChatSendMessageWithOptimistic({
   updateToolCallState = () => {},
   notePayloadSeq = () => {},
   buildFallbackAssistantMessage = () => null,
-  formatApiErrorMessage = (_, fallback) => fallback || 'Request failed.',
+  formatApiErrorMessage = (_, fallback) => fallback || TITLE_API_FAILURE_MESSAGE,
   updateMessageContentDom = () => {},
   applyAssistantErrorMessage = () => {},
   loadMessages = async () => {},
@@ -128,142 +381,94 @@ export async function startChatSendMessageWithOptimistic({
   replaceTempMessageId = () => {},
   resolveTempMessageId = (_, id) => id,
 } = {}) {
-  const {
-    optimistic = {},
-    chatId: optimisticChatId,
-    tempUserId,
-    tempAssistantId,
-    localMessages = [],
-    draftAttachments = [],
-  } = optimisticState || {};
-  let chatId = optimisticChatId;
-  let tempChatId = optimistic.tempChatId;
-  const hadMessagesBefore = optimistic.hadMessagesBefore;
-  const optimisticAutoTitle = optimistic.autoTitle || null;
+  const { tempUserId, tempAssistantId, draftAttachments = [] } = optimisticState || {};
+  const ctx = {
+    state,
+    setState,
+    apiFetch,
+    syncChatUrl,
+    drawMessages,
+    buildTempChat,
+    pruneTempChats,
+    getDraftAttachments,
+    getDraftToolNames,
+    setDraftAttachments,
+    updateChatTitleLocal,
+    currentLeafByChatId,
+    registerPendingTempMessage,
+    setBranchSelection,
+    streamingOverrideByChat,
+    setGlobalStreamAbort,
+    clearGlobalStreamAbort,
+    setStreamingState,
+    setActiveStreamAbort,
+    appendBlock,
+    ensureThinkingBlock,
+    updateToolCallState,
+    notePayloadSeq,
+    buildFallbackAssistantMessage,
+    formatApiErrorMessage,
+    updateMessageContentDom,
+    applyAssistantErrorMessage,
+    loadMessages,
+    thinkingStartByMessageId,
+    thinkingDurationByMessageId,
+    thinkingActiveByMessageId,
+    messageBlocksById,
+    toolCallsByMessageId,
+    isTempChatId,
+    replaceTempMessageId,
+    resolveTempMessageId,
+    options,
+    optimisticState,
+  };
 
-  if (tempChatId) {
-    try {
-      const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
-      const payload = modelToUse ? { model: modelToUse } : {};
-      const res = await apiFetch('/api/chats', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        rollbackOptimisticConversation({ state, setState, tempChatId, isTempChatId });
-        hooks.onFinished?.();
-        return;
-      }
-      const data = await res.json();
-      const realChatId = promoteOptimisticConversation({
-        state,
-        setState,
-        tempChatId,
-        realChat: data.chat,
-        currentLeafByChatId,
-        streamingOverrideByChat,
-        syncChatUrl,
-      });
-      chatId = realChatId;
-      if (optimisticAutoTitle) {
-        apiFetch(`/api/chats/${realChatId}`, {
-          method: 'PUT',
-          body: JSON.stringify({ title: optimisticAutoTitle }),
-        }).catch(() => {});
-      }
-    } catch {
-      rollbackOptimisticConversation({ state, setState, tempChatId, isTempChatId });
-      hooks.onFinished?.();
-      return;
-    }
-  }
-
-  if (!optimisticAutoTitle) {
-    const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
-    if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
-      const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
-      if (snippet) {
-        updateChatTitleLocal(chatId, snippet);
-        if (!String(chatId).startsWith('temp-')) {
-          apiFetch(`/api/chats/${chatId}`, {
-            method: 'PUT',
-            body: JSON.stringify({ title: snippet }),
-          }).catch(() => {});
-        }
-      }
-    }
-  }
-
-  const controller = new AbortController();
-  const abortHandler = () => controller.abort();
-  setActiveStreamAbort(abortHandler);
-  setGlobalStreamAbort(abortHandler);
-  hooks.onAbortable?.(abortHandler);
-
-  const finishEarly = () => {
-    clearGlobalStreamAbort(abortHandler);
-    setActiveStreamAbort(null);
-    setStreamingState(chatId, false);
+  let chatId = optimisticState?.chatId;
+  const promotedChatId = await promoteTempChat({ ctx });
+  if (promotedChatId === null) {
     hooks.onFinished?.();
-  };
-
-  const commitPartialStreamText = () => {
-    const st = getStreamState();
-    const text = String(st.assistantText || '').trim();
-    if (!text || !tempAssistantId) return;
-    const currentMessages = [...(state.messagesByChat[chatId] || [])];
-    const idx = currentMessages.findIndex((m) => String(m?.id || '') === String(tempAssistantId));
-    if (idx >= 0) {
-      const current = currentMessages[idx] || {};
-      currentMessages[idx] = {
-        ...current,
-        content: text,
-        done: true,
-      };
+    return;
+  }
+  if (optimisticState?.optimistic?.tempChatId) {
+    chatId = promotedChatId;
+    if (optimisticState.optimistic.autoTitle) {
+      apiFetch(`/api/chats/${promotedChatId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: optimisticState.optimistic.autoTitle }),
+      }).catch(() => {});
     }
-    setState((prev) => ({
-      messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
-    }));
-    streamingOverrideByChat.delete(chatId);
-  };
+  }
+
+  await applyAutoTitleIfNeeded({ ctx, text, chatId });
+
+  const { controller, abortHandler } = createAbortControllerWithHandlers({ ctx, hooks });
+  const finishEarly = buildFinishEarly({ ctx, chatId, hooks, abortHandler });
+  const { onEvent, onDelta, getStreamState } = createSseStreamHandlers(
+    buildStreamHandlerDeps({ ctx, chatId, tempAssistantId, tempUserId, getStreamState: () => ({}) })
+  );
+  const commitPartialStreamText = buildCommitPartialStreamText({
+    ctx,
+    chatId,
+    tempAssistantId,
+    getStreamState,
+  });
+
+  setStreamingState(chatId, true);
 
   let res;
-  setStreamingState(chatId, true);
   try {
-    const attachmentIds = (draftAttachments || []).map((item) => item?.id).filter(Boolean);
-    const selectedToolNames = Array.isArray(options.selectedToolNames)
-      ? options.selectedToolNames.filter(Boolean)
-      : Array.isArray(getDraftToolNames(chatId))
-        ? getDraftToolNames(chatId).filter(Boolean)
-        : null;
-    const payload = {
-      message: text,
-      model: state.activeModelId || undefined,
-      ...(attachmentIds.length ? { attachments: attachmentIds } : {}),
-      ...(selectedToolNames !== null ? { selected_tool_names: selectedToolNames } : {}),
-    };
-    res = await apiFetch(`/api/chats/${chatId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
+    res = await postChatMessageRequest({ ctx, chatId, text, signal: controller.signal });
   } catch (err) {
     if (err?.name !== 'AbortError') {
-      applyAssistantErrorMessage(chatId, tempAssistantId, 'Failed to connect to the server.');
+      ctx.applyAssistantErrorMessage(chatId, tempAssistantId, FAILED_CONNECT_MESSAGE);
     }
     finishEarly();
     return;
   }
 
   if (!res.ok || !res.body) {
-    let errorText = 'Failed to connect to the server.';
-    try {
-      const errPayload = await res.json();
-      errorText = formatApiErrorMessage(errPayload, errorText);
-    } catch {
-      // ignore response parse failure
-    }
-    applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
+    const errorText = await parseErrorResponse(res, ctx.formatApiErrorMessage);
+    ctx.applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
     finishEarly();
     return;
   }
@@ -272,86 +477,19 @@ export async function startChatSendMessageWithOptimistic({
     setDraftAttachments(chatId, []);
   }
 
-  const { onEvent, onDelta, getStreamState } = createSseStreamHandlers({
-    chatId,
-    tempAssistantId,
-    tempUserId,
-    replaceTempMessageId,
-    applyAssistantText: (streaming = true) => {
-      const s = getStreamState();
-      applyStreamingAssistantText({
-        state,
-        setState,
-        streamingOverrideByChat,
-        updateMessageContentDom,
-        chatId,
-        messageId: s.assistantMessageId,
-        assistantText: s.assistantText,
-        errorActive: s.errorActive,
-        errorMessage: s.errorMessage,
-        streaming,
-      });
-    },
-    ensureThinkingBlock,
-    appendBlock,
-    updateToolCallState,
-    notePayloadSeq,
-    thinkingStartByMessageId,
-    thinkingDurationByMessageId,
-    thinkingActiveByMessageId,
-    toolCallsByMessageId,
-    messageBlocksById,
-    resolveTempMessageId,
-    onUserMessageStart: (cId, nextId) => {
-      currentLeafByChatId.set(cId, nextId);
-    },
-    onAssistantMessageStart: (cId, msgId) => {
-      currentLeafByChatId.set(cId, msgId);
-    },
-    errorStrategy: 'append',
-  });
-
   try {
     await consumeSseTextStream(res.body, { onEvent, onDelta });
-    await finalizeStreamAndLoadMessages({
-      getStreamState,
-      thinkingStartByMessageId,
-      thinkingDurationByMessageId,
-      thinkingActiveByMessageId,
-      applyStreamingAssistantText,
-      state,
-      setState,
-      streamingOverrideByChat,
-      updateMessageContentDom,
-      chatId,
-      buildFallbackAssistantMessage,
-      resolveTempMessageId,
-      tempUserId,
-      loadMessages,
-      activeModelId: state.activeModelId,
-      activeChatId: state.activeChatId,
-    });
+    await finalizeStreamAndLoadMessages(
+      buildFinalizeDeps({ ctx, chatId, tempUserId, getStreamState })
+    );
   } catch (err) {
     if (err?.name === 'AbortError') {
       commitPartialStreamText();
     } else {
       console.error('Stream error:', err);
-      await handleStreamCatchError({
-        error: err,
-        getStreamState,
-        applyStreamingAssistantText,
-        state,
-        setState,
-        streamingOverrideByChat,
-        updateMessageContentDom,
-        chatId,
-        buildFallbackAssistantMessage,
-        resolveTempMessageId,
-        tempUserId,
-        loadMessages,
-        activeModelId: state.activeModelId,
-        activeChatId: state.activeChatId,
-      });
+      await handleStreamCatchError(
+        buildHandleCatchDeps({ ctx, chatId, tempUserId, getStreamState })
+      );
     }
   } finally {
     streamingOverrideByChat.delete(chatId);
@@ -366,21 +504,8 @@ export async function startChatSendMessageWithOptimistic({
  * Legacy entry point — creates optimistic UI inline then continues.
  * Kept for backward compatibility with existing tests.
  */
+
 export async function startChatSendMessage(params) {
-  const optimisticState = prepareSendOptimisticUI({
-    text: params.text,
-    state: params.state,
-    setState: params.setState,
-    buildTempChat: params.buildTempChat,
-    pruneTempChats: params.pruneTempChats,
-    syncChatUrl: params.syncChatUrl,
-    updateChatTitleLocal: params.updateChatTitleLocal,
-    isTempChatId: params.isTempChatId,
-    currentLeafByChatId: params.currentLeafByChatId,
-    registerPendingTempMessage: params.registerPendingTempMessage,
-    setBranchSelection: params.setBranchSelection,
-    drawMessages: params.drawMessages,
-    getDraftAttachments: params.getDraftAttachments,
-  });
+  const optimisticState = prepareSendOptimisticUI(params);
   return startChatSendMessageWithOptimistic({ ...params, optimisticState });
 }

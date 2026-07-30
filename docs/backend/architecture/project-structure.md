@@ -10,7 +10,6 @@ GrowChat/
 ├── migrations/             # D1 SQL migrations (forward-only)
 ├── docs/                   # This documentation
 ├── scripts/                # Dev/deploy scripts (init-local-db, test-e2e, seed-test-user, etc.)
-├── .claude/skills/         # Claude Code skills (gitnexus-exploring, etc.)
 ├── tests/e2e/fixtures/     # E2E auth state data
 ├── tests/e2e/artifacts/    # E2E screenshots, traces
 ├── coverage/               # Test coverage reports (generated)
@@ -137,7 +136,7 @@ public/
 tests/
 ├── unit/                   # Vitest unit tests
 ├── e2e/                    # Playwright E2E tests
-│   ├── frontend/          # auth, chat, admin-settings, connections, visual-regression, etc.
+│   ├── frontend/          # auth, chat, admin-settings, connections, etc.
 │   └── fixtures/          # auth-state.json (⚠️ contains real credentials — sanitize)
 ├── rbac.test.js            # RBAC design spec (not executable)
 └── rbac.integration.test.js # RBAC integration spec (not executable)
@@ -154,7 +153,6 @@ Test files in `src/`: `src/**/*.test.js` — colocated unit tests.
 - `chat.spec.ts` — Chat creation, messaging, streaming
 - `admin-settings.spec.ts` — Admin settings CRUD
 - `connections.spec.ts` — LLM connection management
-- `visual-regression.spec.ts` — Playwright `toHaveScreenshot()` baselines (desktop + mobile)
 - `accessibility.spec.ts` — axe-core a11y audits
 - `button-responsive.spec.ts` — Button responsive behavior tests
 
@@ -206,10 +204,8 @@ pnpm run test:watch       # Watch mode
 pnpm run test:coverage   # Coverage report
 pnpm run test:e2e        # E2E (via scripts/test-e2e.js: starts wrangler dev, seeds DB, runs Playwright)
 pnpm run test:e2e:ui     # Playwright UI mode
-pnpm run test:e2e:update-snapshots  # Update visual regression baselines
-pnpm run check:mutation  # Stryker mutation testing
-pnpm run prepush:checks  # Full pre-push gate (unit tests + typecheck + lint + scoped checks)
+pnpm run prepush         # Pre-push gate (typecheck + format:check + lint:hygiene + lint:dupes + lint:security + lint:flags)
 
 # Deployment
-pnpm run deploy           # predeploy: lint → format-check → test → coverage → build:css → validate migrations → wrangler deploy
+pnpm run deploy           # predeploy: typecheck → format:check → build:css → validate migrations → lint:hygiene → lint:dupes → lint:security → lint:flags → wrangler deploy
 ```

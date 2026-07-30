@@ -1,5 +1,26 @@
 import { getAuthState, getClientSessionId, refreshToken } from './api.js';
 
+// ── HTTP status codes ──
+const HTTP_STATUS_UNAUTHORIZED = 401;
+
+// ── Failure logging thresholds ──
+const LOG_FAILURE_THRESHOLD = 3;
+const LOG_FAILURE_MODULUS = 10;
+
+// ── SSE protocol constants ──
+const DATA_PREFIX_LENGTH = 5;
+
+// ── Event deduplication ──
+const DUPLICATE_TTL_MS = 120000;
+
+// ── Reconnection constants ──
+const MAX_RECONNECT_DELAY_MS = 60000;
+const MAX_BACKOFF_DELAY_MS = 30000;
+
+function stringField(value) {
+  return String(value || '');
+}
+
 class RealtimeClient {
   constructor(onEvent) {
     this.onEvent = onEvent;
@@ -13,69 +34,89 @@ class RealtimeClient {
     this.failureCount = 0;
   }
 
+  isRealtimeBlocked() {
+    return this.abortController || this.closedManually || this.disabled;
+  }
+
   async connect() {
-    if (this.abortController || this.closedManually || this.disabled) return;
+    if (this.isRealtimeBlocked()) return;
     if (this.connectingPromise) return this.connectingPromise;
-
-    this.connectingPromise = (async () => {
-      const auth = getAuthState();
-      const token = auth?.access_token;
-      if (!token) return;
-
-      this.abortController = new AbortController();
-
-      try {
-        const res = await fetch('/api/realtime/stream', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'text/event-stream',
-            'x-client-session-id': getClientSessionId(),
-          },
-          signal: this.abortController.signal,
-        });
-
-        if (res.status === 401 && auth?.refresh_token) {
-          const refreshed = await refreshToken(auth.refresh_token);
-          this.eventSource = null;
-          if (refreshed) {
-            this.scheduleReconnect(200);
-            return;
-          }
-        }
-
-        if (!res.ok || !res.body) {
-          if (res.status === 500) {
-            const errorText = await res.text().catch(() => '');
-            const isLocalhost =
-              window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            if (errorText.includes('Realtime binding missing') || isLocalhost) {
-              this.disabled = true;
-              this.closedManually = true;
-              return;
-            }
-          }
-          this.failureCount += 1;
-          throw new Error(`Realtime stream failed (${res.status})`);
-        }
-
-        this.reconnectDelayMs = 1000;
-        this.failureCount = 0;
-        await this.readSse(res.body);
-      } catch (err) {
-        if (err?.name !== 'AbortError') {
-          if (this.failureCount <= 3 || this.failureCount % 10 === 0) {
-            console.warn('Realtime client error:', String(err?.message || err));
-          }
-        }
-      } finally {
-        this.eventSource = null;
-        this.connectingPromise = null;
-        if (!this.closedManually && !this.disabled) this.scheduleReconnect();
-      }
-    })();
-
+    this.connectingPromise = this.runConnectLoop();
     return this.connectingPromise;
+  }
+
+  async runConnectLoop() {
+    const auth = getAuthState();
+    const token = auth?.access_token;
+    if (!token) return;
+
+    this.abortController = new AbortController();
+
+    try {
+      const res = await fetch('/api/realtime/stream', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'text/event-stream',
+          'x-client-session-id': getClientSessionId(),
+        },
+        signal: this.abortController.signal,
+      });
+
+      if (await this.tryHandleUnauthorized(res, auth)) return;
+      if (!res.ok || !res.body) {
+        if (await this.tryHandleServerError(res)) return;
+        this.failureCount += 1;
+        throw new Error(`Realtime stream failed (${res.status})`);
+      }
+
+      this.reconnectDelayMs = 1000;
+      this.failureCount = 0;
+      await this.readSse(res.body);
+    } catch (err) {
+      this.logConnectError(err);
+    } finally {
+      this.finishConnectAttempt();
+    }
+  }
+
+  async tryHandleUnauthorized(res, auth) {
+    if (res.status !== HTTP_STATUS_UNAUTHORIZED || !auth?.refresh_token) return false;
+    const refreshed = await refreshToken(auth.refresh_token);
+    this.eventSource = null;
+    if (refreshed) {
+      this.scheduleReconnect(200);
+      return true;
+    }
+    return false;
+  }
+
+  async tryHandleServerError(res) {
+    if (res.status !== 500) return false;
+    const errorText = await res.text().catch(() => '');
+    const isLocalhost =
+      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (errorText.includes('Realtime binding missing') || isLocalhost) {
+      this.disabled = true;
+      this.closedManually = true;
+      return true;
+    }
+    return false;
+  }
+
+  shouldLogFailure(count) {
+    return count <= LOG_FAILURE_THRESHOLD || count % LOG_FAILURE_MODULUS === 0;
+  }
+
+  logConnectError(err) {
+    if (err?.name === 'AbortError' || !this.shouldLogFailure(this.failureCount)) return;
+    console.warn('Realtime client error:', String(err?.message || err));
+  }
+
+  finishConnectAttempt() {
+    this.eventSource = null;
+    this.connectingPromise = null;
+    if (!this.closedManually && !this.disabled) this.scheduleReconnect();
   }
 
   async readSse(body) {
@@ -109,16 +150,16 @@ class RealtimeClient {
     }
   }
 
-  flushEvent(lines) {
-    if (!lines.length) return;
+  extractDataParts(lines) {
     const dataParts = [];
     for (const line of lines) {
       if (line.startsWith(':')) continue;
-      if (line.startsWith('data:')) dataParts.push(line.slice(5).trimStart());
+      if (line.startsWith('data:')) dataParts.push(line.slice(DATA_PREFIX_LENGTH).trimStart());
     }
-    if (!dataParts.length) return;
+    return dataParts;
+  }
 
-    const payloadText = dataParts.join('\n');
+  dispatchEventPayload(payloadText) {
     try {
       const payload = JSON.parse(payloadText);
       if (this.isDuplicateEvent(payload)) return;
@@ -128,30 +169,50 @@ class RealtimeClient {
     }
   }
 
-  isDuplicateEvent(payload) {
-    if (!payload || typeof payload !== 'object') return false;
-    const key = [
-      String(payload.type || ''),
-      String(payload.chat_id || ''),
-      String(payload.message_id || ''),
-      String(payload.user_id || ''),
-      String(payload.ts || ''),
-      String(payload?.data?.seq || ''),
-    ].join('|');
-    if (!key || key === '||||') return false;
+  flushEvent(lines) {
+    if (!lines.length) return;
+    const dataParts = this.extractDataParts(lines);
+    if (!dataParts.length) return;
+    this.dispatchEventPayload(dataParts.join('\n'));
+  }
 
+  buildEventKey(payload) {
+    if (!payload || typeof payload !== 'object') return '';
+    return [
+      stringField(payload.type),
+      stringField(payload.chat_id),
+      stringField(payload.message_id),
+      stringField(payload.user_id),
+      stringField(payload.ts),
+      stringField(payload.data?.seq),
+    ].join('|');
+  }
+
+  isKnownDuplicate(key) {
+    if (!key || key === '||||') return false;
+    const existing = this.seenEventKeys.get(key);
+    return existing && Date.now() - existing < DUPLICATE_TTL_MS;
+  }
+
+  compactEventKeysIfNeeded() {
+    if (this.seenEventKeys.size <= 1000) return;
     const now = Date.now();
     const ttlMs = 120000;
-    const existing = this.seenEventKeys.get(key);
-    if (existing && now - existing < ttlMs) return true;
-    this.seenEventKeys.set(key, now);
-
-    // Compact map opportunistically.
-    if (this.seenEventKeys.size > 1000) {
-      for (const [k, t] of this.seenEventKeys.entries()) {
-        if (now - t >= ttlMs) this.seenEventKeys.delete(k);
-      }
+    for (const [k, t] of this.seenEventKeys.entries()) {
+      if (now - t >= ttlMs) this.seenEventKeys.delete(k);
     }
+  }
+
+  recordEventKey(key) {
+    this.seenEventKeys.set(key, Date.now());
+    this.compactEventKeysIfNeeded();
+  }
+
+  isDuplicateEvent(payload) {
+    const key = this.buildEventKey(payload);
+    if (!key) return false;
+    if (this.isKnownDuplicate(key)) return true;
+    this.recordEventKey(key);
     return false;
   }
 
@@ -165,11 +226,11 @@ class RealtimeClient {
     const delay =
       forceDelayMs ??
       (this.failureCount > 0
-        ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), 60000)
+        ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), MAX_RECONNECT_DELAY_MS)
         : this.reconnectDelayMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 30000);
+      this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_BACKOFF_DELAY_MS);
       this.connect();
     }, delay);
   }

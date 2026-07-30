@@ -202,32 +202,45 @@ export function ensureMarkedReady({ timeoutMs = 1200, pollMs = 25 } = {}) {
   return markedReadyPromise;
 }
 
-export function renderMarkdownContent(content, options = {}) {
-  const normalized = normalizeMessageContent(content);
-  const specialSession = resolveSpecialBlockSession(
+function resolveMarkdownScope(options) {
+  return resolveSpecialBlockSession(
     options.specialBlockScope || options.chatId || options.threadId || ''
   );
-  const marked = globalThis?.window?.marked || globalThis?.marked;
-  if (marked && typeof marked.lexer === 'function') {
-    configureMarked();
-    const cacheKey = `${options.interactive === false ? '0' : '1'}:${options.streaming ? '1' : '0'}:${specialSession.scope}:${specialSession.mode}:${normalized}`;
-    const cached = markdownCache.get(cacheKey);
-    if (cached) {
-      touchMarkdownCache(cacheKey, cached);
-      if (!options.streaming && cached.includes('data-markdown-special-block'))
-        scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
-      return cached;
-    }
-    const html = renderWithMarked(marked, normalized, options);
-    touchMarkdownCache(cacheKey, html);
-    if (!options.streaming && html.includes('data-markdown-special-block'))
-      scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
-    return html;
-  }
-  const fallback = fallbackMarkdown(normalized);
-  if (!options.streaming && fallback.includes('data-markdown-special-block'))
+}
+
+function buildMarkdownCacheKey(options, specialSession, normalized) {
+  return `${options.interactive === false ? '0' : '1'}:${options.streaming ? '1' : '0'}:${specialSession.scope}:${specialSession.mode}:${normalized}`;
+}
+
+function applyMarkdownEnhancement(html, options) {
+  if (!options.streaming && html.includes('data-markdown-special-block')) {
     scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
-  return fallback;
+  }
+  return html;
+}
+
+function renderMarkdownFallback(normalized, options) {
+  const fallback = fallbackMarkdown(normalized);
+  return applyMarkdownEnhancement(fallback, options);
+}
+
+export function renderMarkdownContent(content, options = {}) {
+  const normalized = normalizeMessageContent(content);
+  const marked = globalThis?.window?.marked || globalThis?.marked;
+  if (!marked || typeof marked.lexer !== 'function') {
+    return renderMarkdownFallback(normalized, options);
+  }
+  configureMarked();
+  const specialSession = resolveMarkdownScope(options);
+  const cacheKey = buildMarkdownCacheKey(options, specialSession, normalized);
+  const cached = markdownCache.get(cacheKey);
+  if (cached) {
+    touchMarkdownCache(cacheKey, cached);
+    return applyMarkdownEnhancement(cached, options);
+  }
+  const html = renderWithMarked(marked, normalized, options);
+  touchMarkdownCache(cacheKey, html);
+  return applyMarkdownEnhancement(html, options);
 }
 
 export function resetMarkdownSpecialBlockState() {

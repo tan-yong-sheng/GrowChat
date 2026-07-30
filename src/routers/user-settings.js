@@ -1,24 +1,27 @@
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { createDB } from '../db.js';
 import { createLogger } from '../utils/logger.js';
 import { error, json } from '../utils/response.js';
 import { buildUserProfileResponse } from './user-profile.js';
 import { loadWorkspaceSettingsPayload } from '../services/workspace-settings.js';
 
-export async function userSettingsRouter(req, env, _ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const isUserSettingsPath =
-    path === '/api/users/me/settings' || path === '/api/users/me/settings/';
+function isUserSettingsPath(path) {
+  return path === '/api/users/me/settings' || path === '/api/users/me/settings/';
+}
 
-  if (!isUserSettingsPath) return null;
-  if (!user) return error(req, 'Unauthorized', 401);
+function isAccountPending(user) {
+  return user.account_status && user.account_status !== 'active';
+}
+export async function userSettingsRouter({ req, env, ctx: _ctx, user, path }) {
+  if (!isUserSettingsPath(path)) return null;
+  if (!user) return error(req, 'Unauthorized', HTTP_STATUS.UNAUTHORIZED);
 
-  if (user.account_status && user.account_status !== 'active') {
-    return error(req, 'Account pending approval.', 403);
+  if (isAccountPending(user)) {
+    return error(req, 'Account pending approval.', HTTP_STATUS.FORBIDDEN);
   }
 
   if (req.method !== 'GET') {
-    return error(req, 'Method not allowed', 405);
+    return error(req, 'Method not allowed', HTTP_STATUS.METHOD_NOT_ALLOWED);
   }
 
   const db = createDB(env.DB);
@@ -31,11 +34,12 @@ export async function userSettingsRouter(req, env, _ctx, user, path, requestCont
       route: 'account',
       profileResponseFactory: buildUserProfileResponse,
     });
-    if (!payload) return error(req, 'User not found', 404);
+    if (!payload) return error(req, 'User not found', HTTP_STATUS.NOT_FOUND);
 
     return json(req, payload);
   } catch (err) {
-    logger.error('Load user settings failed', { error: err?.message || err });
-    return error(req, 'Failed to load user settings', 500);
+    const log = createLogger(env, { requestId: crypto.randomUUID() });
+    log.error('Load user settings failed', { error: err?.message || err });
+    return error(req, 'Failed to load user settings', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

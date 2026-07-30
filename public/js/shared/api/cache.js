@@ -3,8 +3,8 @@ import { readStoredJson, removeStoredValue, writeStoredJson } from '../utils/sto
 const MODEL_CACHE_KEY_PREFIX = 'growchat_models_cache_v1_';
 const LEGACY_MODEL_CACHE_KEY = 'growchat_models_cache_v1';
 const CHAT_CACHE_KEY_PREFIX = 'growchat_chats_cache_v1_';
-const MODEL_CACHE_TTL_MS = 15 * 60 * 1000;
-const CHAT_CACHE_TTL_MS = 30 * 1000;
+const MODEL_CACHE_TTL_MS = 15 * 60 * 1000; // time constants
+const CHAT_CACHE_TTL_MS = 30 * 1000; // time constants
 
 function readCache(storageKey, maxAgeMs) {
   const parsed = readStoredJson(localStorage, storageKey, null);

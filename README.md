@@ -22,9 +22,8 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 - Admin panel for managing FAQs and documents
 - Citation tracking for LLM responses
 - Vector index management and reindexing
-- Comprehensive test suite (unit + E2E + mutation + visual regression)
-- Visual regression testing with Playwright native `toHaveScreenshot()`
-- CI quality gates (ESLint max-params, Stryker mutation score, jscpd, dependency-cruiser)
+- Comprehensive test suite (unit + E2E)
+- CI quality gates (type check, format check, ESLint, Fallow hygiene / dupes / security / flags)
 
 🚀 **Phase 3 (Planned)**
 
@@ -315,8 +314,7 @@ pnpm test                     # Unit tests (Vitest)
 pnpm run test:coverage        # Coverage report
 pnpm run test:e2e             # E2E tests (via scripts/test-e2e.js — starts wrangler dev, seeds DB, runs Playwright)
 pnpm run test:e2e:ui          # Playwright UI mode (interactive)
-pnpm run test:e2e:update-snapshots  # Update visual regression baselines
-pnpm run check:mutation       # Stryker mutation testing (threshold: 55% break)
+pnpm run test:e2e:update-snapshots  # Update E2E baselines
 ```
 
 ### Code Quality
@@ -327,13 +325,10 @@ pnpm run lint:fix                 # Auto-fix ESLint (fails on warnings with --ma
 pnpm run format                   # Prettier
 pnpm run format:check             # Check formatting
 pnpm run typecheck                # TypeScript guardrails
-pnpm run lint:logic:scoped        # Scoped ESLint logic checks
-pnpm run lint:dupes:scoped        # Scoped copy-paste detection (jscpd)
-pnpm run lint:dupes:budget        # jscpd budget check
-pnpm run arch:check:scoped        # Scoped dependency-cruiser check
-pnpm run format:check:scoped      # Scoped Prettier check
-pnpm run lint:hygiene             # knip dead file/dependency detection
-pnpm run prepush:checks           # Full pre-push gate (unit tests + typecheck + lint + all scoped checks)
+pnpm run lint:dupes:scoped        # Scoped duplication check
+pnpm run lint:dupes:budget        # Duplication budget check
+pnpm run lint:hygiene             # Dead code / dependency detection
+pnpm run prepush                  # Pre-push gate (typecheck + format + Fallow checks)
 ```
 
 ## Deployment Status
@@ -385,8 +380,8 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 - ✅ RAG context injection into LLM prompts
 - ✅ Citation tracking in messages
 - ✅ Admin panel with statistics and vector management
-- ✅ Comprehensive test suite (unit + E2E + mutation + visual regression)
-- ✅ CI quality gates (ESLint, Stryker, jscpd, dependency-cruiser)
+- ✅ Comprehensive test suite (unit + E2E)
+- ✅ CI quality gates (typecheck, format, ESLint, Fallow hygiene/dupes/security/flags)
 
 ### Phase 3 (Planned)
 

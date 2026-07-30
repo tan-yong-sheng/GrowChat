@@ -22,6 +22,35 @@ const mocks = vi.hoisted(() => ({
 
 let queryResponses;
 
+const FIRST_RESPONSES = [
+  {
+    match: (query) => query.includes('SELECT COUNT(*) as count FROM users'),
+    value: (responses) => responses.countUsers.shift() ?? null,
+  },
+  {
+    match: (query) => query.includes('SELECT value FROM app_config WHERE key = ?'),
+    value: (responses) => responses.appConfig.shift() ?? null,
+  },
+  {
+    match: (query) => query.includes('SELECT id FROM users WHERE email = ?'),
+    value: (responses) => responses.existingUser.shift() ?? null,
+  },
+  {
+    match: (query) => query.includes('SELECT * FROM users WHERE email = ?'),
+    value: (responses) => responses.loginUser.shift() ?? null,
+  },
+  {
+    match: (query) => query.includes('SELECT * FROM users WHERE id = ?'),
+    value: (responses) => responses.userById.shift() ?? null,
+  },
+];
+
+function mockFirstResponse(sql, responses) {
+  const query = String(sql || '');
+  const entry = FIRST_RESPONSES.find((r) => r.match(query));
+  return entry ? entry.value(responses) : null;
+}
+
 vi.mock('../db.js', () => ({
   createDB: () => mocks.db,
 }));
@@ -92,25 +121,7 @@ describe('authRouter', () => {
       loginUser: [],
       refreshUser: [],
     };
-    mocks.db.first.mockImplementation(async (sql) => {
-      const query = String(sql || '');
-      if (query.includes('SELECT COUNT(*) as count FROM users')) {
-        return queryResponses.countUsers.shift() ?? null;
-      }
-      if (query.includes('SELECT value FROM app_config WHERE key = ?')) {
-        return queryResponses.appConfig.shift() ?? null;
-      }
-      if (query.includes('SELECT id FROM users WHERE email = ?')) {
-        return queryResponses.existingUser.shift() ?? null;
-      }
-      if (query.includes('SELECT * FROM users WHERE email = ?')) {
-        return queryResponses.loginUser.shift() ?? null;
-      }
-      if (query.includes('SELECT * FROM users WHERE id = ?')) {
-        return queryResponses.userById.shift() ?? null;
-      }
-      return null;
-    });
+    mocks.db.first.mockImplementation(async (sql) => mockFirstResponse(sql, queryResponses));
     mocks.hashPassword.mockResolvedValue('pbkdf2:hash');
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.signJWT.mockResolvedValue('jwt-token');
@@ -710,25 +721,7 @@ describe('per-account brute-force protection', () => {
       loginUser: [],
       refreshUser: [],
     };
-    mocks.db.first.mockImplementation(async (sql) => {
-      const query = String(sql || '');
-      if (query.includes('SELECT COUNT(*) as count FROM users')) {
-        return queryResponses.countUsers.shift() ?? null;
-      }
-      if (query.includes('SELECT value FROM app_config WHERE key = ?')) {
-        return queryResponses.appConfig.shift() ?? null;
-      }
-      if (query.includes('SELECT id FROM users WHERE email = ?')) {
-        return queryResponses.existingUser.shift() ?? null;
-      }
-      if (query.includes('SELECT * FROM users WHERE email = ?')) {
-        return queryResponses.loginUser.shift() ?? null;
-      }
-      if (query.includes('SELECT * FROM users WHERE id = ?')) {
-        return queryResponses.userById.shift() ?? null;
-      }
-      return null;
-    });
+    mocks.db.first.mockImplementation(async (sql) => mockFirstResponse(sql, queryResponses));
     mocks.hashPassword.mockResolvedValue('pbkdf2:hash');
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.signJWT.mockResolvedValue('jwt-token');

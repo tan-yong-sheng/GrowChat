@@ -52,6 +52,25 @@ vi.mock('../../public/js/shared/utils/connection-model-selection.js', () => ({
   },
 }));
 
+function extractManualModelId(item) {
+  return String(item?.modelId || item?.id || item?.name || item || '').trim();
+}
+
+function stripModelsPrefix(rawId) {
+  return rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId;
+}
+
+function buildManualModelEntry(item, safeId) {
+  const name = String(item?.name || safeId).trim() || safeId;
+  return { modelId: safeId, name };
+}
+
+function normalizeManualModel(item) {
+  const rawId = extractManualModelId(item);
+  if (!rawId) return null;
+  return buildManualModelEntry(item, stripModelsPrefix(rawId));
+}
+
 // Mock connections-utils
 vi.mock('./connections-utils.js', () => ({
   normalizeBaseUrl: (url) => (url ? String(url).trim().replace(/\/$/, '') : ''),
@@ -81,14 +100,7 @@ vi.mock('./connections-utils.js', () => ({
   },
   normalizeConnectionManualModels: (value = []) => {
     if (!Array.isArray(value)) return [];
-    return value
-      .map((item) => {
-        const rawId = String(item?.modelId || item?.id || item?.name || item || '').trim();
-        if (!rawId) return null;
-        const safeId = rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId;
-        return { modelId: safeId, name: String(item?.name || safeId).trim() || safeId };
-      })
-      .filter(Boolean);
+    return value.map(normalizeManualModel).filter(Boolean);
   },
   getConnectionApiType: (pt) => {
     if (pt === 'google') return 'stream-generate-content';

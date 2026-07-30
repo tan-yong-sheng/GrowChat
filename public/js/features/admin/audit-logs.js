@@ -169,14 +169,22 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
   const limit = 50;
   let filters = { userId: '', action: '' };
 
+  function appendAuditLogFilters(params, activeFilters) {
+    if (activeFilters.userId) params.append('userId', activeFilters.userId);
+    if (activeFilters.action) params.append('action', activeFilters.action);
+  }
+
+  function parseAuditLogsError(res) {
+    return res.json().catch(() => ({}));
+  }
+
   async function loadLogs() {
     const params = new URLSearchParams({ limit, offset: (page - 1) * limit });
-    if (filters.userId) params.append('userId', filters.userId);
-    if (filters.action) params.append('action', filters.action);
+    appendAuditLogFilters(params, filters);
 
     const res = await apiFetch(`/api/admin/audit-logs?${params}`);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = await parseAuditLogsError(res);
       throw new Error(data.error || 'Failed to load audit logs');
     }
     return res.json();
@@ -230,6 +238,38 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
       </div>
     `;
 
+    /**
+     * Load logs and render into content element with pagination
+     * @param {HTMLElement} contentEl - Content container element
+     * @param {Function} [onError] - Optional error handler
+     * @returns {Promise<void>}
+     */
+    async function loadAndRenderContent(contentEl, onError) {
+      try {
+        const data = await loadLogs();
+        if (contentEl) {
+          contentEl.innerHTML = renderAuditTable(data.logs);
+          appendPaginationIfNeeded(contentEl, data);
+        }
+      } catch (err) {
+        if (onError) onError(err);
+        else throw err;
+      }
+    }
+
+    function appendPaginationIfNeeded(contentEl, data) {
+      if (data.logs.length !== limit && page <= 1) return;
+      const paginationEl = renderPagination(
+        page,
+        Math.ceil(data.total / limit) || 1,
+        async (newPage) => {
+          page = newPage;
+          await refreshContent();
+        }
+      );
+      contentEl.appendChild(paginationEl);
+    }
+
     // Bind filter handlers
     container.querySelector('#apply-filters')?.addEventListener('click', async () => {
       const userInput = container.querySelector('#filter-user');
@@ -239,27 +279,9 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
       filters.action = actionSelect?.value || '';
       page = 1;
 
-      try {
-        const data = await loadLogs();
-        const contentEl = container.querySelector('.audit-content');
-        if (contentEl) {
-          contentEl.innerHTML = renderAuditTable(data.logs);
-
-          // Add pagination if we have more than limit
-          if (data.logs.length === limit || page > 1) {
-            const paginationEl = renderPagination(
-              page,
-              Math.ceil(data.total / limit) || 1,
-              async (newPage) => {
-                page = newPage;
-                await refreshContent();
-              }
-            );
-            contentEl.appendChild(paginationEl);
-          }
-        }
-      } catch (err) {
-        showToast?.(err.message, 'error');
+      const contentEl = container.querySelector('.audit-content');
+      if (contentEl) {
+        await loadAndRenderContent(contentEl, (err) => showToast?.(err.message, 'error'));
       }
     });
 
@@ -303,36 +325,19 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
         contentEl.innerHTML = renderTableSkeleton(5);
       }
 
-      try {
-        const data = await loadLogs();
-        if (contentEl) {
-          contentEl.innerHTML = renderAuditTable(data.logs);
-
-          if (data.logs.length === limit || page > 1) {
-            const paginationEl = renderPagination(
-              page,
-              Math.ceil(data.total / limit) || 1,
-              async (newPage) => {
-                page = newPage;
-                await refreshContent();
-              }
-            );
-            contentEl.appendChild(paginationEl);
-          }
-        }
-      } catch {
+      await loadAndRenderContent(contentEl, () => {
         if (contentEl) {
           contentEl.innerHTML = `
-            <div class="error-state text-center py-8 bg-red-50 rounded-lg">
-              <i class="bi bi-exclamation-triangle text-3xl text-red-400 mb-2"></i>
-              <p class="text-red-700">Failed to load audit logs</p>
-              <button class="btn-secondary mt-4" id="retry-load">Try again</button>
-            </div>
-          `;
+              <div class="error-state text-center py-8 bg-red-50 rounded-lg">
+                <i class="bi bi-exclamation-triangle text-3xl text-red-400 mb-2"></i>
+                <p class="text-red-700">Failed to load audit logs</p>
+                <button class="btn-secondary mt-4" id="retry-load">Try again</button>
+              </div>
+            `;
 
           container.querySelector('#retry-load')?.addEventListener('click', refreshContent);
         }
-      }
+      });
     }
 
     // Initial load
@@ -358,15 +363,16 @@ function generateCsv(logs) {
     'IP Address',
     'Details',
   ];
-  const rows = logs.map((log) => [
-    formatTimestamp(log.created_at),
-    log.user_email || log.user_id || 'System',
-    log.action,
-    log.resource_type || '',
-    log.resource_id || '',
-    log.ip_address || '',
-    log.details ? JSON.stringify(log.details) : '',
-  ]);
+  const rowFields = [
+    (log) => formatTimestamp(log.created_at),
+    (log) => log.user_email || log.user_id || 'System',
+    (log) => log.action,
+    (log) => log.resource_type || '',
+    (log) => log.resource_id || '',
+    (log) => log.ip_address || '',
+    (log) => (log.details ? JSON.stringify(log.details) : ''),
+  ];
+  const rows = logs.map((log) => rowFields.map((fn) => fn(log)));
 
   return [
     headers.join(','),

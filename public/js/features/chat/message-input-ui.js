@@ -6,6 +6,78 @@
 import { state } from '../../shared/store.js';
 import { showToast } from '../../shared/utils.js';
 
+async function createScreenCaptureVideo(stream) {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+  await new Promise((resolve, reject) => {
+    const cleanup = () => {
+      video.removeEventListener('loadedmetadata', onReady);
+      video.removeEventListener('error', onError);
+    };
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Unable to load capture stream'));
+    };
+    video.addEventListener('loadedmetadata', onReady, { once: true });
+    video.addEventListener('error', onError, { once: true });
+  });
+  await video.play().catch(() => {});
+  return video;
+}
+
+function stopMediaStream(stream) {
+  if (stream) stream.getTracks().forEach((track) => track.stop());
+}
+
+function getVideoTrackSettings(track) {
+  return typeof track?.getSettings === 'function' ? track.getSettings() : {};
+}
+
+function resolveCaptureDimensions(video, settings) {
+  return {
+    width: video.videoWidth || settings.width || 0,
+    height: video.videoHeight || settings.height || 0,
+  };
+}
+
+function requirePositiveDimensions(width, height) {
+  if (!width || !height) {
+    throw new Error('Unable to capture screen');
+  }
+}
+
+function requireCanvasContext(canvas) {
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to capture screen');
+  return context;
+}
+
+async function createPngBlob(canvas) {
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('Unable to capture screen');
+  return blob;
+}
+
+async function createImageFileFromVideo(video, stream) {
+  const track = stream.getVideoTracks()[0];
+  const settings = getVideoTrackSettings(track);
+  const { width, height } = resolveCaptureDimensions(video, settings);
+  requirePositiveDimensions(width, height);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = requireCanvasContext(canvas);
+  context.drawImage(video, 0, 0, width, height);
+  const blob = await createPngBlob(canvas);
+  return new File([blob], `screen-capture-${Date.now()}.png`, { type: 'image/png' });
+}
+
 export function createMessageInputUi({
   container,
   attachmentList,
@@ -59,45 +131,8 @@ export function createMessageInputUi({
         video: { cursor: 'never' },
         audio: false,
       });
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-      await new Promise((resolve, reject) => {
-        const cleanup = () => {
-          video.removeEventListener('loadedmetadata', onReady);
-          video.removeEventListener('error', onError);
-        };
-        const onReady = () => {
-          cleanup();
-          resolve();
-        };
-        const onError = () => {
-          cleanup();
-          reject(new Error('Unable to load capture stream'));
-        };
-        video.addEventListener('loadedmetadata', onReady, { once: true });
-        video.addEventListener('error', onError, { once: true });
-      });
-      await video.play().catch(() => {});
-      const track = stream.getVideoTracks()[0];
-      const settings = typeof track?.getSettings === 'function' ? track.getSettings() : {};
-      const width = video.videoWidth || settings.width || 0;
-      const height = video.videoHeight || settings.height || 0;
-      if (!width || !height) {
-        throw new Error('Unable to capture screen');
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Unable to capture screen');
-      context.drawImage(video, 0, 0, width, height);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('Unable to capture screen');
-      const file = new File([blob], `screen-capture-${Date.now()}.png`, {
-        type: 'image/png',
-      });
+      const video = await createScreenCaptureVideo(stream);
+      const file = await createImageFileFromVideo(video, stream);
       dispatchSelectedFiles([file]);
     } catch (error) {
       const name = String(error?.name || '');
@@ -105,9 +140,7 @@ export function createMessageInputUi({
         showToast('Screen capture failed.');
       }
     } finally {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+      stopMediaStream(stream);
     }
   };
 

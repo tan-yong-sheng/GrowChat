@@ -13,6 +13,7 @@ import {
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 import { createLogger } from '../utils/logger.js';
+import { loadUserGroupIdsFromDb } from '../shared/tool-servers-shared.js';
 import {
   normalizeBaseUrl,
   ensureConnectionId,
@@ -96,6 +97,37 @@ function normalizeConnectionModelItems(payload) {
   return [];
 }
 
+function normalizeUserGroupIds(input) {
+  if (input instanceof Set) {
+    return new Set(
+      Array.from(input)
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    );
+  }
+  if (Array.isArray(input)) {
+    return new Set(input.map((value) => String(value || '').trim()).filter(Boolean));
+  }
+  return null;
+}
+
+async function loadUserOpenAIConnectionsForEnv(env, { userId, includeDisabled, logger }) {
+  if (!userId || !env?.DB) return [];
+  try {
+    const db = createDB(env.DB);
+    return await loadUserOpenAIConnectionConfigs({
+      db,
+      userId,
+      options: { includeDisabled },
+    });
+  } catch (err) {
+    logger.warn('Failed to load user-owned connections', {
+      error: err?.message || err,
+    });
+    return [];
+  }
+}
+
 function appendDiscoveryCandidate(urls, candidate) {
   const normalized = normalizeBaseUrl(candidate);
   if (!normalized || urls.includes(normalized)) return;
@@ -119,6 +151,37 @@ function maybeUpgradeDiscoveryBaseUrl(url) {
   }
 }
 
+function addGoogleDiscoveryUrls(candidateBaseUrl, add) {
+  if (candidateBaseUrl.endsWith('/v1beta') || candidateBaseUrl.endsWith('/v1')) {
+    add(candidateBaseUrl, '/models');
+    return;
+  }
+  add(candidateBaseUrl, '/v1beta/models');
+  add(candidateBaseUrl, '/models');
+  add(candidateBaseUrl, '/v1/models');
+}
+
+function addAnthropicDiscoveryUrls(candidateBaseUrl, add) {
+  if (candidateBaseUrl.endsWith('/v1')) {
+    add(candidateBaseUrl, '/models');
+    return;
+  }
+  add(candidateBaseUrl, '/v1/models');
+  add(candidateBaseUrl, '/models');
+}
+
+function addDefaultDiscoveryUrls(candidateBaseUrl, add) {
+  add(candidateBaseUrl, '/models');
+  if (!candidateBaseUrl.endsWith('/v1') && !candidateBaseUrl.endsWith('/v1beta')) {
+    add(candidateBaseUrl, '/v1/models');
+  }
+}
+
+const DISCOVERY_URL_BUILDERS = {
+  google: addGoogleDiscoveryUrls,
+  anthropic: addAnthropicDiscoveryUrls,
+};
+
 export function getConnectionModelDiscoveryUrls(connection = {}) {
   const baseUrl = normalizeBaseUrl(connection.baseUrl || connection.url || '');
   if (!baseUrl) return [];
@@ -132,33 +195,8 @@ export function getConnectionModelDiscoveryUrls(connection = {}) {
     appendDiscoveryCandidate(urls, `${candidateBaseUrl}${path}`);
 
   for (const candidateBaseUrl of baseCandidates) {
-    switch (family) {
-      case 'google':
-        if (candidateBaseUrl.endsWith('/v1beta')) {
-          add(candidateBaseUrl, '/models');
-        } else if (candidateBaseUrl.endsWith('/v1')) {
-          add(candidateBaseUrl, '/models');
-        } else {
-          add(candidateBaseUrl, '/v1beta/models');
-          add(candidateBaseUrl, '/models');
-          add(candidateBaseUrl, '/v1/models');
-        }
-        break;
-      case 'anthropic':
-        if (candidateBaseUrl.endsWith('/v1')) {
-          add(candidateBaseUrl, '/models');
-        } else {
-          add(candidateBaseUrl, '/v1/models');
-          add(candidateBaseUrl, '/models');
-        }
-        break;
-      default:
-        add(candidateBaseUrl, '/models');
-        if (!candidateBaseUrl.endsWith('/v1') && !candidateBaseUrl.endsWith('/v1beta')) {
-          add(candidateBaseUrl, '/v1/models');
-        }
-        break;
-    }
+    const builder = DISCOVERY_URL_BUILDERS[family] || addDefaultDiscoveryUrls;
+    builder(candidateBaseUrl, add);
   }
   return urls;
 }
@@ -191,6 +229,61 @@ export async function discoverConnectionModels(connection = {}, options = {}) {
   return { url: null, items: [], payload: null, error: lastError };
 }
 
+function resolveConnectionProviderFamily(conn) {
+  return normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
+}
+
+function resolveConnectionProviderType(conn, providerFamily) {
+  return String(conn.providerType || providerFamily).toLowerCase();
+}
+
+function resolveConnectionName(conn, providerFamily) {
+  return String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120);
+}
+
+function resolveConnectionApiType(conn, providerFamily) {
+  return getConnectionApiType(conn.providerType || providerFamily);
+}
+
+function resolveConnectionManualModelsMode(conn) {
+  return (
+    normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all'
+  );
+}
+
+function buildConnectionRecord(conn, ctx) {
+  const { url, headers, providerFamily, id, providerType } = ctx;
+  return {
+    id,
+    name: resolveConnectionName(conn, providerFamily),
+    baseUrl: url,
+    key: String(conn.key || '').trim(),
+    headers,
+    source: 'config',
+    enabled: conn.enabled !== false,
+    providerType,
+    providerFamily,
+    providerId: buildProviderId({ id, providerType, providerFamily }),
+    authType: normalizeAuthType(conn.authType),
+    apiType: resolveConnectionApiType(conn, providerFamily),
+    manualModels: normalizeConnectionManualModels(conn.manualModels),
+    manualModelsMode: resolveConnectionManualModelsMode(conn),
+  };
+}
+
+function normalizeConnection(conn, index) {
+  const url = normalizeBaseUrl(conn.url || '');
+  if (!url) return null;
+  const headers = safeParseHeaders(conn.headers);
+  const providerFamily = resolveConnectionProviderFamily(conn);
+  const id = ensureConnectionId(
+    { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
+    index
+  );
+  const providerType = resolveConnectionProviderType(conn, providerFamily);
+  return buildConnectionRecord(conn, { url, headers, providerFamily, id, providerType });
+}
+
 export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
   const logger = createLogger(env);
   const includeDisabled = options.includeDisabled === true;
@@ -202,44 +295,7 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    const normalized = parsed
-      .map((conn, index) => {
-        const url = normalizeBaseUrl(conn.url || '');
-        if (!url) return null;
-        const headers = safeParseHeaders(conn.headers);
-        const enabled = conn?.enabled !== false;
-        const providerFamily =
-          normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
-        const id = ensureConnectionId(
-          { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
-          index
-        );
-        const providerType = String(conn.providerType || providerFamily).toLowerCase();
-        return {
-          id,
-          name: String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120),
-          baseUrl: url,
-          key: String(conn.key || '').trim(),
-          headers,
-          source: 'config',
-          enabled,
-          providerType,
-          providerFamily,
-          providerId: buildProviderId({
-            id,
-            providerType,
-            providerFamily,
-          }),
-          authType: normalizeAuthType(conn.authType),
-          apiType: getConnectionApiType(conn.providerType || providerFamily),
-          manualModels: normalizeConnectionManualModels(conn.manualModels),
-          manualModelsMode:
-            normalizeConnectionModelSelectionMode(
-              conn.manualModelsMode || conn.manual_models_mode
-            ) || 'all',
-        };
-      })
-      .filter(Boolean);
+    const normalized = parsed.map(normalizeConnection).filter(Boolean);
 
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);
@@ -259,39 +315,14 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
       .trim()
       .toLowerCase() || 'member';
 
-  const providedUserGroupIds = (() => {
-    if (options.userGroupIds instanceof Set) {
-      return new Set(
-        Array.from(options.userGroupIds)
-          .map((value) => String(value || '').trim())
-          .filter(Boolean)
-      );
-    }
-    if (Array.isArray(options.userGroupIds)) {
-      return new Set(
-        options.userGroupIds.map((value) => String(value || '').trim()).filter(Boolean)
-      );
-    }
-    return null;
-  })();
+  const providedUserGroupIds = normalizeUserGroupIds(options.userGroupIds);
 
   const storedConnections = await getStoredOpenAIConnectionConfigs(env, { includeDisabled });
-  let userConnections = [];
-  if (userId && env?.DB) {
-    try {
-      const db = createDB(env.DB);
-      userConnections = await loadUserOpenAIConnectionConfigs({
-        db,
-        userId,
-        options: { includeDisabled },
-      });
-    } catch (err) {
-      logger.warn('Failed to load user-owned connections', {
-        error: err?.message || err,
-      });
-      userConnections = [];
-    }
-  }
+  const userConnections = await loadUserOpenAIConnectionsForEnv(env, {
+    userId,
+    includeDisabled,
+    logger,
+  });
 
   const combined = [...storedConnections, ...userConnections];
   if (!env?.DB || !userId) {
@@ -306,12 +337,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
 
     let userGroupIds = providedUserGroupIds;
     if (!userGroupIds) {
-      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [
-        userId,
-      ]);
-      userGroupIds = new Set(
-        (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
-      );
+      userGroupIds = await loadUserGroupIdsFromDb(db, userId);
     }
 
     const aclRules = await loadConnectionAclRules(db);

@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   buildModelAclIndex: vi.fn(),
   evaluateModelAclAccess: vi.fn(),
   splitModelScopeByUserVisibility: vi.fn(),
+  matchesModelQuery: vi.fn(),
+  parseModelListSearchParams: vi.fn(),
 }));
 
 vi.mock('../../db.js', () => ({
@@ -54,15 +56,36 @@ vi.mock('./models-helpers.js', () => ({
   getModelAccessMap: (...args) => mocks.getModelAccessMap(...args),
   loadModelAttachmentCaps: (...args) => mocks.loadModelAttachmentCaps(...args),
   getModelAttachmentCapsEntry: (...args) => mocks.getModelAttachmentCapsEntry(...args),
+  parseModelListSearchParams: (...args) => mocks.parseModelListSearchParams(...args),
 }));
 
 vi.mock('./models-discovery.js', () => ({
   fetchBaseModelsFromOpenAI: (...args) => mocks.fetchBaseModelsFromOpenAI(...args),
+  loadModels: async (env, logger, options) => {
+    let modelConnections;
+    let baseModels = [];
+    let customModels = [];
+    try {
+      modelConnections = await mocks.getAllOpenAIConnectionConfigs(env, options);
+      baseModels = await mocks.fetchBaseModelsFromOpenAI(env, modelConnections);
+    } catch (err) {
+      logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+        error: err.message,
+      });
+    }
+    try {
+      customModels = await mocks.loadCustomModels(env);
+    } catch (err) {
+      logger.warn('Failed to load custom models', { error: err.message });
+    }
+    return { baseModels, customModels };
+  },
   loadCustomModels: (...args) => mocks.loadCustomModels(...args),
   toPublicModel: (...args) => mocks.toPublicModel(...args),
   buildProviderStats: (...args) => mocks.buildProviderStats(...args),
   isOpenAIProvider: (...args) => mocks.isOpenAIProvider(...args),
   splitModelScopeByUserVisibility: (...args) => mocks.splitModelScopeByUserVisibility(...args),
+  matchesModelQuery: (...args) => mocks.matchesModelQuery(...args),
 }));
 
 import { handlePublicModelsList } from './models-public-list.js';
@@ -110,30 +133,45 @@ describe('handlePublicModelsList', () => {
       });
       return { visibleModels: visible, hiddenModels: hidden };
     });
+    mocks.matchesModelQuery.mockImplementation((model, query) => {
+      const fields = ['name', 'id', 'connection_name', 'provider'];
+      return fields.some((key) =>
+        String(model?.[key] || '')
+          .toLowerCase()
+          .includes(query)
+      );
+    });
+    mocks.parseModelListSearchParams.mockImplementation((params) => {
+      const limit = parseInt(params.get('limit') || '0', 10);
+      const offset = parseInt(params.get('offset') || '0', 10);
+      const rawQuery = params.get('q') || '';
+      const query = String(rawQuery).trim().toLowerCase();
+      return { limit, offset, query };
+    });
   });
 
   describe('GET /api/models', () => {
     it('returns models list without auth', async () => {
-      const res = await handlePublicModelsList(
-        makeReq('/api/models', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/models',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handlePublicModelsList({
+        req: makeReq('/api/models', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/models',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
     });
 
     it('works without user', async () => {
-      const res = await handlePublicModelsList(
-        makeReq('/api/models', 'GET'),
-        env,
-        ctx,
-        null,
-        '/api/models',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handlePublicModelsList({
+        req: makeReq('/api/models', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: null,
+        path: '/api/models',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
     });
 
@@ -143,14 +181,14 @@ describe('handlePublicModelsList', () => {
       ]);
       mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
       mocks.countEnabledModels.mockReturnValue(1);
-      const res = await handlePublicModelsList(
-        makeReq('/api/models?limit=1&offset=0', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/models',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handlePublicModelsList({
+        req: makeReq('/api/models?limit=1&offset=0', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/models',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.models).toHaveLength(1);
@@ -165,14 +203,14 @@ describe('handlePublicModelsList', () => {
       ]);
       mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
       mocks.countEnabledModels.mockReturnValue(1);
-      const res = await handlePublicModelsList(
-        makeReq('/api/models?q=gpt', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/models',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handlePublicModelsList({
+        req: makeReq('/api/models?q=gpt', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/models',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.models).toHaveLength(1);
@@ -186,14 +224,14 @@ describe('handlePublicModelsList', () => {
       ]);
       mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
       mocks.countEnabledModels.mockReturnValue(1);
-      const res = await handlePublicModelsList(
-        makeReq('/api/models?scope=effective', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/models',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handlePublicModelsList({
+        req: makeReq('/api/models?scope=effective', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/models',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.models).toHaveLength(1);
@@ -205,28 +243,28 @@ describe('handlePublicModelsList', () => {
       // A truly unexpected error would come from something inside the try/catch.
       // Since the code has error handling, we test that it degrades gracefully.
       mocks.fetchBaseModelsFromOpenAI.mockRejectedValue(new Error('unexpected'));
-      const res = await handlePublicModelsList(
-        makeReq('/api/models', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/models',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handlePublicModelsList({
+        req: makeReq('/api/models', 'GET'),
+        env: env,
+        ctx: ctx,
+        user: user,
+        path: '/api/models',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       // The handler catches discovery errors and continues with empty results
       expect(res.status).toBe(200);
     });
   });
 
   it('returns null for non-matching paths', async () => {
-    const result = await handlePublicModelsList(
-      makeReq('/api/chats', 'GET'),
-      env,
-      ctx,
-      user,
-      '/api/chats',
-      { _db: db, logger, _requestContext: {} }
-    );
+    const result = await handlePublicModelsList({
+      req: makeReq('/api/chats', 'GET'),
+      env: env,
+      ctx: ctx,
+      user: user,
+      path: '/api/chats',
+      deps: { _db: db, logger, _requestContext: {} },
+    });
     expect(result).toBeNull();
   });
 });

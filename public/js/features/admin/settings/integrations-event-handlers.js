@@ -5,6 +5,11 @@
 import { apiFetch } from '../../../shared/api.js';
 import { updateAdminToolServerAccess } from '../../../shared/admin-access.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
+import {
+  readFormFieldValue,
+  readOAuthFormFields,
+  handleOAuthApiFetchResponse,
+} from '../../../shared/components/integrations-shared.js';
 
 export function createIntegrationsEventHandlers(deps) {
   const {
@@ -30,94 +35,99 @@ export function createIntegrationsEventHandlers(deps) {
       openModal(null);
     });
 
+    function handleToolToggleClick(el) {
+      const id = el.dataset.serverId;
+      const toolName = el.dataset.toolName;
+      const server = findServerById(id);
+      if (!server || server.enabled === false || !Array.isArray(server.tools)) return;
+      const tool = server.tools.find((entry) => entry.name === toolName);
+      if (!tool) return;
+      const previousState = tool.enabled;
+      tool.enabled = !tool.enabled;
+      updateToolRowState(id, toolName);
+      persistServersImmediate().catch((err) => {
+        tool.enabled = previousState;
+        updateToolRowState(id, toolName);
+        showFeedback(err.message || 'Failed to update tool', 'error');
+      });
+    }
+
+    function handleServerToggleClick(el) {
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      if (!server) return;
+      const previousState = server.enabled;
+      server.enabled = !server.enabled;
+      updateServerRowState(id);
+      persistServersImmediate().catch((err) => {
+        server.enabled = previousState;
+        updateServerRowState(id);
+        showFeedback(err.message || 'Failed to update server', 'error');
+      });
+    }
+
+    function handleToolsToggleClick(el) {
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      if (!server) return;
+      server.toolsExpanded = !server.toolsExpanded;
+      renderToolServersList();
+    }
+
+    function handleToolDescToggleClick(el) {
+      const serverId = el.dataset.serverId;
+      const toolName = el.dataset.toolName;
+      const server = findServerById(serverId);
+      if (!server || !Array.isArray(server.tools)) return;
+      const tool = server.tools.find((t) => t.name === toolName);
+      if (!tool) return;
+      tool._expanded = !tool._expanded;
+      renderToolServersList();
+    }
+
+    function handleEditServerClick(el) {
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      openModal(server || null);
+    }
+
+    async function applyServerAccessRules(id, rules) {
+      try {
+        await updateAdminToolServerAccess(id, rules);
+        broadcastToolServersInvalidation();
+        showFeedback('Access rules saved successfully');
+      } catch (err) {
+        showFeedback(err.message || 'Failed to save access rules', 'error');
+      }
+    }
+
+    function handleServerAccessClick(el) {
+      if (!canManageAcls) return;
+      const id = el.dataset.id;
+      const server = findServerById(id);
+      if (!server) return;
+      void openToolServerAccessModal(server, {
+        onApply: (rules) => applyServerAccessRules(id, rules),
+      });
+    }
+
+    const TOOL_SERVERS_CLICK_HANDLERS = [
+      { selector: '.tool-toggle', handler: handleToolToggleClick },
+      { selector: '.server-toggle', handler: handleServerToggleClick },
+      { selector: '.tools-toggle', handler: handleToolsToggleClick },
+      { selector: '.tool-desc-toggle', handler: handleToolDescToggleClick },
+      { selector: '.edit-server-btn', handler: handleEditServerClick },
+      { selector: '.tool-access-btn', handler: handleServerAccessClick },
+    ];
+
     const list = container.querySelector('#tool-servers-list');
     list?.addEventListener('click', (e) => {
-      const toolToggle = e.target.closest('.tool-toggle');
-      if (toolToggle) {
-        const id = toolToggle.dataset.serverId;
-        const toolName = toolToggle.dataset.toolName;
-        const server = integrationsState.toolServers.find((entry) => entry.id === id);
-        if (server && server.enabled !== false && Array.isArray(server.tools)) {
-          const tool = server.tools.find((entry) => entry.name === toolName);
-          if (tool) {
-            const previousState = tool.enabled;
-            tool.enabled = !tool.enabled;
-            updateToolRowState(id, toolName);
-            persistServersImmediate().catch((err) => {
-              tool.enabled = previousState;
-              updateToolRowState(id, toolName);
-              showFeedback(err.message || 'Failed to update tool', 'error');
-            });
-          }
+      for (const { selector, handler } of TOOL_SERVERS_CLICK_HANDLERS) {
+        const el = e.target.closest(selector);
+        if (el) {
+          handler(el);
+          return;
         }
-        return;
-      }
-      const toggle = e.target.closest('.server-toggle');
-      if (toggle) {
-        const id = toggle.dataset.id;
-        const server = integrationsState.toolServers.find((s) => s.id === id);
-        if (server) {
-          const previousState = server.enabled;
-          server.enabled = !server.enabled;
-          updateServerRowState(id);
-          persistServersImmediate().catch((err) => {
-            server.enabled = previousState;
-            updateServerRowState(id);
-            showFeedback(err.message || 'Failed to update server', 'error');
-          });
-        }
-        return;
-      }
-      const toolsToggle = e.target.closest('.tools-toggle');
-      if (toolsToggle) {
-        const id = toolsToggle.dataset.id;
-        const server = integrationsState.toolServers.find((s) => s.id === id);
-        if (server) {
-          server.toolsExpanded = !server.toolsExpanded;
-          renderToolServersList();
-        }
-        return;
-      }
-      const descToggle = e.target.closest('.tool-desc-toggle');
-      if (descToggle) {
-        const serverId = descToggle.dataset.serverId;
-        const toolName = descToggle.dataset.toolName;
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server && Array.isArray(server.tools)) {
-          const tool = server.tools.find((t) => t.name === toolName);
-          if (tool) {
-            tool._expanded = !tool._expanded;
-            renderToolServersList();
-          }
-        }
-        return;
-      }
-      const editBtn = e.target.closest('.edit-server-btn');
-      if (editBtn) {
-        const id = editBtn.dataset.id;
-        const server = integrationsState.toolServers.find((s) => s.id === id);
-        openModal(server || null);
-        return;
-      }
-      const accessBtn = e.target.closest('.tool-access-btn');
-      if (accessBtn) {
-        if (!canManageAcls) return;
-        const id = accessBtn.dataset.id;
-        const server = integrationsState.toolServers.find((entry) => entry.id === id);
-        if (server) {
-          void openToolServerAccessModal(server, {
-            onApply: async (rules) => {
-              try {
-                await updateAdminToolServerAccess(id, rules);
-                broadcastToolServersInvalidation();
-                showFeedback('Access rules saved successfully');
-              } catch (err) {
-                showFeedback(err.message || 'Failed to save access rules', 'error');
-              }
-            },
-          });
-        }
-        return;
       }
     });
 
@@ -136,124 +146,118 @@ export function createIntegrationsEventHandlers(deps) {
     let testInFlight = false;
     container.querySelector('#test-server')?.addEventListener('click', async () => {
       if (testInFlight) return;
-      const url = container.querySelector('#server-url')?.value || '';
-      const headers = container.querySelector('#server-headers')?.value || '';
-      const authType = container.querySelector('#server-auth-type')?.value || 'none';
-      const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
-      const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
-      const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
-      const serverId = integrationsState.selectedServer?.id || '';
-      if (!url.trim()) {
+      const args = buildRunVerifyArgs();
+      if (!args.url.trim()) {
         setTestStatus('error', 'URL is required');
         return;
       }
+      await runTestServerFlow(args);
+    });
+
+    async function runTestServerFlow(args) {
       testInFlight = true;
       setTestStatus('testing', 'Testing connection...');
       try {
-        const result = await runVerify({
-          serverId,
-          url,
-          authType,
-          bearerToken,
-          basicUser,
-          basicPass,
-          headers,
-        });
-        setTestStatus('success', result.message);
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server) {
-          server.tools = result.tools;
-          server.toolsError = '';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        await runServerTestAndApply(args);
       } catch (err) {
         setTestStatus('error', err.message || 'Connection failed');
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server) {
-          server.toolsError = err.message || 'Connection failed';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        handleServerVerifyError(args.serverId, err.message || 'Connection failed');
       } finally {
         testInFlight = false;
       }
-    });
+    }
+
+    async function runServerTestAndApply(args) {
+      const result = await runVerify(args);
+      setTestStatus('success', result.message);
+      applyServerVerifyResult(args.serverId, result);
+      renderToolServersList();
+    }
+
+    function applyServerVerifyResult(serverId, result) {
+      const server = findServerById(serverId);
+      if (!server) return;
+      server.tools = result.tools;
+      server.toolsError = '';
+      server.toolsExpanded = false;
+    }
+
+    function readServerFormFields() {
+      const name = container.querySelector('#server-name').value || 'Untitled Server';
+      const { url, headers, authType, bearerToken, basicUser, basicPass, serverId } =
+        buildRunVerifyArgs();
+      const { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod } =
+        readOAuthFormFields(container);
+      return {
+        name,
+        url,
+        headers,
+        authType,
+        bearerToken,
+        basicUser,
+        basicPass,
+        serverId,
+        oauthClientName,
+        oauthScope,
+        oauthClientId,
+        oauthClientSecret,
+        oauthTokenMethod,
+      };
+    }
+
+    function buildServerPayload(fields, selectedServer) {
+      const base = {
+        name: fields.name,
+        url: fields.url,
+        headers: fields.headers,
+        auth_type: fields.authType,
+        auth_bearer_token: fields.bearerToken,
+        auth_basic_username: fields.basicUser,
+        auth_basic_password: fields.basicPass,
+        oauth_client_name: fields.oauthClientName,
+        oauth_scope: fields.oauthScope,
+        oauth_client_id: fields.oauthClientId,
+        oauth_client_secret: fields.oauthClientSecret,
+        oauth_token_auth_method: fields.oauthTokenMethod,
+      };
+      if (selectedServer) {
+        return { ...selectedServer, ...base };
+      }
+      return {
+        id: fields.serverId || Math.random().toString(36).substring(2, 11),
+        enabled: true,
+        ...base,
+      };
+    }
+
+    function upsertServer(payload, selectedServer) {
+      if (selectedServer) {
+        const index = integrationsState.toolServers.findIndex((s) => s.id === selectedServer.id);
+        if (index !== -1) {
+          integrationsState.toolServers[index] = payload;
+          return;
+        }
+      }
+      integrationsState.toolServers.push(payload);
+    }
+
+    async function verifyServerAfterSave(serverId, url) {
+      if (!url.trim()) return;
+      const verifyResult = await runVerify(buildRunVerifyArgs());
+      const server = findServerById(serverId);
+      if (server) {
+        server.tools = verifyResult.tools;
+        server.toolsError = '';
+        server.toolsExpanded = false;
+      }
+      renderToolServersList();
+    }
 
     container.querySelector('#save-modal')?.addEventListener('click', async () => {
-      const name = container.querySelector('#server-name').value || 'Untitled Server';
-      const url = container.querySelector('#server-url').value || '';
-      const headers = container.querySelector('#server-headers').value || '';
-      const authType = container.querySelector('#server-auth-type').value || 'none';
-      const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
-      const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
-      const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
-      const oauthClientName =
-        container.querySelector('#server-auth-oauth-client-name')?.value || '';
-      const oauthScope = container.querySelector('#server-auth-oauth-scope')?.value || '';
-      const oauthClientId = container.querySelector('#server-auth-oauth-client-id')?.value || '';
-      const oauthClientSecret =
-        container.querySelector('#server-auth-oauth-client-secret')?.value || '';
-      const oauthTokenMethod =
-        container.querySelector('#server-auth-oauth-token-method')?.value || '';
-      const serverId = integrationsState.selectedServer?.id || '';
+      const fields = readServerFormFields();
+      const payload = buildServerPayload(fields, integrationsState.selectedServer);
 
-      if (integrationsState.selectedServer) {
-        const index = integrationsState.toolServers.findIndex(
-          (s) => s.id === integrationsState.selectedServer.id
-        );
-        if (index !== -1) {
-          integrationsState.toolServers[index] = {
-            ...integrationsState.toolServers[index],
-            name,
-            url,
-            headers,
-            auth_type: authType,
-            auth_bearer_token: bearerToken,
-            auth_basic_username: basicUser,
-            auth_basic_password: basicPass,
-            oauth_client_name: oauthClientName,
-            oauth_scope: oauthScope,
-            oauth_client_id: oauthClientId,
-            oauth_client_secret: oauthClientSecret,
-            oauth_token_auth_method: oauthTokenMethod,
-          };
-        } else {
-          integrationsState.toolServers.push({
-            id: serverId,
-            name,
-            url,
-            headers,
-            enabled: true,
-            auth_type: authType,
-            auth_bearer_token: bearerToken,
-            auth_basic_username: basicUser,
-            auth_basic_password: basicPass,
-            oauth_client_name: oauthClientName,
-            oauth_scope: oauthScope,
-            oauth_client_id: oauthClientId,
-            oauth_client_secret: oauthClientSecret,
-            oauth_token_auth_method: oauthTokenMethod,
-          });
-        }
-      } else {
-        integrationsState.toolServers.push({
-          id: Math.random().toString(36).substring(2, 11),
-          name,
-          url,
-          headers,
-          enabled: true,
-          auth_type: authType,
-          auth_bearer_token: bearerToken,
-          auth_basic_username: basicUser,
-          auth_basic_password: basicPass,
-          oauth_client_name: oauthClientName,
-          oauth_scope: oauthScope,
-          oauth_client_id: oauthClientId,
-          oauth_client_secret: oauthClientSecret,
-          oauth_token_auth_method: oauthTokenMethod,
-        });
-      }
+      upsertServer(payload, integrationsState.selectedServer);
 
       try {
         await persistServersImmediate();
@@ -266,32 +270,10 @@ export function createIntegrationsEventHandlers(deps) {
       closeModal();
       renderToolServersList();
 
-      if (!url.trim()) return;
-
       try {
-        const verifyResult = await runVerify({
-          serverId,
-          url,
-          authType,
-          bearerToken,
-          basicUser,
-          basicPass,
-          headers,
-        });
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server) {
-          server.tools = verifyResult.tools;
-          server.toolsError = '';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        await verifyServerAfterSave(payload.id, fields.url);
       } catch (err) {
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server) {
-          server.toolsError = err.message || 'Connection failed';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        handleServerVerifyError(payload.id, err.message || 'Connection failed');
       }
     });
 
@@ -315,31 +297,51 @@ export function createIntegrationsEventHandlers(deps) {
       }
     });
 
-    container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
-      const input = container.querySelector('#server-auth-bearer');
-      const button = container.querySelector('#toggle-bearer-visibility');
+    function togglePasswordVisibility(inputSelector, buttonSelector) {
+      const input = container.querySelector(inputSelector);
+      const button = container.querySelector(buttonSelector);
       if (!input || !button) return;
-      input.type = input.type === 'password' ? 'text' : 'password';
-      button.setAttribute(
-        'aria-label',
-        input.type === 'password' ? 'Show password' : 'Hide password'
-      );
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      updatePasswordToggleAria(button, isPassword);
+      updatePasswordToggleLabel(button, isPassword);
+    }
+
+    function updatePasswordToggleAria(button, isPassword) {
+      button.setAttribute('aria-label', isPassword ? 'Show password' : 'Hide password');
+    }
+
+    function updatePasswordToggleLabel(button, isPassword) {
       const label = button.querySelector('[data-password-toggle-label]');
-      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      if (label) label.textContent = isPassword ? 'Show' : 'Hide';
+    }
+
+    container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
+      togglePasswordVisibility('#server-auth-bearer', '#toggle-bearer-visibility');
     });
 
     container.querySelector('#toggle-basic-visibility')?.addEventListener('click', () => {
-      const input = container.querySelector('#server-auth-basic-password');
-      const button = container.querySelector('#toggle-basic-visibility');
-      if (!input || !button) return;
-      input.type = input.type === 'password' ? 'text' : 'password';
-      button.setAttribute(
-        'aria-label',
-        input.type === 'password' ? 'Show password' : 'Hide password'
-      );
-      const label = button.querySelector('[data-password-toggle-label]');
-      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      togglePasswordVisibility('#server-auth-basic-password', '#toggle-basic-visibility');
     });
+
+    function buildOAuthStartBody(serverId) {
+      const oauthFields = readOAuthFormFields(container);
+      return {
+        id: serverId,
+        url: container.querySelector('#server-url')?.value || '',
+        oauth_client_name: oauthFields.oauthClientName,
+        oauth_scope: oauthFields.oauthScope,
+        oauth_client_id: oauthFields.oauthClientId,
+        oauth_client_secret: oauthFields.oauthClientSecret,
+        oauth_token_auth_method: oauthFields.oauthTokenMethod,
+      };
+    }
+
+    function handleOAuthStartSuccess(payload) {
+      if (!payload.authorization_url) return;
+      const status = container.querySelector('#oauth-status');
+      if (status) status.textContent = 'Awaiting authorization...';
+    }
 
     container.querySelector('#connect-oauth')?.addEventListener('click', async () => {
       const serverId = integrationsState.selectedServer?.id || '';
@@ -350,32 +352,44 @@ export function createIntegrationsEventHandlers(deps) {
       try {
         const res = await apiFetch('/api/admin/tool-servers/oauth/start', {
           method: 'POST',
-          body: JSON.stringify({
-            id: serverId,
-            url: container.querySelector('#server-url')?.value || '',
-            oauth_client_name:
-              container.querySelector('#server-auth-oauth-client-name')?.value || '',
-            oauth_scope: container.querySelector('#server-auth-oauth-scope')?.value || '',
-            oauth_client_id: container.querySelector('#server-auth-oauth-client-id')?.value || '',
-            oauth_client_secret:
-              container.querySelector('#server-auth-oauth-client-secret')?.value || '',
-            oauth_token_auth_method:
-              container.querySelector('#server-auth-oauth-token-method')?.value || '',
-          }),
+          body: JSON.stringify(buildOAuthStartBody(serverId)),
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(payload.error || payload.message || 'OAuth start failed');
-        }
-        if (payload.authorization_url) {
-          window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
-          const status = container.querySelector('#oauth-status');
-          if (status) status.textContent = 'Awaiting authorization...';
-        }
+        const payload = await handleOAuthApiFetchResponse(res);
+        handleOAuthStartSuccess(payload);
       } catch (err) {
         setTestStatus('error', err.message || 'OAuth start failed');
       }
     });
+  };
+
+  /**
+   * Build the common runVerify options object from current form state.
+   */
+  const buildRunVerifyArgs = () => ({
+    serverId: integrationsState.selectedServer?.id || '',
+    url: readFormFieldValue(container, '#server-url'),
+    authType: readFormFieldValue(container, '#server-auth-type') || 'none',
+    bearerToken: readFormFieldValue(container, '#server-auth-bearer'),
+    basicUser: readFormFieldValue(container, '#server-auth-basic-username'),
+    basicPass: readFormFieldValue(container, '#server-auth-basic-password'),
+    headers: readFormFieldValue(container, '#server-headers'),
+  });
+
+  /**
+   * Find a tool server by its id.
+   */
+  const findServerById = (id) => integrationsState.toolServers.find((s) => s.id === id);
+
+  /**
+   * Handle error state after a runVerify failure.
+   */
+  const handleServerVerifyError = (serverId, errorMessage) => {
+    const server = findServerById(serverId);
+    if (server) {
+      server.toolsError = errorMessage;
+      server.toolsExpanded = false;
+    }
+    renderToolServersList();
   };
 
   return { bindEvents };

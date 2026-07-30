@@ -5,7 +5,7 @@
  * related event handlers, bound to the shared state.
  */
 
-import { apiFetch } from '../../../shared/api.js';
+import { apiFetch, parseApiError } from '../../../shared/api.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import {
@@ -19,10 +19,10 @@ import {
   providerUrlPlaceholder,
   resolveKeyLabel,
 } from './connections-helpers.js';
+import { buildTestableConnectionPayload } from '../../../shared/utils/connection-helpers.js';
 import {
   buildSelectedConnectionModels,
   updateApiTypeDisplay,
-  buildModalConnectionPayload,
   resolveConnectionModalSelectionMode,
 } from './connections-helpers-modal-models.js';
 
@@ -45,12 +45,36 @@ export function createConnectionsEventHandlers(deps) {
     data,
   } = deps;
 
+  const buildManualConnections = (excludeId = null) =>
+    connectionsState.openai.connections
+      .filter((c) => !c.readOnly && (!excludeId || c.id !== excludeId))
+      .map((conn) => ({
+        ...conn,
+        manualModels: normalizeConnectionManualModels(conn.manualModels),
+      }));
+
+  const buildConnectionsSaveBody = (excludeId = null) =>
+    JSON.stringify({
+      enabled: connectionsState.openai.enabled,
+      connections: buildManualConnections(excludeId),
+      model_updates: [],
+      access_updates: [],
+    });
+
   const bindEvents = () => {
     container.querySelector('#add-connection')?.addEventListener('click', () => {
       openModal(null);
     });
 
     const list = container.querySelector('#connections-list');
+    function updateRowForToggle(row, enabled, canManageAcls) {
+      row.classList.toggle('opacity-70', !enabled);
+      const badge = row.querySelector('[data-connection-disabled-badge]');
+      if (badge) badge.classList.toggle('hidden', enabled);
+      const aclBtn = row.querySelector('.connection-acl-btn');
+      if (aclBtn) aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
+    }
+
     list?.addEventListener('click', (e) => {
       const toggle = e.target.closest('.connection-toggle');
       if (toggle) {
@@ -64,33 +88,15 @@ export function createConnectionsEventHandlers(deps) {
           const row = toggle.closest('[data-connection-row]');
           updateConnectionToggle(toggle, enabled);
           if (row) {
-            row.classList.toggle('opacity-70', !enabled);
-            const badge = row.querySelector('[data-connection-disabled-badge]');
-            if (badge) badge.classList.toggle('hidden', enabled);
-            const aclBtn = row.querySelector('.connection-acl-btn');
-            if (aclBtn) aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
+            updateRowForToggle(row, enabled, canManageAcls);
           }
           (async () => {
             try {
-              const manualConnections = connectionsState.openai.connections
-                .filter((c) => !c.readOnly)
-                .map((conn) => ({
-                  ...conn,
-                  manualModels: normalizeConnectionManualModels(conn.manualModels),
-                }));
               const res = await apiFetch('/api/admin/openai/connections', {
                 method: 'PUT',
-                body: JSON.stringify({
-                  enabled: connectionsState.openai.enabled,
-                  connections: manualConnections,
-                  model_updates: [],
-                  access_updates: [],
-                }),
+                body: buildConnectionsSaveBody(),
               });
-              if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || err.message || 'Failed to save connection');
-              }
+              if (!res.ok) await parseApiError(res, 'Failed to save connection');
               broadcastModelsInvalidation();
               broadcastConnectionsInvalidation();
               if (data) data.modelsSettingsInvalidate = Date.now();
@@ -99,11 +105,7 @@ export function createConnectionsEventHandlers(deps) {
               const revertedEnabled = connection.enabled !== false;
               updateConnectionToggle(toggle, revertedEnabled);
               if (row) {
-                row.classList.toggle('opacity-70', !revertedEnabled);
-                const badge = row.querySelector('[data-connection-disabled-badge]');
-                if (badge) badge.classList.toggle('hidden', revertedEnabled);
-                const aclBtn = row.querySelector('.connection-acl-btn');
-                if (aclBtn) aclBtn.classList.toggle('hidden', !revertedEnabled || !canManageAcls);
+                updateRowForToggle(row, revertedEnabled, canManageAcls);
               }
               showFeedback(err?.message || 'Failed to save connection', 'error');
             }
@@ -130,25 +132,11 @@ export function createConnectionsEventHandlers(deps) {
       connectionsState.openai.enabled = e.target.checked;
       (async () => {
         try {
-          const manualConnections = connectionsState.openai.connections
-            .filter((c) => !c.readOnly)
-            .map((conn) => ({
-              ...conn,
-              manualModels: normalizeConnectionManualModels(conn.manualModels),
-            }));
           const res = await apiFetch('/api/admin/openai/connections', {
             method: 'PUT',
-            body: JSON.stringify({
-              enabled: connectionsState.openai.enabled,
-              connections: manualConnections,
-              model_updates: [],
-              access_updates: [],
-            }),
+            body: buildConnectionsSaveBody(),
           });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || err.message || 'Failed to save');
-          }
+          if (!res.ok) await parseApiError(res, 'Failed to save');
           broadcastConnectionsInvalidation();
         } catch (err) {
           showFeedback(err?.message || 'Failed to save', 'error');
@@ -162,14 +150,15 @@ export function createConnectionsEventHandlers(deps) {
     });
 
     container.querySelector('#test-connection')?.addEventListener('click', async () => {
-      const modalRoot = container.querySelector('#edit-connection-modal') || container;
-      const payload = buildModalConnectionPayload(modalRoot, connectionsState.selectedConnection);
-      const resolvedUrl = resolveModalUrl(payload.providerType, payload.url);
-      if (!resolvedUrl) {
-        setTestStatus('error', 'URL is required for compatible providers', modalRoot);
+      const testable = buildTestableConnectionPayload(
+        container,
+        connectionsState.selectedConnection
+      );
+      if (!testable) {
+        setTestStatus('error', 'URL is required for compatible providers', container);
         return;
       }
-      payload.url = resolvedUrl;
+      const { modalRoot, payload } = testable;
       setTestStatus('testing', 'Testing connection...', modalRoot);
       try {
         const res = await apiFetch('/api/admin/openai/connections/test', {
@@ -191,86 +180,30 @@ export function createConnectionsEventHandlers(deps) {
     container.querySelector('#save-modal')?.addEventListener('click', async (event) => {
       event.preventDefault();
       const modalRoot = container.querySelector('#edit-connection-modal') || container;
-      const name = modalRoot.querySelector('#modal-conn-name').value;
-      const url = modalRoot.querySelector('#modal-conn-url').value;
-      const keyValue = modalRoot.querySelector('#modal-conn-key').value;
-      const headers = modalRoot.querySelector('#modal-conn-headers').value;
-      const providerType = modalRoot.querySelector('#modal-conn-provider')?.value || 'openai';
-      const providerFamily = normalizeProviderFamily(providerType);
-
-      if (!name.trim()) {
-        showFeedback('Name is required', 'error');
-        return;
-      }
-      if (isCompatibleProviderType(providerType) && !url.trim()) {
-        showFeedback('URL is required for compatible providers', 'error');
-        return;
-      }
+      const { name, url, keyValue, headers, providerType, providerFamily } =
+        collectModalFormValues(modalRoot);
+      if (!validateModalForm(name, url, providerType, showFeedback)) return;
 
       connectionsState.modalSaving = true;
       updateModalSaveButton(modalRoot);
       try {
-        const resolvedUrl = resolveModalUrl(providerType, url);
-        const newConnection = {
-          id: connectionsState.selectedConnection?.id || `conn_${Date.now()}`,
-          name: name.trim(),
-          url: resolvedUrl,
-          key: keyValue,
-          headers,
-          providerType,
-          providerFamily,
-          apiType: connectionApiTypeDetails(providerType).value,
-          source: 'manual',
-          enabled: connectionsState.selectedConnection?.enabled !== false,
-          manualModels: (() => {
-            const models = buildSelectedConnectionModels(
-              connectionsState.modalModels || [],
-              connectionsState.modalModelsSelection || new Set(),
-              connectionsState.selectedConnection
-            );
-            const deleted = connectionsState.deletedManualModelIds || [];
-            if (!deleted.length) return models;
-            return models.filter((m) => !deleted.includes(m.modelId));
-          })(),
-          manualModelsMode: resolveConnectionModalSelectionMode(
-            connectionsState.modalModels || [],
-            connectionsState.modalModelsSelection || new Set()
-          ),
-        };
-        const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
-          id: m.id || m.modelId,
-          enabled: (connectionsState.modalModelsSelection || new Set()).has(m.id || m.modelId),
-        }));
-        const accessUpdates = [];
-        const manualConnections = connectionsState.openai.connections
-          .filter((c) => !c.readOnly)
-          .map((conn) => ({
-            ...conn,
-            manualModels: normalizeConnectionManualModels(conn.manualModels),
-          }));
-        if (connectionsState.modalMode === 'update') {
-          const idx = manualConnections.findIndex((c) => c.id === newConnection.id);
-          if (idx !== -1) manualConnections[idx] = newConnection;
-        } else {
-          manualConnections.push(newConnection);
-          connectionsState.openai.connections.push(newConnection);
-        }
+        const modalValues = { name, url, keyValue, headers, providerType, providerFamily };
+        const newConnection = buildNewConnectionValues(modalValues, connectionsState);
+        const { modelUpdates, manualConnections } = buildSaveConnectionPayload(
+          newConnection,
+          connectionsState
+        );
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
           body: JSON.stringify({
             enabled: connectionsState.openai.enabled,
             connections: manualConnections,
             model_updates: modelUpdates,
-            access_updates: accessUpdates,
+            access_updates: [],
           }),
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to save connection');
-        }
-        broadcastModelsInvalidation();
-        broadcastConnectionsInvalidation();
-        if (data) data.modelsSettingsInvalidate = Date.now();
+        if (!res.ok) await parseApiError(res, 'Failed to save connection');
+        handleSaveApiResponse(res, data);
         // connectionsState.loaded = false; // removed: optimistic save
         connectionsState.deletedManualModelIds = [];
         closeModal();
@@ -338,47 +271,122 @@ export function createConnectionsEventHandlers(deps) {
       }
     });
 
-    container.querySelector('#modal-conn-provider')?.addEventListener('change', (e) => {
-      const modalRoot = container.querySelector('#edit-connection-modal') || container;
+    function buildNewConnectionValues(modalValues, connectionsState) {
+      const resolvedUrl = resolveModalUrl(modalValues.providerType, modalValues.url);
+      return {
+        id: connectionsState.selectedConnection?.id || `conn_${Date.now()}`,
+        name: modalValues.name.trim(),
+        url: resolvedUrl,
+        key: modalValues.keyValue,
+        headers: modalValues.headers,
+        providerType: modalValues.providerType,
+        providerFamily: modalValues.providerFamily,
+        apiType: connectionApiTypeDetails(modalValues.providerType).value,
+        source: 'manual',
+        enabled: connectionsState.selectedConnection?.enabled !== false,
+        manualModels: buildConnectionManualModels(connectionsState),
+        manualModelsMode: buildConnectionManualModelsMode(connectionsState),
+      };
+    }
+
+    function handleSaveApiResponse(res, data) {
+      if (!res.ok) throw res;
+      broadcastModelsInvalidation();
+      broadcastConnectionsInvalidation();
+      if (data) data.modelsSettingsInvalidate = Date.now();
+    }
+
+    function buildConnectionManualModels(connectionsState) {
+      const models = buildSelectedConnectionModels(
+        connectionsState.modalModels || [],
+        connectionsState.modalModelsSelection || new Set(),
+        connectionsState.selectedConnection
+      );
+      const deleted = connectionsState.deletedManualModelIds || [];
+      if (!deleted.length) return models;
+      return models.filter((m) => !deleted.includes(m.modelId));
+    }
+
+    function buildConnectionManualModelsMode(connectionsState) {
+      return resolveConnectionModalSelectionMode(
+        connectionsState.modalModels || [],
+        connectionsState.modalModelsSelection || new Set()
+      );
+    }
+
+    function validateModalForm(name, url, providerType, showFeedback) {
+      if (!name.trim()) {
+        showFeedback('Name is required', 'error');
+        return false;
+      }
+      if (isCompatibleProviderType(providerType) && !url.trim()) {
+        showFeedback('URL is required for compatible providers', 'error');
+        return false;
+      }
+      return true;
+    }
+
+    function buildSaveConnectionPayload(newConnection, connectionsState) {
+      const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
+        id: m.id || m.modelId,
+        enabled: (connectionsState.modalModelsSelection || new Set()).has(m.id || m.modelId),
+      }));
+      const manualConnections = connectionsState.openai.connections
+        .filter((c) => !c.readOnly)
+        .map((conn) => ({
+          ...conn,
+          manualModels: normalizeConnectionManualModels(conn.manualModels),
+        }));
+      if (connectionsState.modalMode === 'update') {
+        const idx = manualConnections.findIndex((c) => c.id === newConnection.id);
+        if (idx !== -1) manualConnections[idx] = newConnection;
+      } else {
+        manualConnections.push(newConnection);
+        connectionsState.openai.connections.push(newConnection);
+      }
+      return { modelUpdates, manualConnections };
+    }
+
+    function collectModalFormValues(modalRoot) {
+      const name = modalRoot.querySelector('#modal-conn-name').value;
+      const url = modalRoot.querySelector('#modal-conn-url').value;
+      const keyValue = modalRoot.querySelector('#modal-conn-key').value;
+      const headers = modalRoot.querySelector('#modal-conn-headers').value;
+      const providerType = modalRoot.querySelector('#modal-conn-provider')?.value || 'openai';
+      const providerFamily = normalizeProviderFamily(providerType);
+      return { name, url, keyValue, headers, providerType, providerFamily };
+    }
+
+    function applyProviderChangeUI(modalRoot, providerType) {
       const hint = modalRoot.querySelector('#modal-conn-provider-hint');
-      if (hint) hint.textContent = providerDisplayLabel(e.target.value);
+      if (hint) hint.textContent = providerDisplayLabel(providerType);
       const urlLabel = modalRoot.querySelector('#modal-conn-url-label');
-      if (urlLabel) urlLabel.textContent = resolveUrlLabel(e.target.value);
+      if (urlLabel) urlLabel.textContent = resolveUrlLabel(providerType);
       const urlInput = modalRoot.querySelector('#modal-conn-url');
       if (urlInput) {
-        const defaultUrl = providerUrlPlaceholder(e.target.value);
-        urlInput.placeholder = defaultUrl;
+        urlInput.placeholder = providerUrlPlaceholder(providerType);
         const nameInput = modalRoot.querySelector('#modal-conn-name');
-        if (nameInput) nameInput.placeholder = `e.g. ${providerDisplayLabel(e.target.value)}`;
+        if (nameInput) nameInput.placeholder = `e.g. ${providerDisplayLabel(providerType)}`;
       }
       const keyLabel = modalRoot.querySelector('#modal-conn-key-label');
       if (keyLabel) keyLabel.textContent = resolveKeyLabel();
-      updateApiTypeDisplay(modalRoot, e.target.value);
+      updateApiTypeDisplay(modalRoot, providerType);
+    }
+
+    container.querySelector('#modal-conn-provider')?.addEventListener('change', (e) => {
+      const modalRoot = container.querySelector('#edit-connection-modal') || container;
+      applyProviderChangeUI(modalRoot, e.target.value);
     });
 
     container.querySelector('#delete-connection')?.addEventListener('click', async () => {
       if (!connectionsState.selectedConnection) return;
       if (!confirm('Delete this connection? This cannot be undone.')) return;
       try {
-        const manualConnections = connectionsState.openai.connections
-          .filter((c) => !c.readOnly && c.id !== connectionsState.selectedConnection.id)
-          .map((conn) => ({
-            ...conn,
-            manualModels: normalizeConnectionManualModels(conn.manualModels),
-          }));
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
-          body: JSON.stringify({
-            enabled: connectionsState.openai.enabled,
-            connections: manualConnections,
-            model_updates: [],
-            access_updates: [],
-          }),
+          body: buildConnectionsSaveBody(connectionsState.selectedConnection.id),
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to delete connection');
-        }
+        if (!res.ok) await parseApiError(res, 'Failed to delete connection');
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
         if (data) data.modelsSettingsInvalidate = Date.now();

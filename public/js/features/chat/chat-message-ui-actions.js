@@ -128,59 +128,84 @@ export function bindChatMessageUiActions(deps) {
     });
   });
 
+  function findCopySourceMessage(originalId) {
+    return (
+      getMessageById(chatId, originalId) ||
+      projectedMessages.find((msg) => String(msg.id) === String(originalId))
+    );
+  }
+
+  async function resolveCopyMessageId(originalId) {
+    if (!isTempMessageId(originalId)) return originalId;
+    const resolved = await waitForResolvedMessageId(state.activeChatId, originalId);
+    if (!resolved) {
+      showToast('Message still saving. Please wait.');
+      return null;
+    }
+    return resolved;
+  }
+
+  function clearCopyEditingState(originalId, id) {
+    const newEditing = { ...state.ui.editingMessages };
+    delete newEditing[originalId];
+    delete newEditing[id];
+    setState({ ui: { ...state.ui, editingMessages: newEditing } });
+  }
+
+  async function handleCopySuccess(res, originalId, id, sourceMsg) {
+    const data = await res.json().catch(() => ({}));
+    clearCopyEditingState(originalId, id);
+    if (data?.message?.id) {
+      currentLeafByChatId.set(chatId, String(data.message.id));
+      setBranchSelection(chatId, sourceMsg?.parent_id || null, data.message.id);
+    }
+    await loadMessages(chatId);
+  }
+
+  async function handleCopyError(res) {
+    const err = await res.json().catch(() => ({}));
+    const message = err?.details?.message || err.error || err.message || 'Failed to copy message';
+    alert(message);
+  }
+
+  function handleCopyException(e) {
+    console.error('Copy failed', e);
+    alert('An error occurred while copying the message.');
+  }
+
+  async function submitCopyBranch(originalId, id, newContent, sourceMsg) {
+    try {
+      const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
+        method: 'POST',
+        body: JSON.stringify({
+          content: newContent,
+          role: 'assistant',
+          no_reply: true,
+        }),
+      });
+
+      if (res.ok) {
+        await handleCopySuccess(res, originalId, id, sourceMsg);
+      } else {
+        await handleCopyError(res);
+      }
+    } catch (e) {
+      handleCopyException(e);
+    }
+  }
+
   messagesList.querySelectorAll('.save-copy-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const originalId = btn.getAttribute('data-message-id');
-      let id = originalId;
+      const id = await resolveCopyMessageId(originalId);
+      if (!id) return;
       const textarea = messagesList.querySelector(
         `.edit-message-textarea[data-message-id="${originalId}"]`
       );
       const newContent = textarea?.value.trim() || '';
-      if (isTempMessageId(id)) {
-        const resolved = await waitForResolvedMessageId(state.activeChatId, id);
-        if (!resolved) {
-          showToast('Message still saving. Please wait.');
-          return;
-        }
-        id = resolved;
-      }
       if (!newContent) return;
-
-      const sourceMsg =
-        getMessageById(chatId, originalId) ||
-        projectedMessages.find((msg) => String(msg.id) === String(originalId));
-
-      try {
-        const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
-          method: 'POST',
-          body: JSON.stringify({
-            content: newContent,
-            role: 'assistant',
-            no_reply: true,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          const newEditing = { ...state.ui.editingMessages };
-          delete newEditing[originalId];
-          delete newEditing[id];
-          setState({ ui: { ...state.ui, editingMessages: newEditing } });
-          if (data?.message?.id) {
-            currentLeafByChatId.set(chatId, String(data.message.id));
-            setBranchSelection(chatId, sourceMsg?.parent_id || null, data.message.id);
-          }
-          await loadMessages(chatId);
-        } else {
-          const err = await res.json().catch(() => ({}));
-          const message =
-            err?.details?.message || err.error || err.message || 'Failed to copy message';
-          alert(message);
-        }
-      } catch (e) {
-        console.error('Copy failed', e);
-        alert('An error occurred while copying the message.');
-      }
+      const sourceMsg = findCopySourceMessage(originalId);
+      await submitCopyBranch(originalId, id, newContent, sourceMsg);
     });
   });
 }

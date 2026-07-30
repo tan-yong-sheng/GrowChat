@@ -45,8 +45,9 @@ if (!email || !password) {
 }
 
 async function seed() {
-  console.error(`Seeding test user: ${email}`);
+  console.error('Seeding test user...');
 
+  // BASE_URL is a test-scaffold environment variable, not user input.
   const res = await fetch(`${BASE_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -56,13 +57,13 @@ async function seed() {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     if (res.status === 409) {
-      console.error(`Test user already exists: ${email}`);
+      console.error('Test user already exists');
     } else {
       console.error(`Failed to seed (${res.status}): ${text}`);
       process.exit(1);
     }
   } else {
-    console.error(`Seeded: ${email}`);
+    console.error('Seeded test user');
   }
 }
 

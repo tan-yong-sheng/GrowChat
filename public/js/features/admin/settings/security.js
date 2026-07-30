@@ -1,15 +1,30 @@
 import { apiFetch } from '../../../shared/api.js';
+import {
+  escapeHtml,
+  showFeedback,
+  sendTestEmail as sharedSendTestEmail,
+} from './security-shared.js';
 
-const escapeHtml = (text) => {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return text.replace(/[&<>"']/g, (char) => map[char]);
-};
+function parseEmailConfigPayload(payload) {
+  return { resendApiKeyConfigured: payload?.resend_api_key_configured || false };
+}
+
+function applyEmailConfig(settingsState, parsed) {
+  settingsState.resendApiKeyConfigured = parsed.resendApiKeyConfigured;
+}
+
+async function fetchAndApplyEmailConfig(settingsState) {
+  const res = await apiFetch('/api/admin/email-config');
+  if (!res.ok) return false;
+  const payload = await res.json();
+  const parsed = parseEmailConfigPayload(payload);
+  applyEmailConfig(settingsState, parsed);
+  return true;
+}
+
+function renderIfActive(render, isActiveTab, updated) {
+  if (updated && isActiveTab()) render();
+}
 
 export function renderSecuritySettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
@@ -22,27 +37,6 @@ export function renderSecuritySettings(container, data) {
 
   let savingApiKey = false;
   let sendingTestEmail = false;
-
-  const showFeedback = (message, isError = false) => {
-    let feedback = container.querySelector('#settings-feedback');
-    if (!feedback) {
-      feedback = document.createElement('div');
-      feedback.id = 'settings-feedback';
-      const feedbackContainer = container.querySelector('.space-y-3');
-      if (feedbackContainer) {
-        feedbackContainer.appendChild(feedback);
-      } else {
-        console.warn('Feedback container (.space-y-3) not found, appending to container');
-        container.appendChild(feedback);
-      }
-    }
-    feedback.textContent = message;
-    feedback.className = isError
-      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-    feedback.classList.remove('hidden');
-    setTimeout(() => feedback.classList.add('hidden'), 3000);
-  };
 
   const getHintText = () => {
     if (settingsState.resendApiKeyConfigured) {
@@ -117,10 +111,38 @@ export function renderSecuritySettings(container, data) {
     bindEvents();
   };
 
+  function isMaskedResendApiKeyValue(value) {
+    return value.includes('*');
+  }
+
+  function disableResendApiKeyInput() {
+    const apiKeyInput = container.querySelector('#resend-api-key');
+    if (apiKeyInput) apiKeyInput.disabled = true;
+  }
+
+  function formatResendApiKeyError(err) {
+    return err?.message || 'Failed to update Resend API key.';
+  }
+
+  async function extractResendApiKeyErrorMessage(res) {
+    const err = await res.json().catch(() => ({}));
+    return err.error || err.message || 'Failed to update Resend API key';
+  }
+
+  async function applyResendApiKeyUpdate(newValue) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: JSON.stringify({ resend_api_key: newValue }),
+    });
+    if (!res.ok) {
+      throw new Error(await extractResendApiKeyErrorMessage(res));
+    }
+  }
+
   const updateResendApiKey = async (newValue) => {
     // Validate: reject input containing asterisks (which indicate user didn't actually enter a new key)
-    if (newValue.includes('*')) {
-      showFeedback('Invalid API key format.', true);
+    if (isMaskedResendApiKeyValue(newValue)) {
+      showFeedback(container, 'Invalid API key format.', true);
       render();
       return;
     }
@@ -130,83 +152,27 @@ export function renderSecuritySettings(container, data) {
     savingApiKey = true;
 
     const prevConfigured = settingsState.resendApiKeyConfigured;
-    const apiKeyInput = container.querySelector('#resend-api-key');
 
     try {
-      if (apiKeyInput) {
-        apiKeyInput.disabled = true;
-      }
-
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ resend_api_key: newValue }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update Resend API key');
-      }
+      disableResendApiKeyInput();
+      await applyResendApiKeyUpdate(newValue);
 
       // Never store the actual key, only mark it as configured
       settingsState.resendApiKeyConfigured = true;
 
       render();
-      showFeedback('Resend API key saved.');
+      showFeedback(container, 'Resend API key saved.');
     } catch (err) {
       settingsState.resendApiKeyConfigured = prevConfigured;
       render();
-      showFeedback(err?.message || 'Failed to update Resend API key.', true);
+      showFeedback(container, formatResendApiKeyError(err), true);
     } finally {
       savingApiKey = false;
     }
   };
 
   const sendTestEmail = async (email) => {
-    // Prevent race conditions
-    if (sendingTestEmail) return;
-
-    if (!email || !email.trim()) {
-      showFeedback('Please enter a valid email address.', true);
-      return;
-    }
-
-    sendingTestEmail = true;
-
-    const sendTestBtn = container.querySelector('#send-test-email');
-    const testEmailInput = container.querySelector('#test-email');
-
-    try {
-      if (sendTestBtn) {
-        sendTestBtn.disabled = true;
-        sendTestBtn.textContent = 'Sending...';
-      }
-      if (testEmailInput) {
-        testEmailInput.disabled = true;
-      }
-
-      const res = await apiFetch('/api/admin/email-config/test', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to send test email');
-      }
-
-      showFeedback('Test email sent successfully.');
-    } catch (err) {
-      showFeedback(err?.message || 'Failed to send test email.', true);
-    } finally {
-      sendingTestEmail = false;
-      if (sendTestBtn) {
-        sendTestBtn.disabled = false;
-        sendTestBtn.textContent = 'Send Test';
-      }
-      if (testEmailInput) {
-        testEmailInput.disabled = false;
-      }
-    }
+    await sharedSendTestEmail(container, email);
   };
 
   const bindEvents = () => {
@@ -246,14 +212,8 @@ export function renderSecuritySettings(container, data) {
     if (settingsState.adminConfigLoaded) return;
     settingsState.adminConfigLoaded = true;
     try {
-      const res = await apiFetch('/api/admin/email-config');
-      if (res.ok) {
-        const payload = await res.json();
-        // Check if API key is configured, but never store the actual key in state
-        settingsState.resendApiKeyConfigured = payload?.resend_api_key_configured || false;
-
-        if (isActiveTab()) render();
-      }
+      const updated = await fetchAndApplyEmailConfig(settingsState);
+      renderIfActive(render, isActiveTab, updated);
     } catch (err) {
       console.warn('Failed to load email config', err);
     }

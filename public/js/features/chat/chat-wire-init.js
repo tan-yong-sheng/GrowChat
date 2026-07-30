@@ -1,6 +1,8 @@
 // WireChat init: impl adapters, cache, streams, modals, DOM, sidebar, maps.
 // Phase 1 of wireChat extraction from chat.js.
 
+import { findStreamingMessageId } from './message-input-helpers.js';
+
 export function initWireChat(root, deps, ctx) {
   // prettier-ignore
   const {
@@ -71,14 +73,7 @@ export function initWireChat(root, deps, ctx) {
     getRunningMessageId(messages = []) {
       if (streamSessionImpl?.getRunningMessageId)
         return streamSessionImpl.getRunningMessageId(messages);
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const msg = messages[i];
-        const status = String(msg?.status || '');
-        if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
-          return msg.id;
-        }
-      }
-      return null;
+      return findStreamingMessageId(messages);
     },
     stopStreamPolling(chatId) {
       streamSessionImpl?.stopStreamPolling?.(chatId);

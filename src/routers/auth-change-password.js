@@ -13,7 +13,7 @@ const HTTP = {
 };
 const MIN_PASSWORD_LENGTH = 8;
 
-export async function handleChangePassword(req, env, db, authUser) {
+export async function handleChangePassword({ req, env, db, authUser }) {
   let body;
   try {
     body = await req.json();

@@ -1,6 +1,5 @@
 import { connectRealtimeStream } from '../features/realtime/realtime.js';
-
-export async function realtimeRouter(req, env, _ctx, user, path) {
+export async function realtimeRouter({ req, env, ctx: _ctx, user, path }) {
   if (path !== '/api/realtime/stream') return null;
 
   if (!user) {

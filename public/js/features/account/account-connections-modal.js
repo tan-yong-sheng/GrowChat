@@ -13,6 +13,96 @@ import {
   normalizeModelRecord,
 } from '../../shared/utils/connection-helpers.js';
 import { formatHeadersValue } from './account-connections-helpers.js';
+
+function buildInitialModalModels(connection) {
+  return normalizeConnectionManualModels(connection?.manual_models || connection?.manualModels)
+    .map((model) =>
+      normalizeModelRecord({
+        id: model.modelId,
+        name: model.name || model.modelId,
+        manual: true,
+        manualModelId: model.modelId,
+      })
+    )
+    .filter(Boolean);
+}
+
+function buildInitialModalState(connection, initialModels) {
+  return {
+    models: initialModels,
+    selection: new Set(initialModels.map((model) => model.id)),
+    query: '',
+    loadingModels: false,
+    modelsError: '',
+    manualModelsMode:
+      normalizeConnectionModelSelectionMode(
+        connection?.manual_models_mode || connection?.manualModelsMode
+      ) || (initialModels.length > 0 ? 'some' : 'all'),
+  };
+}
+
+function getConnectionUrl(connection) {
+  return String(connection.base_url || connection.baseUrl || connection.url || '').trim();
+}
+
+function getConnectionProviderType(connection) {
+  return (
+    String(connection.provider_type || connection.providerType || 'openai')
+      .trim()
+      .toLowerCase() || 'openai'
+  );
+}
+
+function getConnectionKey(connection) {
+  return String(connection.key || connection.keyMasked || '').trim();
+}
+
+function hasConnectionKey(connection) {
+  return Boolean(connection.has_key || getConnectionKey(connection));
+}
+
+function buildConnectionForModal(connection, manualModelsMode) {
+  if (!connection) return null;
+  return {
+    ...connection,
+    url: getConnectionUrl(connection),
+    providerType: getConnectionProviderType(connection),
+    headers: formatHeadersValue(connection.headers),
+    key: getConnectionKey(connection),
+    has_key: hasConnectionKey(connection),
+    enabled: connection.enabled !== false,
+    manualModelsMode,
+  };
+}
+
+function queryAccountConnectionModalElements(modal) {
+  const bodyEl = modal;
+  return {
+    bodyEl,
+    overlay: modal.querySelector('.absolute.inset-0'),
+    providerSelect: bodyEl?.querySelector('#modal-conn-provider'),
+    baseUrlInput: bodyEl?.querySelector('#modal-conn-url'),
+    keyInput: bodyEl?.querySelector('#modal-conn-key'),
+    headersInput: bodyEl?.querySelector('#modal-conn-headers'),
+    nameInput: bodyEl?.querySelector('#modal-conn-name'),
+    testBtn: bodyEl?.querySelector('[data-account-connection-test], #test-connection'),
+    testMessage: bodyEl?.querySelector(
+      '[data-account-connection-test-message], #connection-test-message'
+    ),
+    modelsList: bodyEl?.querySelector('#modal-models-list'),
+    modelsStatus: bodyEl?.querySelector('#modal-models-status'),
+    searchInput: bodyEl?.querySelector('#modal-models-search'),
+    manualInput: bodyEl?.querySelector('#modal-manual-model-id'),
+    manualAddBtn: bodyEl?.querySelector('#modal-manual-model-add'),
+    selectAllBtn: bodyEl?.querySelector('#modal-models-select-all'),
+    selectNoneBtn: bodyEl?.querySelector('#modal-models-select-none'),
+    saveBtn: modal.querySelector('[data-account-connection-save], #save-modal'),
+    deleteBtn: modal.querySelector('[data-account-connection-delete-modal], #delete-connection'),
+    closeBtn: modal.querySelector('#close-modal'),
+    toggleKeyBtn: modal.querySelector('#toggle-key-visibility'),
+  };
+}
+
 export function createConnectionModal(ctx) {
   const {
     container,
@@ -35,50 +125,13 @@ export function createConnectionModal(ctx) {
     closeModal();
     const isEdit = Boolean(connection?.id);
     const title = isEdit ? 'Edit Connection' : 'Add Connection';
-    const initialModels = normalizeConnectionManualModels(
-      connection?.manual_models || connection?.manualModels
-    )
-      .map((model) =>
-        normalizeModelRecord({
-          id: model.modelId,
-          name: model.name || model.modelId,
-          manual: true,
-          manualModelId: model.modelId,
-        })
-      )
-      .filter(Boolean);
-    const modalState = {
-      models: initialModels,
-      selection: new Set(initialModels.map((model) => model.id)),
-      query: '',
-      loadingModels: false,
-      modelsError: '',
-      manualModelsMode:
-        normalizeConnectionModelSelectionMode(
-          connection?.manual_models_mode || connection?.manualModelsMode
-        ) || (initialModels.length > 0 ? 'some' : 'all'),
-    };
+    const initialModels = buildInitialModalModels(connection);
+    const modalState = buildInitialModalState(connection, initialModels);
     const modalMarkup = buildConnectionModalMarkup({
       rootId: 'account-connection-modal',
       title,
       canManage: canManageConnections,
-      connection: connection
-        ? {
-            ...connection,
-            url: String(connection.base_url || connection.baseUrl || connection.url || '').trim(),
-            providerType:
-              String(connection.provider_type || connection.providerType || 'openai')
-                .trim()
-                .toLowerCase() || 'openai',
-            headers: formatHeadersValue(connection.headers),
-            key: String(connection.key || connection.keyMasked || '').trim(),
-            has_key: Boolean(
-              connection.has_key || String(connection.key || connection.keyMasked || '').trim()
-            ),
-            enabled: connection.enabled !== false,
-            manualModelsMode: modalState.manualModelsMode,
-          }
-        : null,
+      connection: buildConnectionForModal(connection, modalState.manualModelsMode),
       isVisible: true,
       showAccountHooks: true,
       isEnvConnection: Boolean(connection?.readOnly),
@@ -91,76 +144,23 @@ export function createConnectionModal(ctx) {
     activeModalHash = isEdit ? 'edit-account-connection-modal' : 'add-account-connection-modal';
     setModalHash(activeModalHash);
     activeModal = modal;
-    const bodyEl = modal;
-    const overlay = modal.querySelector('.absolute.inset-0');
-    const providerSelect = bodyEl?.querySelector('#modal-conn-provider');
-    const baseUrlInput = bodyEl?.querySelector('#modal-conn-url');
-    const keyInput = bodyEl?.querySelector('#modal-conn-key');
-    const headersInput = bodyEl?.querySelector('#modal-conn-headers');
-    const nameInput = bodyEl?.querySelector('#modal-conn-name');
-    const testBtn = bodyEl?.querySelector('[data-account-connection-test], #test-connection');
-    const testMessage = bodyEl?.querySelector(
-      '[data-account-connection-test-message], #connection-test-message'
-    );
-    const modelsList = bodyEl?.querySelector('#modal-models-list');
-    const modelsStatus = bodyEl?.querySelector('#modal-models-status');
-    const searchInput = bodyEl?.querySelector('#modal-models-search');
-    const manualInput = bodyEl?.querySelector('#modal-manual-model-id');
-    const manualAddBtn = bodyEl?.querySelector('#modal-manual-model-add');
-    const selectAllBtn = bodyEl?.querySelector('#modal-models-select-all');
-    const selectNoneBtn = bodyEl?.querySelector('#modal-models-select-none');
-    const saveBtn = modal.querySelector('[data-account-connection-save], #save-modal');
-    const deleteBtn = modal.querySelector(
-      '[data-account-connection-delete-modal], #delete-connection'
-    );
-    const closeBtn = modal.querySelector('#close-modal');
-    const toggleKeyBtn = modal.querySelector('#toggle-key-visibility');
+    const elements = queryAccountConnectionModalElements(modal);
 
     const ui = createModalUi({
-      toggleKeyBtn,
-      keyInput,
-      saveBtn,
-      deleteBtn,
-      testMessage,
+      ...elements,
       viewState,
-      providerSelect,
-      baseUrlInput,
-      bodyEl,
-      nameInput,
       modalState,
       isEdit,
       connection,
-      searchInput,
-      modelsList,
-      modelsStatus,
-      manualInput,
-      manualAddBtn,
-      selectNoneBtn,
-      selectAllBtn,
       closeModal,
       render: ctx.render,
       upsertPersonalConnection,
       mergeSavedConnection,
       canManageConnections,
       container,
-      headersInput,
-      closeBtn,
-      overlay,
-      testBtn,
       removePersonalConnection,
     });
-    const {
-      updateToggleLabel,
-      setError,
-      setSaving,
-      setTestMessage,
-      syncProviderUi,
-      renderModels,
-      buildPayload,
-      testConnection,
-      saveConnection,
-      finishAndRender,
-    } = ui;
+    const { renderModels, testConnection } = ui;
 
     renderModels();
     if (isEdit) {

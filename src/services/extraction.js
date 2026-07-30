@@ -56,7 +56,8 @@ export async function extractDocumentText({ env, db, documentId, contentType, bu
       throw new Error('Document extraction resulted in empty text');
     }
 
-    const excerpt = fullText.slice(0, 500);
+    const EXCERPT_MAX_LENGTH = 500;
+    const excerpt = fullText.slice(0, EXCERPT_MAX_LENGTH);
     await markExtractionSuccess({ db, documentId, excerpt });
 
     return {

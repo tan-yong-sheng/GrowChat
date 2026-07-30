@@ -13,6 +13,23 @@
 
 const BANNED_METHODS = ['log', 'warn', 'error', 'debug', 'info'];
 
+const SRC_PATH_RE = /[\\/]src[\\/]/;
+const LOGGER_PATH_RE = /src[\\/]utils[\\/]logger\.js$/;
+
+function isExemptPath(filename) {
+  return !SRC_PATH_RE.test(filename) || LOGGER_PATH_RE.test(filename);
+}
+
+function isBannedConsoleCall(node) {
+  const { object, property } = node;
+  return (
+    object.type === 'Identifier' &&
+    object.name === 'console' &&
+    property.type === 'Identifier' &&
+    BANNED_METHODS.includes(property.name)
+  );
+}
+
 /** @type {import('eslint').Rule.RuleModule} */
 const noConsoleLoggingRule = {
   meta: {
@@ -33,30 +50,18 @@ const noConsoleLoggingRule = {
   create(context) {
     const filename = context.filename || context.getFilename();
 
-    // Only apply to src/ files
-    if (!filename.includes('/src/') && !filename.includes('\\src\\')) {
-      return {};
-    }
-
-    // Exempt the logger module itself (it uses console.* as output)
-    if (filename.endsWith('src/utils/logger.js') || filename.endsWith('src\\utils\\logger.js')) {
+    if (isExemptPath(filename)) {
       return {};
     }
 
     return {
       MemberExpression(node) {
-        if (
-          node.object.type === 'Identifier' &&
-          node.object.name === 'console' &&
-          node.property.type === 'Identifier' &&
-          BANNED_METHODS.includes(node.property.name)
-        ) {
-          context.report({
-            node,
-            messageId: 'noConsoleLogging',
-            data: { method: node.property.name },
-          });
-        }
+        if (!isBannedConsoleCall(node)) return;
+        context.report({
+          node,
+          messageId: 'noConsoleLogging',
+          data: { method: node.property.name },
+        });
       },
     };
   },

@@ -14,6 +14,23 @@ const AUTH_TYPE_OPTIONS = [
   { value: 'oauth', label: 'OAuth 2.0 (PKCE)' },
 ];
 
+const OAUTH_TOKEN_METHOD_OPTIONS = [
+  { value: '', label: 'Auto' },
+  { value: 'client_secret_basic', label: 'client_secret_basic' },
+  { value: 'client_secret_post', label: 'client_secret_post' },
+  { value: 'none', label: 'none' },
+];
+
+const CLOSE_ICON_SVG = `
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>`;
+
+const TEST_SERVER_ICON_SVG = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
+                </svg>`;
+
 function formatHeadersValue(headers) {
   if (!headers) return '';
   if (typeof headers === 'string') return headers;
@@ -29,61 +46,89 @@ function shouldShowAuthField(authType, fieldType) {
   return String(authType || 'none').toLowerCase() === fieldType;
 }
 
-export function buildMcpServerModalMarkup({
-  rootId = 'edit-connection-modal',
-  server = null,
-  isVisible = true,
-  modalMode = 'create',
-  canManage = true,
-  rootAttrs = '',
-} = {}) {
-  const authType = String(server?.auth_type || 'none').toLowerCase();
-  const headersValue = formatHeadersValue(server?.headers);
-  const hiddenClass = isVisible ? '' : ' hidden';
-  const disabledAttr = canManage ? '' : ' disabled aria-disabled="true"';
-  const disabledControlClass = canManage ? '' : ' opacity-50 cursor-not-allowed';
-  const rootAttrsMarkup = rootAttrs ? ` ${rootAttrs}` : '';
+function resolveVisibilityClass(isVisible) {
+  return isVisible ? '' : ' hidden';
+}
 
+function resolveDisabledAttrs(canManage) {
+  return canManage ? '' : ' disabled aria-disabled="true"';
+}
+
+function resolveDisabledControlClass(canManage) {
+  return canManage ? '' : ' opacity-50 cursor-not-allowed';
+}
+
+function resolveRootAttrsMarkup(rootAttrs) {
+  return rootAttrs ? ` ${rootAttrs}` : '';
+}
+
+function resolveModalTitle(modalMode) {
+  return modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server';
+}
+
+function renderAuthTypeOptions(authType) {
+  return AUTH_TYPE_OPTIONS.map(
+    (option) =>
+      `<option value="${escapeHtml(option.value)}"${authType === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`
+  ).join('');
+}
+
+function renderTokenMethodOptions(server) {
+  return OAUTH_TOKEN_METHOD_OPTIONS.map(
+    (option) =>
+      `<option value="${escapeHtml(option.value)}"${server?.oauth_token_auth_method === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`
+  ).join('');
+}
+
+function renderHiddenClass(show) {
+  return show ? '' : ' hidden';
+}
+
+function renderServerHeader({ modalMode }) {
   return `
-    <div id="${escapeHtml(rootId)}" class="${STANDARD_MODAL_PRESET.outerClass}${hiddenClass}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};"${rootAttrsMarkup}>
-      <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
-      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
         <div class="px-6 pt-6 pb-4 flex justify-between items-center">
-          <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server'}</h3>
+          <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${resolveModalTitle(modalMode)}</h3>
           <button id="close-modal" class="p-1 text-gray-600 hover:text-gray-700 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
+            ${CLOSE_ICON_SVG}
           </button>
-        </div>
+        </div>`;
+}
 
-        <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
+function renderServerNameField({ server, disabledAttr, disabledControlClass }) {
+  return `
           <div class="space-y-1">
             <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Server Name</label>
             <input id="server-name" type="text" value="${escapeHtml(server?.name || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="e.g. Default Tool Server" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Server Name"${disabledAttr}>
-          </div>
+          </div>`;
+}
 
+function renderServerUrlField({ server, disabledAttr, disabledControlClass }) {
+  return `
           <div class="space-y-1">
             <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">URL</label>
             <div class="flex items-center gap-2">
               <input id="server-url" type="text" value="${escapeHtml(server?.url || '')}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="http://localhost:5000/mcp" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Server URL"${disabledAttr}>
               <button id="test-server" class="p-1 text-gray-600 hover:text-gray-700${disabledControlClass}" title="Test server"${disabledAttr}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
-                </svg>
+                ${TEST_SERVER_ICON_SVG}
               </button>
             </div>
             <div id="server-test-message" class="text-label-sm text-gray-600 hidden"></div>
-          </div>
+          </div>`;
+}
 
+function renderAuthTypeField({ authType, disabledAttr, disabledControlClass }) {
+  return `
           <div class="space-y-1">
             <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Auth Type</label>
             <select id="server-auth-type" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}" aria-label="Auth Type"${disabledAttr}>
-              ${AUTH_TYPE_OPTIONS.map((option) => `<option value="${escapeHtml(option.value)}"${authType === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+              ${renderAuthTypeOptions(authType)}
             </select>
-          </div>
+          </div>`;
+}
 
-          <div id="auth-bearer-fields" class="space-y-1${shouldShowAuthField(authType, 'bearer') ? '' : ' hidden'}">
+function renderBearerAuthFields({ server, authType, disabledAttr, disabledControlClass }) {
+  return `
+          <div id="auth-bearer-fields" class="space-y-1${renderHiddenClass(shouldShowAuthField(authType, 'bearer'))}">
             <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Bearer Token</label>
             <div class="flex items-center gap-3">
               <div class="flex-1 relative">
@@ -93,9 +138,12 @@ export function buildMcpServerModalMarkup({
                 </button>
               </div>
             </div>
-          </div>
+          </div>`;
+}
 
-          <div id="auth-basic-fields" class="space-y-3${shouldShowAuthField(authType, 'basic') ? '' : ' hidden'}">
+function renderBasicAuthFields({ server, authType, disabledAttr, disabledControlClass }) {
+  return `
+          <div id="auth-basic-fields" class="space-y-3${renderHiddenClass(shouldShowAuthField(authType, 'basic'))}">
             <div class="space-y-1">
               <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Username</label>
               <input id="server-auth-basic-username" type="text" value="${escapeHtml(server?.auth_basic_username || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="Username" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Username"${disabledAttr}>
@@ -111,52 +159,144 @@ export function buildMcpServerModalMarkup({
                 </div>
               </div>
             </div>
-          </div>
+          </div>`;
+}
 
-          <div id="auth-oauth-fields" class="space-y-3${shouldShowAuthField(authType, 'oauth') ? '' : ' hidden'}">
+function renderOAuthClientNameField({ server, disabledAttr, disabledControlClass }) {
+  return `
             <div class="space-y-1">
               <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Client Name</label>
               <input id="server-auth-oauth-client-name" type="text" value="${escapeHtml(server?.oauth_client_name || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="GrowChat MCP Client" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Client Name"${disabledAttr}>
-            </div>
+            </div>`;
+}
+
+function renderOAuthScopeField({ server, disabledAttr, disabledControlClass }) {
+  return `
             <div class="space-y-1">
               <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Scope</label>
               <input id="server-auth-oauth-scope" type="text" value="${escapeHtml(server?.oauth_scope || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="optional" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Scope"${disabledAttr}>
-            </div>
+            </div>`;
+}
+
+function renderOAuthClientIdField({ server, disabledAttr, disabledControlClass }) {
+  return `
             <div class="space-y-1">
               <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Client ID</label>
               <input id="server-auth-oauth-client-id" type="text" value="${escapeHtml(server?.oauth_client_id || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="Leave blank to auto-register" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Client ID"${disabledAttr}>
-            </div>
+            </div>`;
+}
+
+function renderOAuthClientSecretField({ server, disabledAttr, disabledControlClass }) {
+  return `
             <div class="space-y-1">
               <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Client Secret</label>
               <input id="server-auth-oauth-client-secret" type="password" value="${escapeHtml(server?.oauth_client_secret || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="Optional" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Client Secret"${disabledAttr}>
-            </div>
+            </div>`;
+}
+
+function renderOAuthTokenMethodField({ server, disabledAttr, disabledControlClass }) {
+  return `
             <div class="space-y-1">
               <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Token Auth Method</label>
               <select id="server-auth-oauth-token-method" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}" aria-label="Token Auth Method"${disabledAttr}>
-                <option value="">Auto</option>
-                <option value="client_secret_basic"${server?.oauth_token_auth_method === 'client_secret_basic' ? ' selected' : ''}>client_secret_basic</option>
-                <option value="client_secret_post"${server?.oauth_token_auth_method === 'client_secret_post' ? ' selected' : ''}>client_secret_post</option>
-                <option value="none"${server?.oauth_token_auth_method === 'none' ? ' selected' : ''}>none</option>
+                ${renderTokenMethodOptions(server)}
               </select>
-            </div>
+            </div>`;
+}
+
+function resolveOAuthStatusText(server) {
+  return server?.oauth_connected ? 'Connected' : 'Not connected';
+}
+
+function renderOAuthConnectRow({ server, disabledControlClass, canManage }) {
+  return `
             <div class="flex items-center gap-3">
               ${renderButton({ label: 'Connect OAuth', variant: 'primary', id: 'connect-oauth', className: `px-4 py-1.5 text-xs font-medium${disabledControlClass}`, disabled: !canManage })}
-              <div id="oauth-status" class="text-label-sm text-gray-600">${server?.oauth_connected ? 'Connected' : 'Not connected'}</div>
+              <div id="oauth-status" class="text-label-sm text-gray-600">${resolveOAuthStatusText(server)}</div>
             </div>
-            <div class="text-label-sm text-gray-600">OAuth requires saving the server first.</div>
-          </div>
+            <div class="text-label-sm text-gray-600">OAuth requires saving the server first.</div>`;
+}
 
+function renderOAuthAuthFields({
+  server,
+  authType,
+  disabledAttr,
+  disabledControlClass,
+  canManage,
+}) {
+  return `
+          <div id="auth-oauth-fields" class="space-y-3${renderHiddenClass(shouldShowAuthField(authType, 'oauth'))}">
+            ${renderOAuthClientNameField({ server, disabledAttr, disabledControlClass })}
+            ${renderOAuthScopeField({ server, disabledAttr, disabledControlClass })}
+            ${renderOAuthClientIdField({ server, disabledAttr, disabledControlClass })}
+            ${renderOAuthClientSecretField({ server, disabledAttr, disabledControlClass })}
+            ${renderOAuthTokenMethodField({ server, disabledAttr, disabledControlClass })}
+            ${renderOAuthConnectRow({ server, disabledControlClass, canManage })}
+          </div>`;
+}
+
+function renderHeadersField({ headersValue, disabledAttr, disabledControlClass }) {
+  return `
           <div class="space-y-1">
             <label class="text-label-sm font-bold text-gray-600 uppercase tracking-wider">Headers</label>
             <textarea id="server-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" aria-label="Headers"${disabledAttr}>${escapeHtml(headersValue)}</textarea>
-          </div>
-        </div>
+          </div>`;
+}
 
+function renderModalFooter({ server, disabledControlClass, canManage }) {
+  return `
         <div class="px-6 py-6 flex justify-end gap-3">
           ${renderButton({ label: 'Delete', variant: 'ghost', id: 'delete-server', className: `px-5 py-1.5${server ? '' : ' hidden'}${disabledControlClass}`, disabled: !canManage })}
           ${renderButton({ label: 'Save', variant: 'primary', id: 'save-modal', className: `px-5 py-1.5${disabledControlClass}`, disabled: !canManage })}
+        </div>`;
+}
+
+function renderModalBody(ctx) {
+  return `
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        ${renderServerHeader(ctx)}
+        <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
+          ${renderServerNameField(ctx)}
+          ${renderServerUrlField(ctx)}
+          ${renderAuthTypeField(ctx)}
+          ${renderBearerAuthFields(ctx)}
+          ${renderBasicAuthFields(ctx)}
+          ${renderOAuthAuthFields(ctx)}
+          ${renderHeadersField(ctx)}
         </div>
-      </div>
+        ${renderModalFooter(ctx)}
+      </div>`;
+}
+
+export function buildMcpServerModalMarkup({
+  rootId = 'edit-connection-modal',
+  server = null,
+  isVisible = true,
+  modalMode = 'create',
+  canManage = true,
+  rootAttrs = '',
+} = {}) {
+  const authType = String(server?.auth_type || 'none').toLowerCase();
+  const headersValue = formatHeadersValue(server?.headers);
+  const ctx = {
+    rootId,
+    server,
+    authType,
+    headersValue,
+    isVisible,
+    modalMode,
+    canManage,
+    rootAttrs,
+    hiddenClass: resolveVisibilityClass(isVisible),
+    disabledAttr: resolveDisabledAttrs(canManage),
+    disabledControlClass: resolveDisabledControlClass(canManage),
+    rootAttrsMarkup: resolveRootAttrsMarkup(rootAttrs),
+  };
+
+  return `
+    <div id="${escapeHtml(rootId)}" class="${STANDARD_MODAL_PRESET.outerClass}${ctx.hiddenClass}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};"${ctx.rootAttrsMarkup}>
+      <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
+      ${renderModalBody(ctx)}
     </div>
   `;
 }

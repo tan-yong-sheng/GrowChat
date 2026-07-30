@@ -13,12 +13,33 @@ import {
   createInitialRoles,
   normalizeLoadedRole,
   getNextCustomIndex,
+  loadRolesFromServer,
   ensureRolesLoaded,
   renderLoadingState,
   renderErrorState,
 } from './roles-helpers.js';
 import { openRoleModal } from './roles-modal.js';
 import { renderRoleList } from './roles-render.js';
+
+function normalizeRolesState(state) {
+  if (!Array.isArray(state.roles)) {
+    state.roles = [];
+  }
+  if (!state.nextCustomIndex || !Number.isFinite(state.nextCustomIndex)) {
+    state.nextCustomIndex = getNextCustomIndex(state.roles);
+  }
+}
+
+function renderRolesError(container, state, data) {
+  if (!state.rolesError || state.roles.length) return;
+  container.innerHTML = renderErrorState(state.rolesError);
+  container.querySelector('[data-role-retry]')?.addEventListener('click', () => {
+    state.rolesLoaded = false;
+    state.rolesLoading = false;
+    state.rolesError = null;
+    renderRolesPage(container, data);
+  });
+}
 
 export function renderRolesPage(container, data = {}) {
   const state =
@@ -34,22 +55,7 @@ export function renderRolesPage(container, data = {}) {
       rolesError: null,
     });
 
-  if (!Array.isArray(state.roles)) {
-    state.roles = [];
-  }
-  if (!state.nextCustomIndex || !Number.isFinite(state.nextCustomIndex)) {
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
-  }
-
-  async function loadRolesFromServer(state) {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles =
-      Array.isArray(payload?.roles) && payload.roles.length
-        ? payload.roles.map((role) => normalizeLoadedRole(role))
-        : createInitialRoles();
-    state.roles = roles;
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
-  }
+  normalizeRolesState(state);
 
   const closeModal = () => {
     if (typeof state.modalCleanup === 'function') {
@@ -75,13 +81,7 @@ export function renderRolesPage(container, data = {}) {
   }
 
   if (state.rolesError && !state.roles.length) {
-    container.innerHTML = renderErrorState(state.rolesError);
-    container.querySelector('[data-role-retry]')?.addEventListener('click', () => {
-      state.rolesLoaded = false;
-      state.rolesLoading = false;
-      state.rolesError = null;
-      renderRolesPage(container, data);
-    });
+    renderRolesError(container, state, data);
     return;
   }
 
@@ -146,25 +146,21 @@ export function renderRolesPage(container, data = {}) {
   };
 
   const openRole = (roleId, isNew = false) => {
+    async function saveAdminRole(creating, currentRoleId, payload) {
+      const result = creating
+        ? await createAdminRbacRole(payload)
+        : await updateAdminRbacRole(currentRoleId, payload);
+      const role = result?.role || result;
+      if (role?.id) {
+        await reloadRolesFromServer();
+      }
+    }
+
     closeModal();
     state.modalCleanup = openRoleModal(container, state, data, {
       roleId,
       isNew,
-      onSaveRole: async (creating, currentRoleId, payload) => {
-        if (creating) {
-          const result = await createAdminRbacRole(payload);
-          const role = result?.role || result;
-          if (role?.id) {
-            await reloadRolesFromServer();
-          }
-          return;
-        }
-        const result = await updateAdminRbacRole(currentRoleId, payload);
-        const role = result?.role || result;
-        if (role?.id) {
-          await reloadRolesFromServer();
-        }
-      },
+      onSaveRole: saveAdminRole,
       onDeleteRole: deleteRole,
     });
   };

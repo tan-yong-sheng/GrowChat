@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
+  "ignoreDependencies": ["dompurify", "autoprefixer", "postcss", "serve", "wait-on"],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/playwright-report/**",
+    "public/styles.css"
+  ],
+  "ignoreUnresolvedImports": [
+    "../../../../types.js",
+    "../../../types.js",
+    "../../types",
+    "../env",
+    "../src/db.js",
+    "../modal-shell.js",
+    "playwright-core"
+  ],
+  "duplicates": {
+    "threshold": 1
+  }
+}

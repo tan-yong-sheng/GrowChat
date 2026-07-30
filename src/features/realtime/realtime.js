@@ -45,20 +45,40 @@ export function createRealtimeEvent({
   };
 }
 
+function pickTruthyString(input, keys) {
+  for (const key of keys) {
+    const value = input && input[key];
+    if (value) return value;
+  }
+  return '';
+}
+
+function pickTrimmedString(input, keys) {
+  return String(pickTruthyString(input, keys)).trim();
+}
+
+function pickOptionalString(input, keys) {
+  const value = pickTruthyString(input, keys);
+  return value ? String(value) : null;
+}
+
+function coerceDataValue(value) {
+  if (value && typeof value === 'object') return value;
+  return value ?? null;
+}
+
 function normalizeRealtimeEvent(event) {
   const input = event && typeof event === 'object' ? event : {};
-  const type = String(input.type || '').trim();
-  const userId = String(input.user_id || input.userId || '').trim();
-
   return {
-    type,
-    user_id: userId,
-    chat_id: input.chat_id || input.chatId ? String(input.chat_id || input.chatId) : null,
-    message_id:
-      input.message_id || input.messageId ? String(input.message_id || input.messageId) : null,
-    origin_session_id: sanitizeSessionId(input.origin_session_id || input.originSessionId),
+    type: pickTrimmedString(input, ['type']),
+    user_id: pickTrimmedString(input, ['user_id', 'userId']),
+    chat_id: pickOptionalString(input, ['chat_id', 'chatId']),
+    message_id: pickOptionalString(input, ['message_id', 'messageId']),
+    origin_session_id: sanitizeSessionId(
+      pickTruthyString(input, ['origin_session_id', 'originSessionId'])
+    ),
     ts: Number(input.ts || Date.now()),
-    data: input.data && typeof input.data === 'object' ? input.data : (input.data ?? null),
+    data: coerceDataValue(input.data),
   };
 }
 

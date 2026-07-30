@@ -34,6 +34,19 @@ vi.mock('../../admin/tool-servers.js', () => ({
 
 vi.mock('./admin-helpers.js', () => ({
   ensureAdminAclAccess: (...args) => mocks.ensureAdminAclAccess(...args),
+  parseJsonAndRequireAdminAcl: async (req, env, user, resource) => {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return { error: new Response('Invalid JSON body', { status: 400 }) };
+    }
+    const aclDecision = await mocks.ensureAdminAclAccess({ env, user, resource });
+    if (!aclDecision.allow) {
+      return { error: new Response(aclDecision.reason || 'Forbidden', { status: 403 }) };
+    }
+    return { body };
+  },
 }));
 
 import { handleAdminToolServersAccess } from './admin-tool-servers-access.js';

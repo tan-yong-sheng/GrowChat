@@ -9,13 +9,16 @@ export function normalizeBaseUrl(url) {
   return normalizeUrl(url);
 }
 
+function resolveProviderFamilyKey(providerType) {
+  const family = normalizeProviderFamily(providerType);
+  if (family) return family;
+  return String(providerType || '')
+    .trim()
+    .toLowerCase();
+}
+
 export function getConnectionApiType(providerType) {
-  switch (
-    normalizeProviderFamily(providerType) ||
-    String(providerType || '')
-      .trim()
-      .toLowerCase()
-  ) {
+  switch (resolveProviderFamilyKey(providerType)) {
     case 'google':
       return 'stream-generate-content';
     case 'anthropic':
@@ -26,12 +29,7 @@ export function getConnectionApiType(providerType) {
 }
 
 export function getConnectionApiTypeLabel(providerType) {
-  switch (
-    normalizeProviderFamily(providerType) ||
-    String(providerType || '')
-      .trim()
-      .toLowerCase()
-  ) {
+  switch (resolveProviderFamilyKey(providerType)) {
     case 'google':
       return 'Gemini Stream Generate Content';
     case 'anthropic':
@@ -42,12 +40,7 @@ export function getConnectionApiTypeLabel(providerType) {
 }
 
 export function getConnectionDefaultBaseUrl(providerType) {
-  switch (
-    normalizeProviderFamily(providerType) ||
-    String(providerType || '')
-      .trim()
-      .toLowerCase()
-  ) {
+  switch (resolveProviderFamilyKey(providerType)) {
     case 'google':
       return 'https://generativelanguage.googleapis.com/v1beta';
     case 'anthropic':
@@ -156,32 +149,51 @@ export function extractConnectionModelId(item) {
   return raw.startsWith('models/') ? raw.slice('models/'.length) : raw;
 }
 
+function resolveProviderType(conn) {
+  return String(conn?.providerType || conn?.providerFamily || '')
+    .trim()
+    .toLowerCase();
+}
+
+function resolveApiType(conn, providerType) {
+  return String(conn?.apiType || getConnectionApiType(providerType) || '')
+    .trim()
+    .toLowerCase();
+}
+
+function resolveBaseUrl(conn) {
+  return normalizeBaseUrl(conn?.baseUrl || conn?.url || '');
+}
+
+function buildConnectionSignature(providerType, apiType, baseUrl) {
+  return `${providerType}::${apiType}::${baseUrl}`;
+}
+
+function resolveSourcePriority(source) {
+  if (source === 'user') return 2;
+  if (source === 'config') return 1;
+  return 0;
+}
+
+function shouldReplaceExisting(existing, incoming) {
+  return resolveSourcePriority(incoming?.source) > resolveSourcePriority(existing?.source);
+}
+
 export function dedupeConnectionConfigs(connections = []) {
   const deduped = [];
   const indexBySignature = new Map();
   for (const conn of Array.isArray(connections) ? connections : []) {
-    const providerType = String(conn?.providerType || conn?.providerFamily || '')
-      .trim()
-      .toLowerCase();
-    const apiType = String(conn?.apiType || getConnectionApiType(providerType) || '')
-      .trim()
-      .toLowerCase();
-    const baseUrl = normalizeBaseUrl(conn?.baseUrl || conn?.url || '');
-    const signature = `${providerType}::${apiType}::${baseUrl}`;
+    const providerType = resolveProviderType(conn);
+    const apiType = resolveApiType(conn, providerType);
+    const baseUrl = resolveBaseUrl(conn);
+    const signature = buildConnectionSignature(providerType, apiType, baseUrl);
     const existingIndex = indexBySignature.get(signature);
     if (existingIndex === undefined) {
       indexBySignature.set(signature, deduped.length);
       deduped.push(conn);
       continue;
     }
-    const existing = deduped[existingIndex];
-    const existingIsConfig = existing?.source === 'config';
-    const incomingIsConfig = conn?.source === 'config';
-    const existingIsUser = existing?.source === 'user';
-    const incomingIsUser = conn?.source === 'user';
-    const existingPriority = existingIsUser ? 2 : existingIsConfig ? 1 : 0;
-    const incomingPriority = incomingIsUser ? 2 : incomingIsConfig ? 1 : 0;
-    if (incomingPriority > existingPriority) {
+    if (shouldReplaceExisting(deduped[existingIndex], conn)) {
       deduped[existingIndex] = conn;
     }
   }

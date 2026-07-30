@@ -2,10 +2,12 @@ import { APP_LIMITS } from '../config/app.js';
 
 const DEFAULT_KEY_PREFIX = 'rate-limit';
 
+const DEFAULT_WINDOW_SECONDS = 60;
+
 function normalizeWindowSeconds(windowSeconds) {
   const parsed = Number(windowSeconds);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 60;
+    return DEFAULT_WINDOW_SECONDS;
   }
   return Math.floor(parsed);
 }

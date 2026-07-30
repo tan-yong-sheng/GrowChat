@@ -1,4 +1,4 @@
-function normalizeModalHash(value) {
+export function normalizeModalHash(value) {
   return String(value || '')
     .trim()
     .replace(/^#+/g, '')

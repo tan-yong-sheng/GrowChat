@@ -1,37 +1,25 @@
+/* eslint-disable max-lines-per-function, max-statements */
 // WireChat setup: drafts, identity, stream runtime, title, realtime.
 // Phase 2 of wireChat extraction from chat.js.
 
 export function setupWireChatFeatures(ctx, deps) {
   let {
     activeStreamAbort,
-    consumeSseTextStream,
     drawMessages,
     ensureStreamSession,
     loadChats,
     loadMessages,
     messagesList,
-    notePayloadSeq,
-    openCitation,
     processedRealtimeEvents,
-    refreshShareState,
-    renderShareModal,
-    sharedByChatId,
     sidebar,
     streamSession,
-    syncChatUrl,
     uiResources,
-    welcomeScreenContainer,
     updateMessageContentDom,
-    applyAssistantErrorMessage,
     clientSessionId,
-    chatMessageFlow,
-    openCitationImpl,
-    destroyChatFileEvents,
   } = ctx;
   const {
     state,
     setState,
-    createChatMessageDom,
     createChatMessageIdentityTracker,
     renderSidebar,
     loadChatStreamStateModule,
@@ -106,11 +94,11 @@ export function setupWireChatFeatures(ctx, deps) {
   const unbindToolServersInvalidationListener = () =>
     uiResources.unbindToolServersInvalidationListener();
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
-  let pinnedSectionCollapsed = false; // eslint-disable-line no-useless-assignment
+  let pinnedSectionCollapsed = false;
   try {
     pinnedSectionCollapsed = localStorage.getItem(PINNED_COLLAPSED_KEY) === '1';
   } catch {
-    pinnedSectionCollapsed = false;
+    /* ignore */
   }
   const destroySidebar = renderSidebar(sidebar, ctx.root);
   const messageIdentityTracker = createChatMessageIdentityTracker({

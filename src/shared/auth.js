@@ -1,4 +1,15 @@
-const JWT_TTL_SECONDS = 60 * 15;
+// ────────────────────────────────────────────────────────────────
+// Authentication utilities — JWT signing/verification, password
+// hashing/verification. All numeric constants here are explicit
+// protocol parameters (key sizes, salt lengths, token structure)
+// and not "magic" values — keeping them readable as-is.
+// ────────────────────────────────────────────────────────────────
+
+const SECONDS_PER_MINUTE = 60;
+const JWT_TTL_MINUTES = 15;
+const JWT_TTL_SECONDS = SECONDS_PER_MINUTE * JWT_TTL_MINUTES;
+const BASE64_PADDING_MODULUS = 4;
+const JWT_SEGMENT_COUNT = 3;
 
 function toBase64Url(bytes) {
   let binary = '';
@@ -8,7 +19,13 @@ function toBase64Url(bytes) {
 
 function fromBase64Url(input) {
   const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64 + '='.repeat((4 - (base64.length % 4 || 4)) % 4);
+  const padded =
+    base64 +
+    '='.repeat(
+      (BASE64_PADDING_MODULUS -
+        (base64.length % BASE64_PADDING_MODULUS || BASE64_PADDING_MODULUS)) %
+        BASE64_PADDING_MODULUS
+    );
   const binary = atob(padded);
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
 }
@@ -44,7 +61,7 @@ export async function signJWT(payload, secret, ttlSeconds = JWT_TTL_SECONDS) {
 
 export async function verifyJWT(token, secret) {
   const parts = token?.split('.') || [];
-  if (parts.length !== 3) throw new Error('Invalid token');
+  if (parts.length !== JWT_SEGMENT_COUNT) throw new Error('Invalid token');
 
   const [header, body, signature] = parts;
   const expected = await hmacSign(`${header}.${body}`, secret);

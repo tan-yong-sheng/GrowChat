@@ -4,25 +4,14 @@ import {
   normalizeModelSearchQuery,
 } from '../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { getItemScopeLabel } from '../../shared/utils/scope-label.js';
 
 export function getModelDisplayLabel(model) {
   return String(model?.name || model?.id || '').trim();
 }
 
 export function getModelScopeLabel(model) {
-  const accessVariant = String(model?.access_variant || '')
-    .trim()
-    .toLowerCase();
-  const accessLabel = String(model?.access_label || '')
-    .trim()
-    .toLowerCase();
-  const source = String(model?.source || '')
-    .trim()
-    .toLowerCase();
-  if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
-    return 'Personal';
-  }
-  return 'Shared';
+  return getItemScopeLabel(model);
 }
 
 export function getModelScopeBadgeClass(model) {

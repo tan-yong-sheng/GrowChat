@@ -3,6 +3,7 @@
  * Handles mode toggling (preview/code), collapse state, error display, and action binding.
  */
 
+import { showToast } from './utils/toast.js';
 import {
   escapeHtml,
   normalizeSpecialBlockMode,
@@ -69,18 +70,7 @@ export function renderPlainCodeBlock(
 }
 
 export function showSpecialCopyToast(message, duration = 1800) {
-  if (typeof document === 'undefined') return null;
-  const toast = document.createElement('div');
-  toast.className =
-    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-full shadow-sm z-[99999] transition-opacity duration-300 opacity-0';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
-  setTimeout(() => {
-    toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
-  return toast;
+  return showToast(message, duration);
 }
 
 export async function copyMarkdownText(text) {
@@ -141,6 +131,25 @@ export function ensureSpecialBlockErrorElement(block) {
   return errorEl;
 }
 
+function updateErrorElementVisibility(errorEl, hasError) {
+  if (errorEl && !hasError) errorEl.remove();
+  if (errorEl && hasError) errorEl.classList.remove('hidden');
+}
+
+function disablePreviewButton(block, hasError) {
+  const previewBtn = block.querySelector('[data-markdown-special-mode-btn="preview"]');
+  if (previewBtn) previewBtn.disabled = hasError || block.dataset.markdownSpecialStreaming === '1';
+  return previewBtn;
+}
+
+function applyCodeModeToBlock(block) {
+  block.dataset.markdownSpecialMode = 'code';
+  const codeBtn = block.querySelector('[data-markdown-special-mode-btn="code"]');
+  if (codeBtn) codeBtn.setAttribute('aria-pressed', 'true');
+  const previewBtn = block.querySelector('[data-markdown-special-mode-btn="preview"]');
+  if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false');
+}
+
 export function setSpecialBlockError(block, message) {
   if (!block) return;
   const hasError = Boolean(message);
@@ -151,16 +160,9 @@ export function setSpecialBlockError(block, message) {
   block.dataset.markdownSpecialHasError = hasError ? '1' : '0';
   block.dataset.markdownSpecialErrorMessage = hasError ? String(message) : '';
   if (errorBody) errorBody.textContent = hasError ? String(message) : '';
-  if (errorEl && !hasError) errorEl.remove();
-  if (errorEl && hasError) errorEl.classList.remove('hidden');
-  const previewBtn = block.querySelector('[data-markdown-special-mode-btn="preview"]');
-  if (previewBtn) previewBtn.disabled = hasError || block.dataset.markdownSpecialStreaming === '1';
-  if (hasError) {
-    block.dataset.markdownSpecialMode = 'code';
-    const codeBtn = block.querySelector('[data-markdown-special-mode-btn="code"]');
-    if (codeBtn) codeBtn.setAttribute('aria-pressed', 'true');
-    if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false');
-  }
+  updateErrorElementVisibility(errorEl, hasError);
+  disablePreviewButton(block, hasError);
+  if (hasError) applyCodeModeToBlock(block);
   updateSpecialBlockVisibility(block);
 }
 
@@ -196,18 +198,56 @@ export function applySpecialBlockModeToScope(scope, mode) {
   }
 }
 
+function getSpecialBlockMode(block) {
+  return block.dataset.markdownSpecialMode === 'code' ? 'code' : 'preview';
+}
+
+function isSpecialBlockCollapsed(block) {
+  return block.dataset.markdownSpecialCollapsed === '1';
+}
+
+function isSpecialBlockStreaming(block) {
+  return block.dataset.markdownSpecialStreaming === '1';
+}
+
+function isSpecialBlockErrored(block) {
+  return block.dataset.markdownSpecialHasError === '1';
+}
+
+function updateElementVisibility(el, hidden) {
+  if (el) el.classList.toggle('hidden', hidden);
+}
+
+function shouldHidePreview(collapsed, mode, streaming) {
+  return collapsed || mode === 'code' || streaming;
+}
+
+function shouldHideCode(collapsed, mode) {
+  return collapsed || mode !== 'code';
+}
+
+function shouldHideError(collapsed, hasError, mode) {
+  return collapsed || !hasError || mode !== 'code';
+}
+
 export function updateSpecialBlockVisibility(block) {
   if (!block) return;
-  const nextMode = block.dataset.markdownSpecialMode === 'code' ? 'code' : 'preview';
-  const collapsed = block.dataset.markdownSpecialCollapsed === '1';
-  const streaming = block.dataset.markdownSpecialStreaming === '1';
-  const hasError = block.dataset.markdownSpecialHasError === '1';
-  const preview = block.querySelector('[data-markdown-special-preview]');
-  const code = block.querySelector('[data-markdown-special-code-shell]');
-  const error = block.querySelector('[data-markdown-special-error]');
-  if (preview) preview.classList.toggle('hidden', collapsed || nextMode === 'code' || streaming);
-  if (code) code.classList.toggle('hidden', collapsed || nextMode !== 'code');
-  if (error) error.classList.toggle('hidden', collapsed || !hasError || nextMode !== 'code');
+  const mode = getSpecialBlockMode(block);
+  const collapsed = isSpecialBlockCollapsed(block);
+  const streaming = isSpecialBlockStreaming(block);
+  const hasError = isSpecialBlockErrored(block);
+  updateElementVisibility(
+    block.querySelector('[data-markdown-special-preview]'),
+    shouldHidePreview(collapsed, mode, streaming)
+  );
+  updateElementVisibility(
+    block.querySelector('[data-markdown-special-code-shell]'),
+    shouldHideCode(collapsed, mode)
+  );
+  updateElementVisibility(
+    block.querySelector('[data-markdown-special-error]'),
+    shouldHideError(collapsed, hasError, mode)
+  );
   updateSpecialBlockCollapseState(block);
 }
 

@@ -3,6 +3,7 @@
  */
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   isValidHttpUrl,
   loadToolServers,
@@ -13,248 +14,247 @@ import {
   redactToolServer,
   saveToolServers,
 } from '../../admin/tool-servers.js';
-import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../../mcp/client.js';
-import { ensureAdminAclAccess } from './admin-helpers.js';
+import { testMcpConnection, mapMcpTools } from '../../shared/tool-servers-shared.js';
+import { applyAuthHeaders } from '../../shared/apply-auth-headers.js';
+import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
+
+async function handleListToolServers({ req, db, logger, _env, _user }) {
+  try {
+    const url = new URL(req.url);
+    const includeDisabled = parseIncludeDisabledParam(
+      String(url.searchParams.get('include_disabled') || '').toLowerCase()
+    );
+    const servers = await loadToolServers(db);
+    const filtered = includeDisabled
+      ? servers
+      : servers.filter((server) => server.enabled !== false);
+    return json(req, { servers: filtered.map(redactToolServer) });
+  } catch (err) {
+    logger.error('Tool servers fetch failed', { error: err?.message || err });
+    return error(req, 'Failed to fetch tool servers', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+function validateToolServerUrl(req, body) {
+  const url = String(body.url || '').trim();
+  if (!url || !isValidHttpUrl(url)) {
+    return {
+      ok: false,
+      error: error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST),
+    };
+  }
+  const safety = isSafeOutboundUrl(url);
+  if (!safety.safe) {
+    return { ok: false, error: error(req, safety.reason, HTTP_STATUS.BAD_REQUEST) };
+  }
+  return { ok: true, url };
+}
+
+function buildToolServerTestHeaders(body) {
+  try {
+    const headers = parseHeadersForRequest(body.headers);
+    applyAuthHeaders(headers, body);
+    return { ok: true, headers };
+  } catch (err) {
+    return { ok: false, error: err.message || 'Headers must be valid JSON' };
+  }
+}
+
+async function resolveToolServerOAuthIfNeeded(req, db, body, headers) {
+  if (normalizeAuthType(body.auth_type) !== 'oauth') return null;
+  return resolveOAuthHeaderForServer(req, db, body, headers);
+}
+
+async function runToolServerConnectionTest({ req, db, url, headers, body, _logger }) {
+  const { tools: rawTools } = await testMcpConnection(url, headers);
+  const toolSummaries = mapMcpTools(rawTools);
+  const mergedTools = body.id
+    ? await mergeConnectionTestToolsIntoExisting(db, body.id, toolSummaries)
+    : toolSummaries;
+  return json(req, {
+    ok: true,
+    message: 'Connection successful',
+    tools: mergedTools,
+  });
+}
+
+async function handleTestToolServer({ req, env, db, user, logger }) {
+  const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'tool-server');
+  if (denied) return denied;
+
+  const urlResult = validateToolServerUrl(req, body);
+  if (!urlResult.ok) return urlResult.error;
+
+  const headersResult = buildToolServerTestHeaders(body);
+  if (!headersResult.ok) {
+    return error(req, headersResult.error, HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const oauthResult = await resolveToolServerOAuthIfNeeded(req, db, body, headersResult.headers);
+  if (oauthResult) return oauthResult;
+
+  try {
+    return await runToolServerConnectionTest({
+      req,
+      db,
+      url: urlResult.url,
+      headers: headersResult.headers,
+      body,
+    });
+  } catch (err) {
+    await persistToolServerConnectionError(db, logger, body, err);
+    return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
+      message: err?.message || String(err),
+    });
+  }
+}
+
+async function handleUpdateToolServers({ req, env, db, user, logger }) {
+  const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'tool-server');
+  if (denied) return denied;
+
+  const servers = Array.isArray(body.servers) ? body.servers : [];
+  const existing = await loadToolServers(db);
+  const existingById = buildToolServerMap(existing);
+  const sanitized = servers
+    .map((server) => {
+      const merged = mergeToolServer(existingById.get(String(server.id)), server);
+      return merged;
+    })
+    .filter((server) => server.url);
+
+  try {
+    await saveToolServers(db, sanitized);
+    await logAuditEvent(
+      env,
+      {
+        actor_id: user.sub,
+        action: 'tool_servers_updated',
+        resource_type: 'admin',
+        resource_id: 'tool-servers',
+      },
+      logger
+    );
+    return json(req, { ok: true, servers: sanitized.map(redactToolServer) });
+  } catch (err) {
+    logger.error('Tool servers update failed', { error: err?.message || err });
+    return error(req, 'Failed to update tool servers', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
 
 /**
  * Handle handleAdminToolServersCrud routes.
  * Returns Response if handled, null if path doesn't match.
  */
-export async function handleAdminToolServersCrud(
+export async function handleAdminToolServersCrud({
   req,
   env,
-  ctx,
   user,
   path,
-  { db, logger, _requestContext }
-) {
+  db,
+  logger,
+  _ctx,
+  _requestContext,
+}) {
   if (req.method === 'GET' && path === '/api/admin/tool-servers') {
-    try {
-      const url = new URL(req.url);
-      const includeDisabled = ['1', 'true', 'yes'].includes(
-        String(url.searchParams.get('include_disabled') || '').toLowerCase()
-      );
-      const servers = await loadToolServers(db);
-      const filtered = includeDisabled
-        ? servers
-        : servers.filter((server) => server.enabled !== false);
-      return json(req, { servers: filtered.map(redactToolServer) });
-    } catch (err) {
-      logger.error('Tool servers fetch failed', { error: err?.message || err });
-      return error(req, 'Failed to fetch tool servers', 500);
-    }
+    return handleListToolServers({ req, db, logger });
   }
-
-  // POST /api/admin/tool-servers/test - Test MCP tool server connection + list tools
   if (req.method === 'POST' && path === '/api/admin/tool-servers/test') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
-    if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
-    }
-
-    const url = String(body.url || '').trim();
-    if (!url || !isValidHttpUrl(url)) {
-      return error(req, 'Server URL must start with http:// or https://', 400);
-    }
-    const serverUrlSafety = isSafeOutboundUrl(url);
-    if (!serverUrlSafety.safe) {
-      return error(req, serverUrlSafety.reason, 400);
-    }
-
-    let headers;
-    try {
-      headers = parseHeadersForRequest(body.headers);
-    } catch (err) {
-      return error(req, err.message || 'Headers must be valid JSON', 400);
-    }
-
-    const authType = normalizeAuthType(body.auth_type);
-    if (authType === 'bearer') {
-      const token = String(body.auth_bearer_token || '').trim();
-      if (token && !headers.Authorization) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-    }
-
-    if (authType === 'basic') {
-      const basicUser = String(body.auth_basic_username || '').trim();
-      const basicPass = String(body.auth_basic_password || '');
-      if (basicUser && !headers.Authorization) {
-        headers.Authorization = `Basic ${btoa(`${basicUser}:${basicPass}`)}`;
-      }
-    }
-
-    if (authType === 'oauth') {
-      const serverId = String(body.id || '').trim();
-      if (!serverId) {
-        return error(req, 'Server must be saved before OAuth verification', 400);
-      }
-      const servers = await loadToolServers(db);
-      const server = servers.find((entry) => String(entry.id) === serverId);
-      const accessToken = server?.oauth_tokens?.access_token;
-      if (!accessToken) {
-        return error(req, 'OAuth not connected yet. Click Connect OAuth first.', 400);
-      }
-      headers.Authorization = `Bearer ${accessToken}`;
-    }
-
-    try {
-      let sessionId;
-      const init = await mcpRequest({
-        url,
-        headers,
-        sessionId,
-        id: 0,
-        method: 'initialize',
-        params: {
-          protocolVersion: MCP_PROTOCOL_VERSION,
-          capabilities: {},
-          clientInfo: { name: 'GrowChat', version: '1.0.0' },
-        },
-      });
-      sessionId = init.sessionId;
-
-      const notified = await mcpNotify({
-        url,
-        headers,
-        sessionId,
-        method: 'notifications/initialized',
-      });
-      sessionId = notified.sessionId;
-
-      const toolsResult = await mcpRequest({
-        url,
-        headers,
-        sessionId,
-        id: 2,
-        method: 'tools/list',
-      });
-
-      const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
-      const toolSummaries = tools
-        .map((tool) => {
-          const parameters =
-            tool?.inputSchema && typeof tool.inputSchema === 'object'
-              ? tool.inputSchema
-              : tool?.parameters && typeof tool.parameters === 'object'
-                ? tool.parameters
-                : {};
-          return {
-            name: String(tool?.name || '').trim(),
-            title: String(tool?.title || '').trim(),
-            description: String(tool?.description || '').trim(),
-            parameters,
-          };
-        })
-        .filter((tool) => tool.name);
-      let mergedTools = toolSummaries;
-
-      if (body.id) {
-        const servers = await loadToolServers(db);
-        const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
-        if (index !== -1) {
-          mergedTools = mergeToolSpecs(servers[index].tools, toolSummaries);
-          servers[index] = {
-            ...servers[index],
-            tools: mergedTools,
-            tools_error: '',
-            tools_verified_at: new Date().toISOString(),
-          };
-          await saveToolServers(db, servers);
-        }
-      }
-
-      return json(req, {
-        ok: true,
-        message: 'Connection successful',
-        tools: mergedTools,
-      });
-    } catch (err) {
-      if (body?.id) {
-        try {
-          const servers = await loadToolServers(db);
-          const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
-          if (index !== -1) {
-            servers[index] = {
-              ...servers[index],
-              tools_error: err?.message || 'Connection failed',
-              tools_verified_at: new Date().toISOString(),
-            };
-            await saveToolServers(db, servers);
-          }
-        } catch (persistErr) {
-          logger.warn('Failed to persist tool server error', {
-            error: persistErr?.message || persistErr,
-          });
-        }
-      }
-      return error(req, 'Connection failed', 502, {
-        message: err?.message || String(err),
-      });
-    }
+    return handleTestToolServer({ req, env, db, user, logger });
   }
-
   if (req.method === 'PUT' && path === '/api/admin/tool-servers') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
-    if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
-    }
-
-    const servers = Array.isArray(body.servers) ? body.servers : [];
-    const existing = await loadToolServers(db);
-    const existingById = new Map(existing.map((entry) => [String(entry.id), entry]));
-    const sanitized = servers
-      .map((server) => {
-        const merged = mergeToolServer(existingById.get(String(server.id)), server);
-        return merged;
-      })
-      .filter((server) => server.url);
-
-    try {
-      await saveToolServers(db, sanitized);
-      await logAuditEvent(
-        env,
-        {
-          actor_id: user.sub,
-          action: 'tool_servers_updated',
-          resource_type: 'admin',
-          resource_id: 'tool-servers',
-        },
-        logger
-      );
-      return json(req, { ok: true, servers: sanitized.map(redactToolServer) });
-    } catch (err) {
-      logger.error('Tool servers update failed', { error: err?.message || err });
-      return error(req, 'Failed to update tool servers', 500);
-    }
+    return handleUpdateToolServers({ req, env, db, user, logger });
   }
-
   return null;
+}
+
+/**
+ * Resolve OAuth header for a tool server — validates saved state and
+ * attaches the Bearer token to the request headers.
+ *
+ * Returns a Response on error, or null on success (headers mutated).
+ * The caller should return the error response if non-null.
+ */
+async function resolveOAuthHeaderForServer(req, db, body, headers) {
+  const serverId = String(body.id || '').trim();
+  if (!serverId) {
+    return error(req, 'Server must be saved before OAuth verification', HTTP_STATUS.BAD_REQUEST);
+  }
+  const servers = await loadToolServers(db);
+  const server = servers.find((entry) => String(entry.id) === serverId);
+  const accessToken = server?.oauth_tokens?.access_token;
+  if (!accessToken) {
+    return error(
+      req,
+      'OAuth not connected yet. Click Connect OAuth first.',
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+  headers.Authorization = `Bearer ${accessToken}`;
+  return null;
+}
+
+/**
+ * Merge newly fetched tool specs into an existing tool server after
+ * a successful test — merges tool lists and persists the update.
+ *
+ * @returns {Array} The merged tool list
+ */
+async function mergeConnectionTestToolsIntoExisting(db, bodyId, toolSummaries) {
+  const servers = await loadToolServers(db);
+  const index = servers.findIndex((entry) => String(entry.id) === String(bodyId));
+  if (index === -1) {
+    return toolSummaries;
+  }
+  const mergedTools = mergeToolSpecs(servers[index].tools, toolSummaries);
+  servers[index] = {
+    ...servers[index],
+    tools: mergedTools,
+    tools_error: '',
+    tools_verified_at: new Date().toISOString(),
+  };
+  await saveToolServers(db, servers);
+  return mergedTools;
+}
+
+/**
+ * Persist a tool server error after a failed connection test — updates
+ * the server record with the error message.
+ */
+/**
+ * Parse the include_disabled query param — checks for truthy values.
+ * @param {string} value - The lowercased query param value
+ * @returns {boolean}
+ */
+function parseIncludeDisabledParam(value) {
+  return ['1', 'true', 'yes'].includes(String(value || '').toLowerCase());
+}
+
+/**
+ * Build a Map of existing tool servers by their string id.
+ * @param {Array} servers
+ * @returns {Map<string, object>}
+ */
+function buildToolServerMap(servers) {
+  return new Map((Array.isArray(servers) ? servers : []).map((entry) => [String(entry.id), entry]));
+}
+
+async function persistToolServerConnectionError(db, logger, body, err) {
+  if (!body?.id) return;
+  try {
+    const servers = await loadToolServers(db);
+    const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
+    if (index === -1) return;
+    servers[index] = {
+      ...servers[index],
+      tools_error: err?.message || 'Connection failed',
+      tools_verified_at: new Date().toISOString(),
+    };
+    await saveToolServers(db, servers);
+  } catch (persistErr) {
+    logger.warn('Failed to persist tool server error', {
+      error: persistErr?.message || persistErr,
+    });
+  }
 }

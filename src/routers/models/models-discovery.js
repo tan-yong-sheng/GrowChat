@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-params, no-magic-numbers */
 /**
  * Model Discovery and Formatting Helpers
  *
@@ -10,15 +11,13 @@ import {
   dedupeConnectionConfigs,
   discoverConnectionModels,
   extractConnectionModelId,
-  normalizeConnectionManualModels,
+  getAllOpenAIConnectionConfigs,
 } from '../../llm/connections.js';
 import {
-  buildProviderId,
   formatModelId,
   normalizeConnectionModelId,
   normalizeProviderFamily,
 } from '../../llm/provider-registry.js';
-import { normalizeConnectionModelSelectionMode } from '../../../public/js/shared/utils/connection-model-selection.js';
 import {
   CONNECTION_DISCOVERY_CACHE_TTL_MS,
   createConnectionDiscoveryCacheKey,
@@ -27,8 +26,142 @@ import {
   shouldSuppressDiscoveryWarning,
   splitModelList,
 } from './models-helpers.js';
+import { buildConnectionModelContext, buildDiscoveredModel } from './models-discovery-helpers.js';
 
 const rootLogger = createRootLogger({});
+
+function fetchDiscoveryCache(env, uniqueConnections, allowSet) {
+  const now = Date.now();
+  const connectionDiscoveryCache = getConnectionDiscoveryCache(env);
+  pruneExpiredConnectionDiscoveryCache(connectionDiscoveryCache, now);
+  const cacheKey = createConnectionDiscoveryCacheKey(env, uniqueConnections, allowSet);
+  const cached = connectionDiscoveryCache.get(cacheKey);
+  if (cached && cached.expiresAt > now && Array.isArray(cached.models)) {
+    return {
+      cached: cached.models.map((model) => ({ ...model })),
+      connectionDiscoveryCache,
+      cacheKey,
+    };
+  }
+  return { connectionDiscoveryCache, cacheKey };
+}
+
+async function runDiscoveryOnConnection(conn, allowSet, discoveredIds, discovered) {
+  const context = buildConnectionModelContext(conn);
+  const { providerId } = context;
+  const discovery = await discoverConnectionModels(conn);
+  if (!discovery.items.length) {
+    const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
+    if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
+      rootLogger.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
+    }
+    return;
+  }
+  for (const item of discovery.items) {
+    addDiscoveredModel(
+      item,
+      providerId,
+      allowSet,
+      discoveredIds,
+      discovered,
+      conn,
+      discovery.url || conn.baseUrl,
+      context
+    );
+  }
+}
+
+function addDiscoveredModel(
+  item,
+  providerId,
+  allowSet,
+  discoveredIds,
+  discovered,
+  conn,
+  sourceUrl,
+  context
+) {
+  const rawId = normalizeConnectionModelId(providerId, extractConnectionModelId(item));
+  if (!rawId) return;
+  if (allowSet && !allowSet.has(rawId)) return;
+  const fullId = formatModelId(providerId, rawId);
+  if (discoveredIds.has(fullId)) return;
+  discoveredIds.add(fullId);
+  discovered.push(
+    buildDiscoveredModel(conn, providerId, rawId, `Model discovered from ${sourceUrl}`, context)
+  );
+}
+
+function addRemainingAllowedSetModels(allowSet, uniqueConnections, discoveredIds, discovered) {
+  if (!allowSet || uniqueConnections.length === 0) return;
+  for (const conn of uniqueConnections) {
+    const context = buildConnectionModelContext(conn);
+    const { providerId } = context;
+    for (const rawId of allowSet) {
+      const fullId = formatModelId(providerId, rawId);
+      if (discoveredIds.has(fullId)) continue;
+      discoveredIds.add(fullId);
+      discovered.push(
+        buildDiscoveredModel(conn, providerId, rawId, 'Configured via OPENAI_MODELS', context)
+      );
+    }
+  }
+}
+
+function addManualDiscoveryModels(uniqueConnections, discoveredIds, discovered) {
+  for (const conn of uniqueConnections) {
+    const context = buildConnectionModelContext(conn);
+    const { providerId, manualModels } = context;
+    for (const manual of manualModels) {
+      const normalizedManualId = normalizeConnectionModelId(providerId, manual.modelId);
+      const fullId = formatModelId(providerId, normalizedManualId);
+      if (discoveredIds.has(fullId)) continue;
+      discoveredIds.add(fullId);
+      discovered.push(
+        buildDiscoveredModel(
+          conn,
+          providerId,
+          normalizedManualId,
+          'Manually added to this connection',
+          context,
+          {
+            name: manual.name || normalizedManualId,
+            manual: true,
+            manual_model_id: normalizedManualId,
+          }
+        )
+      );
+    }
+  }
+}
+
+function addFallbackDefaultModel(env, uniqueConnections, discovered) {
+  if (discovered.length > 0 || !env.DEFAULT_MODELS || uniqueConnections.length === 0) return;
+  const defaults = splitModelList(env.DEFAULT_MODELS);
+  const fallbackModel = defaults[0];
+  if (!fallbackModel) return;
+  const conn = uniqueConnections[0];
+  const context = buildConnectionModelContext(conn);
+  const { providerId } = context;
+  discovered.push(
+    buildDiscoveredModel(
+      conn,
+      providerId,
+      fallbackModel,
+      'Configured via DEFAULT_MODELS environment variable',
+      context,
+      { name: fallbackModel }
+    )
+  );
+}
+
+function setDiscoveryCache(connectionDiscoveryCache, cacheKey, discovered) {
+  connectionDiscoveryCache.set(cacheKey, {
+    expiresAt: Date.now() + CONNECTION_DISCOVERY_CACHE_TTL_MS,
+    models: discovered.map((model) => ({ ...model })),
+  });
+  return discovered;
+}
 
 export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger = rootLogger) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
@@ -37,64 +170,16 @@ export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger =
   const discoveredIds = new Set();
   const uniqueConnections = dedupeConnectionConfigs(connections);
 
-  const now = Date.now();
-  const connectionDiscoveryCache = getConnectionDiscoveryCache(env);
-  pruneExpiredConnectionDiscoveryCache(connectionDiscoveryCache, now);
-  const cacheKey = createConnectionDiscoveryCacheKey(env, uniqueConnections, allowSet);
-  const cached = connectionDiscoveryCache.get(cacheKey);
-  if (cached && cached.expiresAt > now && Array.isArray(cached.models)) {
-    return cached.models.map((model) => ({ ...model }));
-  }
+  const { cached, connectionDiscoveryCache, cacheKey } = fetchDiscoveryCache(
+    env,
+    uniqueConnections,
+    allowSet
+  );
+  if (cached) return cached;
 
   for (const conn of uniqueConnections) {
     try {
-      const providerId = buildProviderId(conn);
-      const manualModels = normalizeConnectionManualModels(conn.manualModels);
-      const manualModelIds = new Set(
-        manualModels
-          .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
-          .filter(Boolean)
-      );
-      const selectionMode =
-        normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
-        'all';
-      const discovery = await discoverConnectionModels(conn);
-      if (!discovery.items.length) {
-        const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
-        if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
-          rootLogger.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
-        }
-        continue;
-      }
-
-      for (const item of discovery.items) {
-        const rawId = normalizeConnectionModelId(providerId, extractConnectionModelId(item));
-        if (!rawId) continue;
-        if (allowSet && !allowSet.has(rawId)) continue;
-        const fullId = formatModelId(providerId, rawId);
-        if (discoveredIds.has(fullId)) continue;
-        discoveredIds.add(fullId);
-        discovered.push({
-          id: fullId,
-          name: rawId,
-          provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-          provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-          provider_family:
-            normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-          provider_id: providerId,
-          connection_id: conn.id,
-          connection_name: conn.name || null,
-          connection_source: conn.source || null,
-          free: false,
-          description: `Model discovered from ${discovery.url || conn.baseUrl}`,
-          enabled:
-            selectionMode === 'none'
-              ? false
-              : selectionMode === 'some'
-                ? manualModelIds.has(rawId)
-                : true,
-        });
-      }
+      await runDiscoveryOnConnection(conn, allowSet, discoveredIds, discovered);
     } catch (err) {
       rootLogger.warn('Model discovery error', {
         baseUrl: conn.baseUrl,
@@ -103,121 +188,11 @@ export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger =
     }
   }
 
-  if (allowSet && uniqueConnections.length > 0) {
-    for (const conn of uniqueConnections) {
-      const providerId = buildProviderId(conn);
-      const manualModels = normalizeConnectionManualModels(conn.manualModels);
-      const manualModelIds = new Set(
-        manualModels
-          .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
-          .filter(Boolean)
-      );
-      const selectionMode =
-        normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
-        'all';
-      for (const rawId of allowSet) {
-        const fullId = formatModelId(providerId, rawId);
-        if (discoveredIds.has(fullId)) continue;
-        discoveredIds.add(fullId);
-        discovered.push({
-          id: fullId,
-          name: rawId,
-          provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-          provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-          provider_family:
-            normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-          provider_id: providerId,
-          connection_id: conn.id,
-          connection_name: conn.name || null,
-          connection_source: conn.source || null,
-          free: false,
-          description: 'Configured via OPENAI_MODELS',
-          enabled:
-            selectionMode === 'none'
-              ? false
-              : selectionMode === 'some'
-                ? manualModelIds.has(rawId)
-                : true,
-        });
-      }
-    }
-  }
+  addRemainingAllowedSetModels(allowSet, uniqueConnections, discoveredIds, discovered);
+  addManualDiscoveryModels(uniqueConnections, discoveredIds, discovered);
+  addFallbackDefaultModel(env, uniqueConnections, discovered);
 
-  for (const conn of uniqueConnections) {
-    const providerId = buildProviderId(conn);
-    const manualModels = normalizeConnectionManualModels(conn.manualModels);
-    const manualModelIds = new Set(
-      manualModels
-        .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
-        .filter(Boolean)
-    );
-    const selectionMode =
-      normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
-      'all';
-    for (const manual of manualModels) {
-      const normalizedManualId = normalizeConnectionModelId(providerId, manual.modelId);
-      const fullId = formatModelId(providerId, normalizedManualId);
-      if (discoveredIds.has(fullId)) continue;
-      discoveredIds.add(fullId);
-      discovered.push({
-        id: fullId,
-        name: manual.name || normalizedManualId,
-        provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-        provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-        provider_family:
-          normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-        provider_id: providerId,
-        connection_id: conn.id,
-        connection_name: conn.name || null,
-        connection_source: conn.source || null,
-        free: false,
-        description: 'Manually added to this connection',
-        manual: true,
-        manual_model_id: normalizedManualId,
-        enabled:
-          selectionMode === 'none'
-            ? false
-            : selectionMode === 'some'
-              ? manualModelIds.has(normalizedManualId)
-              : true,
-      });
-    }
-  }
-
-  if (discovered.length === 0 && env.DEFAULT_MODELS && uniqueConnections.length > 0) {
-    const defaults = splitModelList(env.DEFAULT_MODELS);
-    const fallbackModel = defaults[0];
-    if (fallbackModel) {
-      const providerId = buildProviderId(uniqueConnections[0]);
-      discovered.push({
-        id: formatModelId(providerId, fallbackModel),
-        name: fallbackModel,
-        provider:
-          normalizeProviderFamily(
-            uniqueConnections[0].providerFamily || uniqueConnections[0].providerType
-          ) || 'openai',
-        provider_type: String(
-          uniqueConnections[0].providerType || uniqueConnections[0].providerFamily || 'openai'
-        ).toLowerCase(),
-        provider_family:
-          normalizeProviderFamily(
-            uniqueConnections[0].providerFamily || uniqueConnections[0].providerType
-          ) || 'openai',
-        provider_id: providerId,
-        connection_id: uniqueConnections[0].id,
-        connection_name: uniqueConnections[0].name || null,
-        free: false,
-        description: 'Configured via DEFAULT_MODELS environment variable',
-      });
-    }
-  }
-
-  connectionDiscoveryCache.set(cacheKey, {
-    expiresAt: Date.now() + CONNECTION_DISCOVERY_CACHE_TTL_MS,
-    models: discovered.map((model) => ({ ...model })),
-  });
-
-  return discovered;
+  return setDiscoveryCache(connectionDiscoveryCache, cacheKey, discovered);
 }
 
 export function toPublicModel(model) {
@@ -289,18 +264,48 @@ export function isOpenAIProvider(model) {
   );
 }
 
+/**
+ * Check if a model matches a search query by inspecting name, id, connection, and provider fields.
+ *
+ * @param {object} model - Model object with name, id, connection_name, provider fields
+ * @param {string} query - Lowercased search query
+ * @returns {boolean} True if any field contains the query
+ */
+export function matchesModelQuery(model, query) {
+  const loweredQuery = String(query || '').toLowerCase();
+  return ['name', 'id', 'connection_name', 'provider'].some((field) =>
+    fieldMatchesQuery(model?.[field], loweredQuery)
+  );
+}
+
+function fieldMatchesQuery(value, loweredQuery) {
+  return String(value || '')
+    .toLowerCase()
+    .includes(loweredQuery);
+}
+
+const PROVIDER_KEY_FIELDS = [
+  'connection_name',
+  'connectionName',
+  'provider_id',
+  'providerId',
+  'provider_family',
+  'providerFamily',
+  'provider_type',
+  'providerType',
+  'provider',
+];
+
+function firstDefinedValue(obj, fields) {
+  for (const field of fields) {
+    const value = obj?.[field];
+    if (value) return value;
+  }
+  return '';
+}
+
 export function getProviderKey(model) {
-  const raw =
-    model?.connection_name ||
-    model?.connectionName ||
-    model?.provider_id ||
-    model?.providerId ||
-    model?.provider_family ||
-    model?.providerFamily ||
-    model?.provider_type ||
-    model?.providerType ||
-    model?.provider ||
-    '';
+  const raw = firstDefinedValue(model, PROVIDER_KEY_FIELDS);
   const normalized = String(raw || '')
     .trim()
     .toLowerCase();
@@ -308,18 +313,7 @@ export function getProviderKey(model) {
 }
 
 export function getProviderLabel(model) {
-  const raw =
-    model?.connection_name ||
-    model?.connectionName ||
-    model?.provider_id ||
-    model?.providerId ||
-    model?.provider_family ||
-    model?.providerFamily ||
-    model?.provider_type ||
-    model?.providerType ||
-    model?.provider ||
-    '';
-  const trimmed = String(raw || '').trim();
+  const trimmed = String(firstDefinedValue(model, PROVIDER_KEY_FIELDS) || '').trim();
   return trimmed || 'unknown';
 }
 
@@ -390,6 +384,38 @@ export async function loadCustomModels(env) {
   }
 
   return [];
+}
+
+/**
+ * Shared loadModels helper — loads base and custom models from
+ * OpenAI-compatible connections with error-safe fallback.
+ *
+ * @param {object} env - Cloudflare Workers environment bindings
+ * @param {object} logger - Logger with warn/error methods
+ * @param {object} [connectionOptions={}] - Options to pass to getAllOpenAIConnectionConfigs
+ * @returns {{ baseModels: Array, customModels: Array }}
+ */
+export async function loadModels(env, logger, connectionOptions = {}) {
+  let baseModels = [];
+  let customModels = [];
+  let modelConnections;
+
+  try {
+    modelConnections = await getAllOpenAIConnectionConfigs(env, connectionOptions);
+    baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
+  } catch (err) {
+    logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+      error: err.message,
+    });
+  }
+
+  try {
+    customModels = await loadCustomModels(env);
+  } catch (err) {
+    logger.warn('Failed to load custom models', { error: err.message });
+  }
+
+  return { baseModels, customModels };
 }
 
 /**

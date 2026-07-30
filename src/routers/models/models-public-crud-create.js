@@ -1,0 +1,123 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
+import { error } from '../../utils/response.js';
+import { logAuditEvent } from '../../utils/authorize.js';
+import { loadCustomModels } from './models-discovery.js';
+import {
+  invalidJsonBody,
+  jsonCreated,
+  missingCacheBinding,
+  requireModelAdmin,
+} from './models-public-crud-helpers.js';
+
+const VALID_PROVIDERS = new Set([
+  'openai',
+  'custom',
+  'openai-compatible',
+  'google',
+  'gemini-compatible',
+  'anthropic',
+  'claude-compatible',
+]);
+
+const ONE_YEAR_TTL = 31536000;
+const CUSTOM_KEY = 'custom_models';
+
+function validateCreateBody(body) {
+  if (!body?.id || !body.name || !body.provider || !body.base_url) {
+    return { valid: false, error: 'id, name, provider, and base_url are required' };
+  }
+  if (!VALID_PROVIDERS.has(body.provider)) {
+    return {
+      valid: false,
+      error:
+        'Provider must be one of: openai, custom, openai-compatible, google, gemini-compatible, anthropic, claude-compatible',
+    };
+  }
+  if (!String(body.base_url).startsWith('http')) {
+    return { valid: false, error: 'base_url must start with http:// or https://' };
+  }
+  return { valid: true };
+}
+
+const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_TEMPERATURE = 0.7;
+
+function findDuplicate(customModels, body) {
+  if (customModels.some((m) => m.id === body.id)) {
+    return 'Model with this ID already exists';
+  }
+  if (customModels.some((m) => m.name === body.name)) {
+    return 'Model name already exists';
+  }
+  return null;
+}
+
+function buildNewModel(body) {
+  return {
+    id: body.id,
+    name: body.name,
+    provider: body.provider,
+    base_url: body.base_url,
+    description: body.description || `${body.name} - ${body.provider}`,
+    max_tokens: body.max_tokens || DEFAULT_MAX_TOKENS,
+    temperature: body.temperature || DEFAULT_TEMPERATURE,
+    created_at: Math.floor(Date.now() / 1000),
+  };
+}
+export async function handlePublicModelsCreate({ req, env, ctx: _ctx, user, path: _path, logger }) {
+  const authError = await requireModelAdmin(req, env, user);
+  if (authError) return authError;
+
+  const body = await req.json().catch(() => null);
+  if (body === null) {
+    return invalidJsonBody(req);
+  }
+
+  const validation = validateCreateBody(body);
+  if (!validation.valid) {
+    return error(req, validation.error, HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!env.CACHE) {
+    return missingCacheBinding(req);
+  }
+
+  try {
+    const ctx = await loadAndCheckCustomModels({ env, body, req });
+    if (ctx.error) return ctx.error;
+
+    await persistCustomModels({ env, customModels: ctx.customModels, newModel: ctx.newModel });
+    await auditModelCreation({ env, user, body });
+    return jsonCreated(req, {
+      model: ctx.newModel,
+      message: 'Model configured successfully',
+    });
+  } catch (err) {
+    logger.error('Add custom model failed', { error: err?.message || err });
+    return error(req, 'Failed to add custom model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async function loadAndCheckCustomModels({ env, body, req }) {
+  const customModels = await loadCustomModels(env);
+  const duplicateError = findDuplicate(customModels, body);
+  if (duplicateError) {
+    return { error: error(req, duplicateError, HTTP_STATUS.CONFLICT) };
+  }
+  return { customModels, newModel: buildNewModel(body) };
+}
+
+async function persistCustomModels({ env, customModels, newModel }) {
+  customModels.push(newModel);
+  await env.CACHE.put(CUSTOM_KEY, JSON.stringify(customModels), { expirationTtl: ONE_YEAR_TTL });
+}
+
+async function auditModelCreation({ env, user, body }) {
+  await logAuditEvent(env, {
+    actor_id: user.sub,
+    action: 'model_created',
+    resource_type: 'model',
+    resource_id: body.id,
+    metadata: { provider: body.provider, name: body.name },
+  });
+}

@@ -75,18 +75,24 @@ describe('chatRouter', () => {
   });
 
   it('returns 401 for unauthenticated /api/chats', async () => {
-    const res = await chatRouter(makeReq('/api/chats', 'GET'), { DB: {} }, {}, null, '/api/chats');
+    const res = await chatRouter({
+      req: makeReq('/api/chats', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: null,
+      path: '/api/chats',
+    });
     expect(res.status).toBe(401);
   });
 
   it('returns 400 for invalid limit query', async () => {
-    const res = await chatRouter(
-      new Request('https://example.com/api/chats?limit=0', { method: 'GET' }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats'
-    );
+    const res = await chatRouter({
+      req: new Request('https://example.com/api/chats?limit=0', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats',
+    });
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
@@ -97,13 +103,13 @@ describe('chatRouter', () => {
   it('lists chats for authenticated user', async () => {
     mocks.db.all.mockResolvedValueOnce([{ id: 'c1', title: 'Chat 1' }]);
 
-    const res = await chatRouter(
-      new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET' }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats'
-    );
+    const res = await chatRouter({
+      req: new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -140,13 +146,13 @@ describe('chatRouter', () => {
       },
     ]);
 
-    const res = await chatRouter(
-      makeReq('/api/tool-servers', 'GET'),
-      { DB: {} },
-      {},
-      user,
-      '/api/tool-servers'
-    );
+    const res = await chatRouter({
+      req: makeReq('/api/tool-servers', 'GET'),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/tool-servers',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -174,26 +180,26 @@ describe('chatRouter', () => {
   it('returns 304 for cached chat list when ETag matches', async () => {
     mocks.db.all.mockResolvedValue([{ id: 'c1', title: 'Chat 1', updated_at: 10, created_at: 9 }]);
 
-    const res1 = await chatRouter(
-      new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET' }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats'
-    );
+    const res1 = await chatRouter({
+      req: new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats',
+    });
     const etag = res1.headers.get('ETag');
     expect(etag).toBeTruthy();
 
-    const res2 = await chatRouter(
-      new Request('https://example.com/api/chats?limit=10&offset=0', {
+    const res2 = await chatRouter({
+      req: new Request('https://example.com/api/chats?limit=10&offset=0', {
         method: 'GET',
         headers: { 'If-None-Match': etag },
       }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats',
+    });
 
     expect(res2.status).toBe(304);
   });
@@ -215,26 +221,26 @@ describe('chatRouter', () => {
       return Promise.resolve([]);
     });
 
-    const res1 = await chatRouter(
-      new Request('https://example.com/api/chats/c1', { method: 'GET' }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1'
-    );
+    const res1 = await chatRouter({
+      req: new Request('https://example.com/api/chats/c1', { method: 'GET' }),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1',
+    });
     const etag = res1.headers.get('ETag');
     expect(etag).toBeTruthy();
 
-    const res2 = await chatRouter(
-      new Request('https://example.com/api/chats/c1', {
+    const res2 = await chatRouter({
+      req: new Request('https://example.com/api/chats/c1', {
         method: 'GET',
         headers: { 'If-None-Match': etag },
       }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1',
+    });
 
     expect(res2.status).toBe(304);
   });
@@ -247,13 +253,13 @@ describe('chatRouter', () => {
       model: 'gpt-4',
     });
 
-    const res = await chatRouter(
-      makeReq('/api/chats', 'POST', {}),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats'
-    );
+    const res = await chatRouter({
+      req: makeReq('/api/chats', 'POST', {}),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats',
+    });
 
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -266,13 +272,13 @@ describe('chatRouter', () => {
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', pinned: 0, title: 'Chat 1' })
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', pinned: 1, title: 'Chat 1' });
 
-    const res = await chatRouter(
-      makeReq('/api/chats/c1/pin', 'POST'),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1/pin'
-    );
+    const res = await chatRouter({
+      req: makeReq('/api/chats/c1/pin', 'POST'),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1/pin',
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -291,13 +297,13 @@ describe('chatRouter', () => {
     const randomUUIDSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue('share-1');
 
     try {
-      const res = await chatRouter(
-        makeReq('/api/chats/c1/share', 'POST'),
-        { DB: {} },
-        {},
-        user,
-        '/api/chats/c1/share'
-      );
+      const res = await chatRouter({
+        req: makeReq('/api/chats/c1/share', 'POST'),
+        env: { DB: {} },
+        ctx: {},
+        user: user,
+        path: '/api/chats/c1/share',
+      });
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -345,17 +351,17 @@ describe('chatRouter', () => {
       .mockResolvedValueOnce(createdMessage)
       .mockResolvedValueOnce({ ...branchChat, current_message_id: 'm-branch' });
 
-    const res = await chatRouter(
-      makeReq('/api/chats/c1/messages/m1/branch', 'POST', {
+    const res = await chatRouter({
+      req: makeReq('/api/chats/c1/messages/m1/branch', 'POST', {
         role: 'assistant',
         no_reply: true,
         content: 'Updated assistant answer',
       }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1/messages/m1/branch'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1/messages/m1/branch',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
@@ -375,13 +381,13 @@ describe('chatRouter', () => {
       .mockResolvedValueOnce({ id: 'm1', role: 'assistant', status: 'streaming' })
       .mockResolvedValueOnce({ id: 'm1', role: 'assistant', model: 'gpt-4', status: 'cancelled' });
 
-    const res = await chatRouter(
-      makeReq('/api/chats/c1/messages/m1/cancel', 'POST'),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1/messages/m1/cancel'
-    );
+    const res = await chatRouter({
+      req: makeReq('/api/chats/c1/messages/m1/cancel', 'POST'),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1/messages/m1/cancel',
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true, cancelled: true });
@@ -401,15 +407,15 @@ describe('chatRouter', () => {
       .mockResolvedValueOnce([{ seq: 1, payload: JSON.stringify({ response: 'hello' }) }])
       .mockResolvedValueOnce([]);
 
-    const res = await chatRouter(
-      new Request('https://example.com/api/chats/c1/messages/m1/resume?after_seq=0', {
+    const res = await chatRouter({
+      req: new Request('https://example.com/api/chats/c1/messages/m1/resume?after_seq=0', {
         method: 'GET',
       }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1/messages/m1/resume'
-    );
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1/messages/m1/resume',
+    });
 
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('text/event-stream');
@@ -421,13 +427,13 @@ describe('chatRouter', () => {
   it('returns 400 when posting empty message', async () => {
     mocks.db.first.mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4' });
 
-    const res = await chatRouter(
-      makeReq('/api/chats/c1/messages', 'POST', { message: '   ' }),
-      { DB: {} },
-      {},
-      user,
-      '/api/chats/c1/messages'
-    );
+    const res = await chatRouter({
+      req: makeReq('/api/chats/c1/messages', 'POST', { message: '   ' }),
+      env: { DB: {} },
+      ctx: {},
+      user: user,
+      path: '/api/chats/c1/messages',
+    });
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({ error: 'message is required' });
@@ -513,13 +519,13 @@ describe('chatRouter', () => {
       }),
     };
 
-    const res = await chatRouter(
-      makeReq('/api/chats/c1/messages', 'POST', { message: 'hello' }),
-      env,
-      {},
-      adminUser,
-      '/api/chats/c1/messages'
-    );
+    const res = await chatRouter({
+      req: makeReq('/api/chats/c1/messages', 'POST', { message: 'hello' }),
+      env: env,
+      ctx: {},
+      user: adminUser,
+      path: '/api/chats/c1/messages',
+    });
 
     expect(res.status).toBe(403);
     expect(res.headers.get('Content-Type')).toContain('application/json');

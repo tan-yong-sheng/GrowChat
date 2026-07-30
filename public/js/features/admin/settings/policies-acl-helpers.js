@@ -14,6 +14,8 @@ const VISIBILITY_SORT_ORDER = {
   disabled: 3,
 };
 
+const UNKNOWN_SORT_ORDER = 99;
+
 /**
  * Clone an array of ACL rules, applying an optional normalizer.
  * Returns a new array; null/undefined results from the normalizer are dropped.
@@ -23,6 +25,24 @@ export function cloneAclRules(rules = [], normalizer = (rule) => rule) {
   return rules
     .map((rule) => normalizer({ ...rule }))
     .filter((rule) => rule !== null && rule !== undefined);
+}
+
+// -- normalizeAclRule sub-helpers --
+
+function normalizeAclEffect(rule) {
+  return String(rule?.effect || 'allow')
+    .trim()
+    .toLowerCase() === 'deny'
+    ? 'deny'
+    : 'allow';
+}
+
+function normalizeAclAction(rule) {
+  return (
+    String(rule?.action || 'use')
+      .trim()
+      .toLowerCase() || 'use'
+  );
 }
 
 /**
@@ -40,16 +60,8 @@ export function normalizeAclRule(rule) {
   return {
     principal_type: 'group',
     principal_id: principalId,
-    effect:
-      String(rule?.effect || 'allow')
-        .trim()
-        .toLowerCase() === 'deny'
-        ? 'deny'
-        : 'allow',
-    action:
-      String(rule?.action || 'use')
-        .trim()
-        .toLowerCase() || 'use',
+    effect: normalizeAclEffect(rule),
+    action: normalizeAclAction(rule),
   };
 }
 
@@ -61,27 +73,27 @@ export function getResourceAccessState(resource, groupId = '') {
   const rules = Array.isArray(resource?.rules) ? resource.rules : [];
   const normalizedGroup = String(groupId || '').trim();
 
-  const deny = normalizedGroup
-    ? rules.some(
-        (rule) =>
-          String(rule.effect || '').toLowerCase() === 'deny' &&
-          String(rule.principal_type || '').toLowerCase() === 'group' &&
-          String(rule.principal_id || '') === normalizedGroup
-      )
-    : rules.some((rule) => String(rule.effect || '').toLowerCase() === 'deny');
-
-  const allow = normalizedGroup
-    ? rules.some(
-        (rule) =>
-          String(rule.effect || '').toLowerCase() === 'allow' &&
-          String(rule.principal_type || '').toLowerCase() === 'group' &&
-          String(rule.principal_id || '') === normalizedGroup
-      )
-    : rules.some((rule) => String(rule.effect || '').toLowerCase() === 'allow');
+  const deny = hasMatchingRule(rules, 'deny', normalizedGroup);
+  const allow = hasMatchingRule(rules, 'allow', normalizedGroup);
 
   if (deny) return 'denied';
   if (allow) return 'allowed';
   return 'inaccessible';
+}
+
+/**
+ * Check whether any rule in a list matches a given effect for a specific group.
+ */
+function hasMatchingRule(rules, effect, groupId) {
+  const normalized = String(groupId || '').trim();
+  return normalized
+    ? rules.some(
+        (rule) =>
+          String(rule.effect || '').toLowerCase() === effect &&
+          String(rule.principal_type || '').toLowerCase() === 'group' &&
+          String(rule.principal_id || '') === normalized
+      )
+    : rules.some((rule) => String(rule.effect || '').toLowerCase() === effect);
 }
 
 /**
@@ -101,28 +113,33 @@ export function getResourceVisibilityBadge(resource, groupId = '') {
  * Badge descriptor for a visibility-filter toggle.
  */
 export function getVisibilityFilterBadge(label, enabled) {
-  if (!enabled) return { label, kind: 'neutral' };
-  if (label === 'Allowed') return { label, kind: 'success' };
-  if (label === 'No access') return { label, kind: 'neutral' };
-  if (label === 'Denied') return { label, kind: 'danger' };
-  if (label === 'Disabled') return { label, kind: 'danger' };
-  return { label, kind: 'neutral' };
+  return { label, kind: getFilterBadgeKind(label, enabled) };
 }
+
+function getFilterBadgeKind(label, enabled) {
+  if (!enabled) return 'neutral';
+  if (label === 'Allowed') return 'success';
+  if (label === 'No access') return 'neutral';
+  if (label === 'Denied') return 'danger';
+  if (label === 'Disabled') return 'danger';
+  return 'neutral';
+}
+
+// -- getResourceNote formatter lookup --
+
+const RESOURCE_NOTE_FORMATTERS = {
+  models: (r) => `${r.provider || 'model'} • ${r.id}`,
+  connections: (r) =>
+    `${r.providerType || r.provider_type || 'connection'} • ${r.base_url || r.url || r.id}`,
+  'mcp-servers': (r) => `${r.auth_type || 'mcp'} • ${r.url || r.id}`,
+};
 
 /**
  * Short description line for a resource, varying by family.
  */
 export function getResourceNote(resource, family) {
-  if (family === 'models') {
-    return `${resource.provider || 'model'} • ${resource.id}`;
-  }
-  if (family === 'connections') {
-    return `${resource.providerType || resource.provider_type || 'connection'} • ${resource.base_url || resource.url || resource.id}`;
-  }
-  if (family === 'mcp-servers') {
-    return `${resource.auth_type || 'mcp'} • ${resource.url || resource.id}`;
-  }
-  return String(resource.id || '');
+  const formatter = RESOURCE_NOTE_FORMATTERS[family];
+  return formatter ? formatter(resource) : String(resource.id || '');
 }
 
 /**
@@ -172,54 +189,81 @@ export function sortResourcesByVisibility(resources = [], groupId = '') {
       a?.enabled === false ? 'disabled' : getResourceAccessState(a, normalizedGroupId);
     const categoryB =
       b?.enabled === false ? 'disabled' : getResourceAccessState(b, normalizedGroupId);
-    const orderA = VISIBILITY_SORT_ORDER[categoryA] ?? 99;
-    const orderB = VISIBILITY_SORT_ORDER[categoryB] ?? 99;
+    const orderA = VISIBILITY_SORT_ORDER[categoryA] ?? UNKNOWN_SORT_ORDER;
+    const orderB = VISIBILITY_SORT_ORDER[categoryB] ?? UNKNOWN_SORT_ORDER;
     if (orderA !== orderB) return orderA - orderB;
     return String(getResourceLabel(a)).localeCompare(String(getResourceLabel(b)));
   });
 }
 
+// -- buildPoliciesDeepLink sub-helpers --
+
+function setUrlParamIf(url, key, value) {
+  if (value) url.searchParams.set(key, String(value).trim());
+}
+
 /**
  * Build a deep-link URL into the policies view.
  */
-export function buildPoliciesDeepLink({
-  groupId = 'all',
-  familyKey = '',
-  resourceId = '',
-  open = 'access',
-} = {}) {
+export function buildPoliciesDeepLink({ groupId, familyKey, resourceId, open } = {}) {
   const url = new URL('/admin/users/policies', window.location.origin);
-  url.searchParams.set('group', String(groupId || 'all').trim() || 'all');
-  if (familyKey) url.searchParams.set('family', String(familyKey).trim());
-  if (resourceId) url.searchParams.set('resource', String(resourceId).trim());
-  if (open) url.searchParams.set('open', String(open).trim());
+  url.searchParams.set('group', String(groupId || 'all').trim());
+  setUrlParamIf(url, 'family', familyKey);
+  setUrlParamIf(url, 'resource', resourceId);
+  setUrlParamIf(url, 'open', open !== undefined ? open : 'access');
   return url.toString();
+}
+
+// -- getModelConnectionWarning sub-helpers --
+
+function getConnectionRulesForId(connectionRulesById, connectionId) {
+  return connectionRulesById instanceof Map ? connectionRulesById.get(connectionId) || [] : [];
+}
+
+function buildConnectionWarningLabel(state) {
+  return state === 'denied' ? 'Connection denied' : 'Connection missing access';
+}
+
+function buildConnectionWarningTitle(state, connectionLabel) {
+  return state === 'denied'
+    ? `This selected resource has denied ACL access to the connection "${connectionLabel}".`
+    : `This selected resource does not have ACL access to the connection "${connectionLabel}".`;
+}
+
+// -- getModelConnectionWarning sub-helpers (cont.) --
+
+function isConnectionBlockedByUserSource(resource) {
+  return !resource || String(resource?.connection_source || '').toLowerCase() === 'user';
+}
+
+function getResourceConnectionId(resource) {
+  return String(resource?.connection_id || '').trim();
+}
+
+function getWarningConnectionLabel(resource) {
+  return resource.connection_name || resource.connection_id || 'connection';
 }
 
 /**
  * Return a warning object if a model's parent connection is blocked,
  * or null if no warning applies.
  */
-export function getModelConnectionWarning(resource, groupId = '', connectionRulesById = new Map()) {
-  if (!resource || String(resource?.connection_source || '').toLowerCase() === 'user') return null;
+export function getModelConnectionWarning(resource, groupId = '', connectionRulesById) {
+  if (isConnectionBlockedByUserSource(resource)) return null;
   if (getResourceAccessState(resource, groupId) !== 'allowed') return null;
 
-  const connectionId = String(resource?.connection_id || '').trim();
+  const connectionId = getResourceConnectionId(resource);
   if (!connectionId) return null;
 
-  const connectionRules =
-    connectionRulesById instanceof Map ? connectionRulesById.get(connectionId) || [] : [];
+  const connectionRules = getConnectionRulesForId(connectionRulesById, connectionId);
   const state = getResourceAccessState({ rules: connectionRules }, groupId);
   if (state === 'allowed') return null;
 
-  const connectionLabel = resource.connection_name || resource.connection_id || 'connection';
+  const connectionLabel = getWarningConnectionLabel(resource);
   return {
-    label: state === 'denied' ? 'Connection denied' : 'Connection missing access',
+    label: buildConnectionWarningLabel(state),
     kind: 'warning',
-    title:
-      state === 'denied'
-        ? `This selected resource has denied ACL access to the connection "${connectionLabel}".`
-        : `This selected resource does not have ACL access to the connection "${connectionLabel}".`,
+    title: buildConnectionWarningTitle(state, connectionLabel),
     linkHref: buildPoliciesDeepLink({
       groupId,
       familyKey: 'connections',
@@ -228,6 +272,65 @@ export function getModelConnectionWarning(resource, groupId = '', connectionRule
     }),
     linkLabel: 'Open connection ACL',
   };
+}
+
+// -- buildModelAccessModalWarning sub-helpers --
+
+function collectModalConnectionWarnings(items, groupId, connectionRulesById) {
+  return items
+    .map((resource) => {
+      if (getResourceAccessState(resource, groupId) !== 'allowed') return null;
+      const warning = getModelConnectionWarning(resource, groupId, connectionRulesById);
+      if (!warning) return null;
+      return {
+        resourceLabel: getResourceLabel(resource),
+        connectionLabel: resource?.connection_name || resource?.connection_id || 'connection',
+        warning,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildModalWarningTitle(warnings) {
+  return warnings.length === 1
+    ? 'Dependency warning'
+    : `${warnings.length} selected models depend on blocked connections`;
+}
+
+function buildModalWarningMessage(warnings, uniqueConnections) {
+  if (warnings.length === 1) return warnings[0].warning.title;
+
+  return `The selected group does not have ACL access to ${
+    uniqueConnections.length === 1
+      ? `the connection "${uniqueConnections[0]}"`
+      : `${uniqueConnections.length} connections`
+  } required by these models.`;
+}
+
+const MODEL_WARNING_PREVIEW_LIMIT = 3;
+
+function buildModalWarningExtra(warnings) {
+  if (warnings.length <= 1) return '';
+
+  const labels = warnings
+    .slice(0, MODEL_WARNING_PREVIEW_LIMIT)
+    .map((item) => item.resourceLabel)
+    .join(', ');
+  const suffix =
+    warnings.length > MODEL_WARNING_PREVIEW_LIMIT
+      ? ` +${warnings.length - MODEL_WARNING_PREVIEW_LIMIT} more`
+      : '';
+  return `Affected models: ${labels}${suffix}`;
+}
+
+function buildModalWarningLinkHref(items, groupId) {
+  const firstConnectionId = String(items[0]?.connection_id || '').trim();
+  const url = new URL(window.location.href);
+  url.searchParams.set('group', String(groupId || 'all').trim() || 'all');
+  url.searchParams.set('family', 'connections');
+  if (firstConnectionId) url.searchParams.set('resource', firstConnectionId);
+  url.searchParams.set('open', 'access');
+  return url.toString();
 }
 
 /**
@@ -242,55 +345,18 @@ export function buildModelAccessModalWarning(
   const items = Array.isArray(resources) ? resources.filter(Boolean) : [];
   if (!items.length) return null;
 
-  const warnings = items
-    .map((resource) => {
-      if (getResourceAccessState(resource, groupId) !== 'allowed') return null;
-      const warning = getModelConnectionWarning(resource, groupId, connectionRulesById);
-      if (!warning) return null;
-      return {
-        resourceLabel: getResourceLabel(resource),
-        connectionLabel: resource?.connection_name || resource?.connection_id || 'connection',
-        warning,
-      };
-    })
-    .filter(Boolean);
-
+  const warnings = collectModalConnectionWarnings(items, groupId, connectionRulesById);
   if (!warnings.length) return null;
 
   const uniqueConnections = [
     ...new Set(warnings.map((item) => item.connectionLabel).filter(Boolean)),
   ];
 
-  const title =
-    warnings.length === 1
-      ? 'Dependency warning'
-      : `${warnings.length} selected models depend on blocked connections`;
-
-  const message =
-    warnings.length === 1
-      ? warnings[0].warning.title
-      : `The selected group does not have ACL access to ${uniqueConnections.length === 1 ? `the connection "${uniqueConnections[0]}"` : `${uniqueConnections.length} connections`} required by these models.`;
-
-  const extra =
-    warnings.length > 1
-      ? `Affected models: ${warnings
-          .slice(0, 3)
-          .map((item) => item.resourceLabel)
-          .join(', ')}${warnings.length > 3 ? ` +${warnings.length - 3} more` : ''}`
-      : '';
-
-  const firstConnectionId = String(items[0]?.connection_id || '').trim();
-  const url = new URL(window.location.href);
-  url.searchParams.set('group', String(groupId || 'all').trim() || 'all');
-  url.searchParams.set('family', 'connections');
-  if (firstConnectionId) url.searchParams.set('resource', firstConnectionId);
-  url.searchParams.set('open', 'access');
-
   return {
-    title,
-    message,
-    extra,
-    linkHref: url.toString(),
+    title: buildModalWarningTitle(warnings),
+    message: buildModalWarningMessage(warnings, uniqueConnections),
+    extra: buildModalWarningExtra(warnings),
+    linkHref: buildModalWarningLinkHref(items, groupId),
     linkLabel: 'Open connection ACL',
   };
 }
@@ -303,24 +369,39 @@ export function filterResourcesByQueryAndVisibility(
   { query = '', visibilityFilters = {} } = {}
 ) {
   const normalizedQuery = (query || '').trim().toLowerCase();
-  return (Array.isArray(resources) ? resources : []).filter((resource) => {
-    if (resource?.enabled === false && !visibilityFilters.disabled) return false;
+  const list = Array.isArray(resources) ? resources : [];
+  return list.filter((resource) =>
+    passesResourceFilters(resource, normalizedQuery, visibilityFilters)
+  );
+}
 
-    const text = [
-      resource.id,
-      resource.name,
-      resource.title,
-      resource.provider,
-      resource.providerType,
-      resource.base_url,
-      resource.url,
-    ]
-      .join(' ')
-      .toLowerCase();
+function passesResourceFilters(resource, normalizedQuery, visibilityFilters) {
+  if (!isResourceVisible(resource, visibilityFilters)) return false;
+  if (!matchesSearchQuery(resource, normalizedQuery)) return false;
+  const category = getResourceAccessState(resource, visibilityFilters._groupId || '');
+  return Boolean(visibilityFilters[category]);
+}
 
-    if (normalizedQuery && !text.includes(normalizedQuery)) return false;
+function isResourceVisible(resource, visibilityFilters) {
+  if (resource?.enabled !== false) return true;
+  return Boolean(visibilityFilters.disabled);
+}
 
-    const category = getResourceAccessState(resource, visibilityFilters._groupId || '');
-    return Boolean(visibilityFilters[category]);
-  });
+function matchesSearchQuery(resource, normalizedQuery) {
+  if (!normalizedQuery) return true;
+  return buildResourceSearchText(resource).includes(normalizedQuery);
+}
+
+function buildResourceSearchText(resource) {
+  return [
+    resource.id,
+    resource.name,
+    resource.title,
+    resource.provider,
+    resource.providerType,
+    resource.base_url,
+    resource.url,
+  ]
+    .join(' ')
+    .toLowerCase();
 }

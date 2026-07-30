@@ -39,59 +39,74 @@ export function initializeChatKeyboardNavigation(chatListElement) {
   });
 }
 
+function triggerChatRowClick(row) {
+  const clickEvent = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+  });
+  row.dispatchEvent(clickEvent);
+}
+
+function focusPrevChatRow(allRows, currentIndex) {
+  if (currentIndex > 0) {
+    allRows[currentIndex - 1].focus();
+  }
+}
+
+function focusNextChatRow(allRows, currentIndex) {
+  if (currentIndex < allRows.length - 1) {
+    allRows[currentIndex + 1].focus();
+  }
+}
+
+function focusFirstChatRow(allRows) {
+  allRows[0]?.focus();
+}
+
+function focusLastChatRow(allRows) {
+  allRows[allRows.length - 1]?.focus();
+}
+
+function handleChatRowEscape(event) {
+  event.preventDefault();
+  closeChatMenus();
+}
+
+const CHAT_ROW_KEY_HANDLERS = {
+  Enter: (event, currentRow) => {
+    event.preventDefault();
+    triggerChatRowClick(currentRow);
+  },
+  ' ': (event, currentRow) => {
+    event.preventDefault();
+    triggerChatRowClick(currentRow);
+  },
+  ArrowUp: (event, _currentRow, allRows, currentIndex) => {
+    event.preventDefault();
+    focusPrevChatRow(allRows, currentIndex);
+  },
+  ArrowDown: (event, _currentRow, allRows, currentIndex) => {
+    event.preventDefault();
+    focusNextChatRow(allRows, currentIndex);
+  },
+  Escape: (event) => {
+    handleChatRowEscape(event);
+  },
+  Home: (event, _currentRow, allRows) => {
+    event.preventDefault();
+    focusFirstChatRow(allRows);
+  },
+  End: (event, _currentRow, allRows) => {
+    event.preventDefault();
+    focusLastChatRow(allRows);
+  },
+};
+
 function handleChatRowKeydown(event, currentRow, allRows, currentIndex) {
-  switch (event.key) {
-    case 'Enter':
-    case ' ': {
-      // Space
-      event.preventDefault();
-      // Trigger click handler
-      const clickEvent = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-      });
-      currentRow.dispatchEvent(clickEvent);
-      break;
-    }
-
-    case 'ArrowUp': {
-      event.preventDefault();
-      // Focus previous chat item
-      if (currentIndex > 0) {
-        const prevRow = allRows[currentIndex - 1];
-        prevRow.focus();
-      }
-      break;
-    }
-
-    case 'ArrowDown': {
-      event.preventDefault();
-      // Focus next chat item
-      if (currentIndex < allRows.length - 1) {
-        const nextRow = allRows[currentIndex + 1];
-        nextRow.focus();
-      }
-      break;
-    }
-
-    case 'Escape':
-      event.preventDefault();
-      // Close any open menu dropdowns
-      closeChatMenus();
-      break;
-
-    case 'Home':
-      event.preventDefault();
-      // Focus first chat item
-      allRows[0].focus();
-      break;
-
-    case 'End':
-      event.preventDefault();
-      // Focus last chat item
-      allRows[allRows.length - 1].focus();
-      break;
+  const handler = CHAT_ROW_KEY_HANDLERS[event.key];
+  if (handler) {
+    handler(event, currentRow, allRows, currentIndex);
   }
 }
 
@@ -105,6 +120,16 @@ function closeChatMenus() {
 /**
  * Set up keyboard handlers for chat menu buttons
  */
+function handleMenuButtonEscape(event) {
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  const menuBtn = event.currentTarget;
+  const dropdown = menuBtn.closest('.chat-row')?.querySelector('.chat-menu-dropdown');
+  if (dropdown) {
+    dropdown.classList.add('hidden');
+  }
+}
+
 export function initializeChatMenuKeyboardNavigation(menuBtn) {
   if (!menuBtn) return;
 
@@ -113,20 +138,29 @@ export function initializeChatMenuKeyboardNavigation(menuBtn) {
     menuBtn.setAttribute('aria-label', 'Chat options menu');
   }
 
-  menuBtn.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      const dropdown = menuBtn.closest('.chat-row').querySelector('.chat-menu-dropdown');
-      if (dropdown) {
-        dropdown.classList.add('hidden');
-      }
-    }
-  });
+  menuBtn.addEventListener('keydown', handleMenuButtonEscape);
 }
 
 /**
  * Set up keyboard handlers for message input
  */
+function isSubmitShortcut(event) {
+  return event.key === 'Enter' && (event.ctrlKey || event.metaKey);
+}
+
+function clickSubmitButton(input) {
+  const submitBtn = input.closest('form')?.querySelector('[type="submit"]');
+  if (submitBtn) {
+    submitBtn.click();
+  }
+}
+
+function handleMessageInputSubmit(event) {
+  if (!isSubmitShortcut(event)) return;
+  event.preventDefault();
+  clickSubmitButton(event.currentTarget);
+}
+
 export function initializeMessageInputKeyboardNavigation(messageInput) {
   if (!messageInput) return;
 
@@ -137,16 +171,7 @@ export function initializeMessageInputKeyboardNavigation(messageInput) {
   }
 
   // Handle Ctrl+Enter or Cmd+Enter to submit
-  messageInput.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      // Find submit button and trigger click
-      const submitBtn = messageInput.closest('form')?.querySelector('[type="submit"]');
-      if (submitBtn) {
-        submitBtn.click();
-      }
-    }
-  });
+  messageInput.addEventListener('keydown', handleMessageInputSubmit);
 }
 
 /**

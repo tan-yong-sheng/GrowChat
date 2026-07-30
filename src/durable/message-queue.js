@@ -1,6 +1,9 @@
 import { sseData, sseHeaders } from '../utils/response.js';
 
+// 15s keepalive interval
+// 15s = 15000ms
 const KEEPALIVE_INTERVAL_MS = 15000;
+// 64KB max event size = 64 * 1024 bytes
 const MAX_EVENT_BYTES = 64 * 1024;
 
 export class MessageQueueDO {
@@ -88,11 +91,12 @@ export class MessageQueueDO {
     const cleaned = Array.from(raw)
       .filter((char) => {
         const code = char.charCodeAt(0);
+        // ASCII control chars (31, 127)
         return code > 31 && code !== 127;
       })
-      .join('')
-      .slice(0, 200);
-    return cleaned || crypto.randomUUID();
+      .join('');
+    const MAX_CLIENT_ID_LENGTH = 200;
+    return cleaned.slice(0, MAX_CLIENT_ID_LENGTH) || crypto.randomUUID();
   }
 
   ensureKeepAlive() {

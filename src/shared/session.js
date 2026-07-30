@@ -15,7 +15,8 @@ export async function sha256Hex(input) {
 }
 
 export function generateOpaqueToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const TOKEN_BYTES = 32;
+  const bytes = crypto.getRandomValues(new Uint8Array(TOKEN_BYTES));
   return btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')

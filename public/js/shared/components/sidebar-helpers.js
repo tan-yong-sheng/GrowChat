@@ -1,8 +1,20 @@
+const SIDEBAR_DEFAULT_WIDTH = 260;
+
+export function toggleSidebar(getState, setState) {
+  if (getState.isMobile) {
+    setState({ showSidebar: !getState.showSidebar });
+  } else if (!getState.showSidebar) {
+    setState({ showSidebar: true });
+  } else {
+    setState({ sidebarCollapsed: !getState.sidebarCollapsed });
+  }
+}
+
 export function deriveSidebarLayout(currentState = {}) {
   const showSidebar = Boolean(currentState.showSidebar);
   const isMobile = Boolean(currentState.isMobile);
   const sidebarCollapsed = Boolean(currentState.sidebarCollapsed);
-  const sidebarWidth = Number(currentState.sidebarWidth || 260);
+  const sidebarWidth = Number(currentState.sidebarWidth || SIDEBAR_DEFAULT_WIDTH);
 
   if (!showSidebar) {
     return {

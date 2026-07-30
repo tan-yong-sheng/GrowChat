@@ -14,6 +14,51 @@ const mocks = vi.hoisted(() => ({
   getJwtSecret: vi.fn(() => 'test-secret'),
 }));
 
+const ALL_RESPONSES = [
+  {
+    match: (statement) => statement.includes('PRAGMA table_info(messages)'),
+    value: (overrides) => overrides.messagesTableInfo ?? { results: [{ name: 'citations' }] },
+  },
+  {
+    match: (statement) => statement.includes('PRAGMA table_info(users)'),
+    value: (overrides) =>
+      overrides.usersTableInfo ?? {
+        results: [
+          { name: 'last_active_at' },
+          { name: 'avatar' },
+          { name: 'avatar_emoji' },
+          { name: 'status' },
+          { name: 'preferences' },
+        ],
+      },
+  },
+  {
+    match: (statement, questionMarks) =>
+      statement.includes('SELECT name FROM sqlite_master') && questionMarks === 4,
+    value: (overrides) => ({
+      results: overrides.coreTables ?? [
+        { name: 'users' },
+        { name: 'chats' },
+        { name: 'messages' },
+        { name: 'refresh_tokens' },
+      ],
+    }),
+  },
+  {
+    match: (statement, questionMarks) =>
+      statement.includes('SELECT name FROM sqlite_master') && questionMarks === 5,
+    value: (overrides) => ({
+      results: overrides.rbacTables ?? [
+        { name: 'roles' },
+        { name: 'permissions' },
+        { name: 'role_permissions' },
+        { name: 'user_roles' },
+        { name: 'audit_log' },
+      ],
+    }),
+  },
+];
+
 function makeDb(overrides = {}) {
   return {
     prepare: vi.fn((sql) => {
@@ -31,41 +76,8 @@ function makeDb(overrides = {}) {
             return overrides.first ?? null;
           },
           all: async () => {
-            if (statement.includes('PRAGMA table_info(messages)')) {
-              return overrides.messagesTableInfo ?? { results: [{ name: 'citations' }] };
-            }
-            if (statement.includes('PRAGMA table_info(users)')) {
-              return overrides.usersTableInfo ?? {
-                results: [
-                  { name: 'last_active_at' },
-                  { name: 'avatar' },
-                  { name: 'avatar_emoji' },
-                  { name: 'status' },
-                  { name: 'preferences' },
-                ],
-              };
-            }
-            if (statement.includes('SELECT name FROM sqlite_master') && questionMarks === 4) {
-              return {
-                results: overrides.coreTables ?? [
-                  { name: 'users' },
-                  { name: 'chats' },
-                  { name: 'messages' },
-                  { name: 'refresh_tokens' },
-                ],
-              };
-            }
-            if (statement.includes('SELECT name FROM sqlite_master') && questionMarks === 5) {
-              return {
-                results: overrides.rbacTables ?? [
-                  { name: 'roles' },
-                  { name: 'permissions' },
-                  { name: 'role_permissions' },
-                  { name: 'user_roles' },
-                  { name: 'audit_log' },
-                ],
-              };
-            }
+            const entry = ALL_RESPONSES.find((r) => r.match(statement, questionMarks));
+            if (entry) return entry.value(overrides);
             return overrides.all ?? { results: [] };
           },
           run: async () => overrides.run ?? { success: true },
@@ -133,7 +145,12 @@ describe('worker entry point', () => {
     mocks.modelsRouter.mockResolvedValue(null);
     mocks.rbacRouter.mockResolvedValue(null);
     mocks.realtimeRouter.mockResolvedValue(null);
-    mocks.verifyJWT.mockResolvedValue({ sub: 'u1', email: 'u@example.com', role: 'user', name: 'User' });
+    mocks.verifyJWT.mockResolvedValue({
+      sub: 'u1',
+      email: 'u@example.com',
+      role: 'user',
+      name: 'User',
+    });
   });
 
   it('skips auth resolution for public API routes', async () => {
@@ -171,11 +188,19 @@ describe('worker entry point', () => {
       });
     });
 
-    const res = await app.fetch(makeReq('/api/chats', 'GET', { headers: { Authorization: 'Bearer access-token' } }), env, ctx);
+    const res = await app.fetch(
+      makeReq('/api/chats', 'GET', { headers: { Authorization: 'Bearer access-token' } }),
+      env,
+      ctx
+    );
 
     expect(res.status).toBe(200);
     expect(mocks.verifyJWT).toHaveBeenCalledWith('access-token', 'test-secret');
-    expect(receivedUser).toMatchObject({ sub: 'u1', primary_role: 'member', account_status: 'active' });
+    expect(receivedUser).toMatchObject({
+      sub: 'u1',
+      primary_role: 'member',
+      account_status: 'active',
+    });
     expect(ctx.waitUntil).toHaveBeenCalled();
   });
 
@@ -186,7 +211,9 @@ describe('worker entry point', () => {
     const res = await app.fetch(makeReq('/api/files/upload', 'POST'), env, ctx);
 
     expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toMatchObject({ error: 'An error occurred. Please try again later.' });
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'An error occurred. Please try again later.',
+    });
     expect(mocks.filesRouter).not.toHaveBeenCalled();
   });
 
@@ -197,7 +224,9 @@ describe('worker entry point', () => {
     const res = await app.fetch(makeReq('/api/realtime/stream'), env, ctx);
 
     expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toMatchObject({ error: 'An error occurred. Please try again later.' });
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'An error occurred. Please try again later.',
+    });
     expect(mocks.realtimeRouter).not.toHaveBeenCalled();
   });
 
@@ -215,17 +244,23 @@ describe('worker entry point', () => {
   it('routes account settings requests to the user settings router', async () => {
     const env = { DB: makeDb(), SESSIONS: {}, ASSETS: {} };
     const ctx = { waitUntil: vi.fn() };
-    mocks.userSettingsRouter.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
+    mocks.userSettingsRouter.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
 
-    const res = await app.fetch(makeReq('/api/users/me/settings', 'GET', { headers: { Authorization: 'Bearer access-token' } }), env, ctx);
+    const res = await app.fetch(
+      makeReq('/api/users/me/settings', 'GET', {
+        headers: { Authorization: 'Bearer access-token' },
+      }),
+      env,
+      ctx
+    );
 
     expect(res.status).toBe(200);
     expect(mocks.userSettingsRouter).toHaveBeenCalled();
     expect(mocks.usersRouter).not.toHaveBeenCalled();
   });
 });
-
-

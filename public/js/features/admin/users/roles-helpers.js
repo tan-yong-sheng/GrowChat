@@ -118,19 +118,28 @@ export function createInitialRoles() {
   });
 }
 
+function resolveRoleDescription(role, preset) {
+  return role.description || preset?.description || (role.system ? 'System role' : 'Custom role');
+}
+
+function resolveRolePermissionSets(role, permissions) {
+  return {
+    defaultPermissions: clonePermissions(role.defaultPermissions || permissions),
+    initialPermissions: clonePermissions(role.initialPermissions || permissions),
+  };
+}
+
 export function normalizeLoadedRole(role) {
   const preset = ROLE_PRESETS.find((item) => item.id === role?.id);
   const permissions = clonePermissions(role?.permissions || []);
   return {
     id: role.id,
     name: role.name,
-    description:
-      role.description || preset?.description || (role.system ? 'System role' : 'Custom role'),
+    description: resolveRoleDescription(role, preset),
     system: Boolean(role.system),
     sourceRoleId: role.sourceRoleId || null,
     permissions,
-    defaultPermissions: clonePermissions(role.defaultPermissions || permissions),
-    initialPermissions: clonePermissions(role.initialPermissions || permissions),
+    ...resolveRolePermissionSets(role, permissions),
   };
 }
 
@@ -218,6 +227,16 @@ export function renderErrorState(message) {
   `;
 }
 
+export async function loadRolesFromServer(state) {
+  const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+  const roles =
+    Array.isArray(payload?.roles) && payload.roles.length
+      ? payload.roles.map((role) => normalizeLoadedRole(role))
+      : createInitialRoles();
+  state.roles = roles;
+  state.nextCustomIndex = getNextCustomIndex(state.roles);
+}
+
 export async function ensureRolesLoaded(container, state, data, reRender) {
   if (state.rolesLoaded || state.rolesLoading) return;
   state.rolesLoading = true;
@@ -225,13 +244,7 @@ export async function ensureRolesLoaded(container, state, data, reRender) {
   reRender(container, data);
 
   try {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles =
-      Array.isArray(payload?.roles) && payload.roles.length
-        ? payload.roles.map((role) => normalizeLoadedRole(role))
-        : createInitialRoles();
-    state.roles = roles;
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
+    await loadRolesFromServer(state);
   } catch (err) {
     state.roles = createInitialRoles();
     state.nextCustomIndex = getNextCustomIndex(state.roles);

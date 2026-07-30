@@ -85,13 +85,13 @@ describe('chatCollectionRouter', () => {
       mocks.handleListChats.mockResolvedValue(
         new Response(JSON.stringify({ chats: [] }), { status: 200 })
       );
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'GET'),
-        env,
-        user,
-        '/api/chats',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/chats',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
       expect(mocks.handleListChats).toHaveBeenCalled();
     });
@@ -100,25 +100,25 @@ describe('chatCollectionRouter', () => {
   describe('POST /api/chats', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
-        env,
-        user,
-        '/api/chats',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env: env,
+        user: user,
+        path: '/api/chats',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(403);
     });
 
     it('maps authorize server_error to 500', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, code: 'server_error', reason: 'DB down' });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
-        env,
-        user,
-        '/api/chats',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env: env,
+        user: user,
+        path: '/api/chats',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(500);
     });
 
@@ -128,25 +128,25 @@ describe('chatCollectionRouter', () => {
         code: 'unauthorized',
         reason: 'Expired token',
       });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
-        env,
-        user,
-        '/api/chats',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env: env,
+        user: user,
+        path: '/api/chats',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(401);
     });
 
     it('maps authorize not_found to 404', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, code: 'not_found', reason: 'Missing' });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
-        env,
-        user,
-        '/api/chats',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env: env,
+        user: user,
+        path: '/api/chats',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(404);
     });
 
@@ -158,13 +158,13 @@ describe('chatCollectionRouter', () => {
         title: 'New Chat',
         model: 'gpt-4o',
       });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
-        env,
-        user,
-        '/api/chats',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env: env,
+        user: user,
+        path: '/api/chats',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(201);
     });
   });
@@ -172,25 +172,25 @@ describe('chatCollectionRouter', () => {
   describe('GET /api/chats/shared', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/shared', 'GET'),
-        env,
-        user,
-        '/api/chats/shared',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/shared', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/chats/shared',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(403);
     });
 
     it('returns shared chats', async () => {
       db.all.mockResolvedValue([]);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/shared', 'GET'),
-        env,
-        user,
-        '/api/chats/shared',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/shared', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/chats/shared',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -198,13 +198,13 @@ describe('chatCollectionRouter', () => {
   describe('GET /api/chats/archived', () => {
     it('returns archived chats', async () => {
       db.all.mockResolvedValue([]);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/archived', 'GET'),
-        env,
-        user,
-        '/api/chats/archived',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/archived', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/chats/archived',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -212,13 +212,13 @@ describe('chatCollectionRouter', () => {
   describe('PUT /api/chats/:id', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'PUT', { title: 'Updated' }),
-        env,
-        user,
-        '/api/chats/c1',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1', 'PUT', { title: 'Updated' }),
+        env: env,
+        user: user,
+        path: '/api/chats/c1',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(403);
     });
 
@@ -227,13 +227,13 @@ describe('chatCollectionRouter', () => {
       mocks.requireOwnedChat.mockResolvedValue({
         chat: { id: 'c1', user_id: 'u1', title: 'Test', model: 'gpt-4o', pinned: 0 },
       });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'PUT', { title: 'Updated', pinned: true }),
-        env,
-        user,
-        '/api/chats/c1',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1', 'PUT', { title: 'Updated', pinned: true }),
+        env: env,
+        user: user,
+        path: '/api/chats/c1',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
       expect(db.run).toHaveBeenCalled();
     });
@@ -242,25 +242,25 @@ describe('chatCollectionRouter', () => {
   describe('DELETE /api/chats/:id', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'DELETE'),
-        env,
-        user,
-        '/api/chats/c1',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1', 'DELETE'),
+        env: env,
+        user: user,
+        path: '/api/chats/c1',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(403);
     });
 
     it('deletes chat', async () => {
       db.run.mockResolvedValue(undefined);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'DELETE'),
-        env,
-        user,
-        '/api/chats/c1',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1', 'DELETE'),
+        env: env,
+        user: user,
+        path: '/api/chats/c1',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -268,13 +268,13 @@ describe('chatCollectionRouter', () => {
   describe('POST /api/chats/:id/pin', () => {
     it('toggles pin state', async () => {
       db.run.mockResolvedValue(undefined);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/pin', 'POST'),
-        env,
-        user,
-        '/api/chats/c1/pin',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1/pin', 'POST'),
+        env: env,
+        user: user,
+        path: '/api/chats/c1/pin',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
       expect(db.run).toHaveBeenCalled();
     });
@@ -283,13 +283,13 @@ describe('chatCollectionRouter', () => {
   describe('POST /api/chats/:id/share', () => {
     it('creates share id', async () => {
       db.run.mockResolvedValue(undefined);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/share', 'POST'),
-        env,
-        user,
-        '/api/chats/c1/share',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1/share', 'POST'),
+        env: env,
+        user: user,
+        path: '/api/chats/c1/share',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -297,13 +297,13 @@ describe('chatCollectionRouter', () => {
   describe('DELETE /api/chats/:id/share', () => {
     it('removes share id', async () => {
       db.run.mockResolvedValue(undefined);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/share', 'DELETE'),
-        env,
-        user,
-        '/api/chats/c1/share',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1/share', 'DELETE'),
+        env: env,
+        user: user,
+        path: '/api/chats/c1/share',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
     });
   });
@@ -311,25 +311,25 @@ describe('chatCollectionRouter', () => {
   describe('POST /api/chats/:id/archive', () => {
     it('toggles archive state', async () => {
       db.run.mockResolvedValue(undefined);
-      const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/archive', 'POST'),
-        env,
-        user,
-        '/api/chats/c1/archive',
-        's1'
-      );
+      const res = await chatCollectionRouter({
+        req: makeReq('/api/chats/c1/archive', 'POST'),
+        env: env,
+        user: user,
+        path: '/api/chats/c1/archive',
+        originSessionId: 's1',
+      });
       expect(res.status).toBe(200);
     });
   });
 
   it('returns null for unknown path', async () => {
-    const result = await chatCollectionRouter(
-      makeReq('/api/unknown', 'GET'),
+    const result = await chatCollectionRouter({
+      req: makeReq('/api/unknown', 'GET'),
       env,
       user,
-      '/api/unknown',
-      's1'
-    );
+      path: '/api/unknown',
+      originSessionId: 's1',
+    });
     expect(result).toBeNull();
   });
 });

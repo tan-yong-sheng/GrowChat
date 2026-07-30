@@ -93,27 +93,25 @@ describe('handleUsersAdminAccess', () => {
   describe('GET /api/admin/users/:id/access', () => {
     it('rejects unauthorized access', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'Forbidden' });
-      const res = await handleUsersAdminAccess(
-        makeReq('/api/admin/users/u1/access', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/users/u1/access',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handleUsersAdminAccess({
+        req: makeReq('/api/admin/users/u1/access', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/users/u1/access',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(403);
     });
 
     it('returns 404 for non-existent user', async () => {
       db.first.mockResolvedValue(null);
-      const res = await handleUsersAdminAccess(
-        makeReq('/api/admin/users/nonexistent/access', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/users/nonexistent/access',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handleUsersAdminAccess({
+        req: makeReq('/api/admin/users/nonexistent/access', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/users/nonexistent/access',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(404);
     });
 
@@ -129,14 +127,13 @@ describe('handleUsersAdminAccess', () => {
           return [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }];
         return [];
       });
-      const res = await handleUsersAdminAccess(
-        makeReq('/api/admin/users/u1/access', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/users/u1/access',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handleUsersAdminAccess({
+        req: makeReq('/api/admin/users/u1/access', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/users/u1/access',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(200);
       const payload = await res.json();
       expect(payload.user.id).toBe('u1');
@@ -147,27 +144,25 @@ describe('handleUsersAdminAccess', () => {
 
     it('returns 500 on error', async () => {
       db.first.mockRejectedValue(new Error('DB fail'));
-      const res = await handleUsersAdminAccess(
-        makeReq('/api/admin/users/u1/access', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/users/u1/access',
-        { _db: db, logger, _requestContext: {} }
-      );
+      const res = await handleUsersAdminAccess({
+        req: makeReq('/api/admin/users/u1/access', 'GET'),
+        env: env,
+        user: user,
+        path: '/api/admin/users/u1/access',
+        deps: { _db: db, logger, _requestContext: {} },
+      });
       expect(res.status).toBe(500);
     });
   });
 
   it('returns null for non-matching paths', async () => {
-    const result = await handleUsersAdminAccess(
-      makeReq('/api/admin/users', 'GET'),
-      env,
-      ctx,
-      user,
-      '/api/admin/users',
-      { _db: db, logger, _requestContext: {} }
-    );
-    expect(result).toBeNull();
+    const res = await handleUsersAdminAccess({
+      req: makeReq('/api/admin/users', 'GET'),
+      env: env,
+      user: user,
+      path: '/api/admin/users',
+      deps: { _db: db, logger, _requestContext: {} },
+    });
+    expect(res).toBeNull();
   });
 });

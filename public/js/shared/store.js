@@ -5,6 +5,9 @@ import {
   writeStoredString,
 } from './utils/storage.js';
 
+const TABLET_BREAKPOINT_PX = 768;
+const DEFAULT_SIDEBAR_WIDTH_PX = 260;
+
 export const state = {
   // App Core
   chats: [],
@@ -27,10 +30,12 @@ export const state = {
   toolServersLoaded: false,
 
   // UI Layout
-  showSidebar: window.innerWidth >= 768,
+  showSidebar: window.innerWidth >= TABLET_BREAKPOINT_PX,
   sidebarCollapsed: readStoredString(localStorage, 'sidebarCollapsed', 'false') === 'true',
-  sidebarWidth: Number.parseInt(readStoredString(localStorage, 'sidebarWidth', ''), 10) || 260,
-  isMobile: window.innerWidth < 768,
+  sidebarWidth:
+    Number.parseInt(readStoredString(localStorage, 'sidebarWidth', ''), 10) ||
+    DEFAULT_SIDEBAR_WIDTH_PX,
+  isMobile: window.innerWidth < TABLET_BREAKPOINT_PX,
 
   // Search Modal State
   showSearch: false,
@@ -79,9 +84,85 @@ export const state = {
 
 const listeners = new Set();
 
+function computeChanges(updater) {
+  return typeof updater === 'function' ? updater(state) : updater;
+}
+
+function isPlainStateObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function replaceStateObject(key, value) {
+  if (state[key] === value) return false;
+  state[key] = value;
+  return true;
+}
+
+function mergeStateObject(key, value) {
+  if (!state[key]) state[key] = {};
+  let changed = false;
+  for (const subKey in value) {
+    if (state[key][subKey] !== value[subKey]) {
+      state[key][subKey] = value[subKey];
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function setStateValue(key, value) {
+  if (state[key] === value) return false;
+  state[key] = value;
+  return true;
+}
+
+function applyStateChange(key, value, replaceObjectKeys) {
+  if (!isPlainStateObject(value)) {
+    return setStateValue(key, value);
+  }
+  if (replaceObjectKeys.has(key)) {
+    return replaceStateObject(key, value);
+  }
+  return mergeStateObject(key, value);
+}
+
+function persistSidebarWidth(changes) {
+  if (changes.sidebarWidth) writeStoredString(localStorage, 'sidebarWidth', state.sidebarWidth);
+}
+
+function persistSidebarCollapsed(changes) {
+  if (changes.sidebarCollapsed !== undefined) {
+    writeStoredString(localStorage, 'sidebarCollapsed', state.sidebarCollapsed);
+  }
+}
+
+function persistDrafts(changes) {
+  if (changes.drafts) writeStoredJson(localStorage, 'drafts', state.drafts);
+}
+
+function persistNewChatDraft(changes) {
+  if (changes.newChatDraft !== undefined) {
+    writeStoredString(localStorage, 'newChatDraft', state.newChatDraft || '');
+  }
+}
+
+function persistToolSelections(changes) {
+  if (changes.toolSelectionsByChat) {
+    writeStoredJson(localStorage, 'toolSelectionsByChat', state.toolSelectionsByChat);
+  }
+}
+
+function persistStateChanges(changes) {
+  persistSidebarWidth(changes);
+  persistSidebarCollapsed(changes);
+  persistDrafts(changes);
+  persistNewChatDraft(changes);
+  persistToolSelections(changes);
+  // defaultModelId is stored server-side; avoid persisting stale local values.
+}
+
 export function setState(updater) {
-  const changes = typeof updater === 'function' ? updater(state) : updater;
-  let hasChanges = false;
+  const changes = computeChanges(updater);
   const replaceObjectKeys = new Set([
     'drafts',
     'messagesByChat',
@@ -89,43 +170,13 @@ export function setState(updater) {
     'toolSelectionsByChat',
   ]);
 
+  let hasChanges = false;
   for (const key in changes) {
-    if (typeof changes[key] === 'object' && changes[key] !== null && !Array.isArray(changes[key])) {
-      if (replaceObjectKeys.has(key)) {
-        if (state[key] !== changes[key]) {
-          state[key] = changes[key];
-          hasChanges = true;
-        }
-        continue;
-      }
-      // Nested update for search/ui objects
-      if (!state[key]) state[key] = {};
-      for (const subKey in changes[key]) {
-        if (state[key][subKey] !== changes[key][subKey]) {
-          state[key][subKey] = changes[key][subKey];
-          hasChanges = true;
-        }
-      }
-    } else if (state[key] !== changes[key]) {
-      state[key] = changes[key];
-      hasChanges = true;
-    }
+    hasChanges = applyStateChange(key, changes[key], replaceObjectKeys) || hasChanges;
   }
 
   if (hasChanges) {
-    // Persist certain state fields
-    if (changes.sidebarWidth) writeStoredString(localStorage, 'sidebarWidth', state.sidebarWidth);
-    if (changes.sidebarCollapsed !== undefined)
-      writeStoredString(localStorage, 'sidebarCollapsed', state.sidebarCollapsed);
-    if (changes.drafts) writeStoredJson(localStorage, 'drafts', state.drafts);
-    if (changes.newChatDraft !== undefined)
-      writeStoredString(localStorage, 'newChatDraft', state.newChatDraft || '');
-    if (changes.toolSelectionsByChat)
-      writeStoredJson(localStorage, 'toolSelectionsByChat', state.toolSelectionsByChat);
-    if (changes.defaultModelId) {
-      // defaultModelId is stored server-side; avoid persisting stale local values.
-    }
-
+    persistStateChanges(changes);
     notifyListeners();
   }
 }
@@ -157,7 +208,7 @@ function notifyListeners() {
 }
 
 window.addEventListener('resize', () => {
-  const isMobile = window.innerWidth < 768;
+  const isMobile = window.innerWidth < TABLET_BREAKPOINT_PX;
   if (state.isMobile !== isMobile) {
     setState({
       isMobile,

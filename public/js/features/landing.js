@@ -1,10 +1,11 @@
 /**
- * Landing page JavaScript — minimal, no dependencies.
+ * Landing page JavaScript — minimal.
  * - GitHub stars API fetch
  * - Smooth scroll for anchor links
  * - Mobile nav toggle
  * - Auth redirect (if user already logged in, go to SPA)
  */
+import { decodeJwtPayload } from '../shared/api/auth.js';
 
 (function () {
   'use strict';
@@ -20,29 +21,35 @@
   // cannot be parsed at all), clear it so subsequent API calls do not silently
   // attempt with dead credentials and so the next visitor to this device does
   // not inherit a half-session.
-  function checkAuthRedirect() {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return;
-    let auth;
+  function parseAuthOrClear(raw) {
+    if (!raw) return null;
     try {
-      auth = JSON.parse(raw);
+      return JSON.parse(raw);
     } catch {
       // Boundary: the landing page can safely treat a corrupt blob as
       // "not logged in". Clear it so it does not linger as a dead credential.
       localStorage.removeItem(AUTH_STORAGE_KEY);
-      return;
+      return null;
     }
-    // Hand off to /chat in two cases:
-    //  1. Valid access_token → user is mid-session, skip the marketing page.
-    //  2. Expired access_token + present refresh_token → ensureSession() in
-    //     the SPA can refresh; the SPA itself decides whether to land on /chat
-    //     or bounce to /auth.html.
-    if (auth?.access_token && isTokenUsable(auth.access_token)) {
-      window.location.replace('/chat');
-      return;
-    }
-    if (auth?.refresh_token) {
-      window.location.replace('/chat');
+  }
+
+  function redirectToChat() {
+    window.location.replace('/chat');
+  }
+
+  function hasUsableAccessToken(auth) {
+    return Boolean(auth?.access_token && isTokenUsable(auth.access_token));
+  }
+
+  function shouldRedirectToChat(auth) {
+    if (!auth) return false;
+    return hasUsableAccessToken(auth) || Boolean(auth?.refresh_token);
+  }
+
+  function checkAuthRedirect() {
+    const auth = parseAuthOrClear(localStorage.getItem(AUTH_STORAGE_KEY));
+    if (shouldRedirectToChat(auth)) {
+      redirectToChat();
       return;
     }
     // No refresh_token and the access_token is expired/unusable (or missing) —
@@ -51,35 +58,41 @@
     localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 
+  function isJwtExpired(decoded) {
+    const exp = Number(decoded?.exp || 0);
+    return !Number.isFinite(exp) || exp <= Math.floor(Date.now() / 1000);
+  }
+
   function isTokenUsable(token) {
-    try {
-      const parts = String(token || '').split('.');
-      if (parts.length < 2) return false;
-      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
-      const decoded = JSON.parse(atob(padded));
-      const exp = Number(decoded.exp || 0);
-      return Number.isFinite(exp) && exp > Math.floor(Date.now() / 1000);
-    } catch {
-      return false;
-    }
+    const decoded = decodeJwtPayload(token);
+    return decoded !== null && !isJwtExpired(decoded);
   }
 
   // ── GitHub stars ───────────────────────────────────────────────
+  function formatStarCount(count) {
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+    }
+    return String(count);
+  }
+
+  async function fetchStarCount() {
+    const res = await fetch(GITHUB_API, {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.stargazers_count === 'number' ? data.stargazers_count : null;
+  }
+
   async function fetchGitHubStars() {
     const el = document.getElementById('github-stars');
     if (!el) return;
 
     try {
-      const res = await fetch(GITHUB_API, {
-        headers: { Accept: 'application/vnd.github+json' },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const stars = data.stargazers_count;
-      if (typeof stars === 'number') {
-        el.textContent =
-          stars >= 1000 ? (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(stars);
+      const stars = await fetchStarCount();
+      if (stars !== null) {
+        el.textContent = formatStarCount(stars);
       }
     } catch {
       // Silently fail — the ★ placeholder remains

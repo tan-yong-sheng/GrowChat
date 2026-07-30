@@ -1,170 +1,57 @@
-import { normalizeProviderFamily, buildProviderId } from './provider-registry.js';
-import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
+import crypto from 'node:crypto';
 import { createRootLogger } from '../utils/logger.js';
-import {
-  normalizeBaseUrl,
-  ensureConnectionId,
-  labelFromFamily,
-  normalizeAuthType,
-  safeParseHeaders,
-  normalizeConnectionManualModels,
-  getConnectionApiType,
-  getConnectionDefaultBaseUrl,
-} from './connections-utils.js';
+
+import { normalizeUserConnectionRow, normalizeUserConnectionInput } from './connections-utils.js';
+
+let tableEnsured = false;
 
 async function ensureUserConnectionsTable(db) {
-  if (!db) return;
-  await db.run(
-    `CREATE TABLE IF NOT EXISTS user_connections (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			name TEXT NOT NULL,
-			provider_type TEXT NOT NULL DEFAULT 'openai-compatible',
-			base_url TEXT NOT NULL,
-			key TEXT NOT NULL DEFAULT '',
-			headers TEXT NOT NULL DEFAULT '{}',
-			auth_type TEXT NOT NULL DEFAULT '',
-			enabled INTEGER NOT NULL DEFAULT 1,
-			manual_models TEXT NOT NULL DEFAULT '[]',
-			manual_models_mode TEXT NOT NULL DEFAULT 'all',
-			created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-			updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-			UNIQUE(user_id, id)
-		)`
-  );
-  await db.run(
-    'CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id)'
-  );
-  await db.run(
-    'CREATE INDEX IF NOT EXISTS idx_user_connections_enabled ON user_connections(enabled)'
-  );
-  try {
-    const columns = await db.all('PRAGMA table_info(user_connections)');
-    const hasModeColumn =
-      Array.isArray(columns) &&
-      columns.some((column) => column && String(column.name || '') === 'manual_models_mode');
-    if (!hasModeColumn) {
-      await db.run(
-        "ALTER TABLE user_connections ADD COLUMN manual_models_mode TEXT NOT NULL DEFAULT 'all'"
-      );
-    }
-  } catch (err) {
-    if (!/duplicate column name/i.test(String(err?.message || ''))) {
-      throw err;
-    }
-  }
+  if (tableEnsured) return;
+  await db.run(`CREATE TABLE IF NOT EXISTS user_connections (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    provider_type TEXT,
+    base_url TEXT,
+    key TEXT,
+    headers TEXT DEFAULT '{}',
+    auth_type TEXT,
+    enabled INTEGER DEFAULT 1,
+    manual_models TEXT DEFAULT '[]',
+    manual_models_mode TEXT DEFAULT 'all',
+    created_at INTEGER,
+    updated_at INTEGER
+  )`);
+  tableEnsured = true;
 }
 
-function parseUserConnectionHeaders(raw) {
-  return safeParseHeaders(raw);
+// -- Backward-compatible options detection helpers --
+
+function isOptionsObject(opts) {
+  return opts && typeof opts === 'object' && 'userId' in opts;
 }
 
-function parseUserConnectionManualModels(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return normalizeConnectionManualModels(raw);
-  try {
-    const parsed = JSON.parse(String(raw));
-    return normalizeConnectionManualModels(parsed);
-  } catch {
-    return [];
-  }
+function resolveDb(opts, isOpt, _legacyDb) {
+  return isOpt ? opts.db : opts;
 }
 
-function normalizeUserConnectionRow({ row, index = 0 } = {}) {
-  if (!row) return null;
-  const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
-  if (!baseUrl) return null;
-
-  const providerType =
-    String(row.provider_type || row.providerType || 'openai-compatible')
-      .trim()
-      .toLowerCase() || 'openai-compatible';
-  const providerFamily =
-    normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai';
-  const id = ensureConnectionId(
-    {
-      id: row.id,
-      providerType,
-      providerFamily,
-      baseUrl,
-      key: row.key || '',
-      headers: row.headers || '{}',
-    },
-    index
-  );
-
-  return {
-    id,
-    name: String(row.name || `${labelFromFamily(providerFamily)} Personal`).slice(0, 120),
-    baseUrl,
-    url: baseUrl,
-    key: String(row.key || '').trim(),
-    headers: parseUserConnectionHeaders(row.headers),
-    source: 'user',
-    enabled: row.enabled !== 0 && row.enabled !== false,
-    providerType,
-    providerFamily,
-    providerId: buildProviderId({ id, providerType, providerFamily }),
-    authType: normalizeAuthType(row.auth_type || row.authType),
-    apiType: getConnectionApiType(providerType),
-    manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
-    manualModelsMode:
-      normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) ||
-      'all',
-    ownerUserId: row.user_id || row.userId || null,
-    personal: true,
-  };
+function resolveUserId(opts, isOpt, legacyId) {
+  return isOpt ? opts.userId : legacyId;
 }
 
-function normalizeUserConnectionInput(opts = {}) {
-  const input = opts.input ?? {};
-  const existing = opts.existing ?? null;
-  const name = String(input.name || existing?.name || '').trim();
-  const providerType =
-    String(
-      input.provider_type || input.providerType || existing?.providerType || 'openai-compatible'
-    )
-      .trim()
-      .toLowerCase() || 'openai-compatible';
-  const providerFamily =
-    normalizeProviderFamily(
-      input.provider_family || input.providerFamily || existing?.providerFamily || providerType
-    ) || 'openai';
-  const baseUrlRaw = input.base_url !== undefined ? input.base_url : input.baseUrl;
-  const resolvedBaseUrl = normalizeBaseUrl(
-    baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType)
-  );
-  const keyRaw = input.key;
-  const headersRaw = input.headers !== undefined ? input.headers : existing?.headers;
-  const authType = normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
-  const enabled =
-    input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
-  const manualModels = normalizeConnectionManualModels(
-    Array.isArray(input.manual_models)
-      ? input.manual_models
-      : Array.isArray(input.manualModels)
-        ? input.manualModels
-        : existing?.manualModels || []
-  );
-  const manualModelsMode =
-    normalizeConnectionModelSelectionMode(
-      input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
-    ) || 'all';
-
-  return {
-    name,
-    providerType,
-    providerFamily,
-    baseUrl: resolvedBaseUrl,
-    key: keyRaw !== undefined ? String(keyRaw || '').trim() : String(existing?.key || '').trim(),
-    headers:
-      headersRaw !== undefined ? safeParseHeaders(headersRaw) : safeParseHeaders(existing?.headers),
-    authType,
-    enabled,
-    manualModels,
-    manualModelsMode,
-  };
+function resolveLogger(opts, isOpt, legacyLogger) {
+  return (isOpt ? opts.logger : legacyLogger) || createRootLogger({});
 }
+
+function resolveOptions(opts, isOpt, legacyOptions) {
+  return isOpt ? opts.options : legacyOptions;
+}
+
+function resolveConnectionId(opts, isOpt, legacyConnectionId) {
+  return isOpt ? opts.connectionId : legacyConnectionId;
+}
+
+// -- Core async functions --
 
 export async function loadUserOpenAIConnectionConfigs(
   opts,
@@ -172,15 +59,11 @@ export async function loadUserOpenAIConnectionConfigs(
   legacyOptions,
   legacyLogger
 ) {
-  // Backward-compatible: accept both options-object and legacy positional
-  // signature (db, userId, options, logger). We detect the options-object
-  // form by the presence of `userId`; if it is missing we assume the first
-  // argument is `db`. Falls back to a default logger when none provided.
-  const isOptionsObject = opts && typeof opts === 'object' && 'userId' in opts;
-  const db = isOptionsObject ? opts.db : opts;
-  const userId = isOptionsObject ? opts.userId : legacyUserId;
-  const options = isOptionsObject ? opts.options : legacyOptions;
-  const logger = (isOptionsObject ? opts.logger : legacyLogger) || createRootLogger({});
+  const isOpt = isOptionsObject(opts);
+  const db = resolveDb(opts, isOpt, opts);
+  const userId = resolveUserId(opts, isOpt, legacyUserId);
+  const options = resolveOptions(opts, isOpt, legacyOptions);
+  const logger = resolveLogger(opts, isOpt, legacyLogger);
   const includeDisabled = options?.includeDisabled === true;
   if (!db || !userId) return [];
 
@@ -188,9 +71,9 @@ export async function loadUserOpenAIConnectionConfigs(
     await ensureUserConnectionsTable(db);
     const rawRows = await db.all(
       `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
-			FROM user_connections
-			WHERE user_id = ?
-			ORDER BY updated_at DESC, created_at DESC, name ASC`,
+				FROM user_connections
+				WHERE user_id = ?
+				ORDER BY updated_at DESC, created_at DESC, name ASC`,
       [userId]
     );
     const rows = Array.isArray(rawRows) ? rawRows : [];
@@ -211,22 +94,19 @@ export async function getUserOpenAIConnectionConfig(
   legacyConnectionId,
   legacyLogger
 ) {
-  // Backward-compatible: accept both options-object and legacy positional
-  // signature (db, userId, connectionId, logger). Detect the options-object
-  // form by the presence of `userId`. Falls back to a default logger.
-  const isOptionsObject = opts && typeof opts === 'object' && 'userId' in opts;
-  const db = isOptionsObject ? opts.db : opts;
-  const userId = isOptionsObject ? opts.userId : legacyUserId;
-  const connectionId = isOptionsObject ? opts.connectionId : legacyConnectionId;
-  const logger = (isOptionsObject ? opts.logger : legacyLogger) || createRootLogger({});
+  const isOpt = isOptionsObject(opts);
+  const db = resolveDb(opts, isOpt, opts);
+  const userId = resolveUserId(opts, isOpt, legacyUserId);
+  const connectionId = resolveConnectionId(opts, isOpt, legacyConnectionId);
+  const logger = resolveLogger(opts, isOpt, legacyLogger);
   if (!db || !userId || !connectionId) return null;
 
   try {
     await ensureUserConnectionsTable(db);
     const row = await db.first(
       `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
-			FROM user_connections
-			WHERE user_id = ? AND id = ?`,
+				FROM user_connections
+				WHERE user_id = ? AND id = ?`,
       [userId, connectionId]
     );
     return normalizeUserConnectionRow({ row });
@@ -237,90 +117,117 @@ export async function getUserOpenAIConnectionConfig(
 }
 
 export async function createUserOpenAIConnection(opts) {
-  // Normalize null/undefined to {} so destructuring remains null-safe;
-  // the existing fail-soft validation below produces the canonical error.
-  const { db, userId } = opts ?? {};
-  const input = opts?.input ?? {};
-  if (!db || !userId) throw new Error('User id is required');
+  const { db, userId, input } = extractCreateUserConnectionOpts(opts);
+  validateUserConnectionContext({ db, userId });
   await ensureUserConnectionsTable(db);
 
   const connection = normalizeUserConnectionInput({ input, existing: null });
-  if (!connection.name) throw new Error('name is required');
-  if (!connection.baseUrl) throw new Error('base_url is required');
+  validateUserConnectionPayload(connection);
 
   const id = crypto.randomUUID();
   await db.run(
     `INSERT INTO user_connections (
-			id, user_id, name, provider_type, base_url, key, headers, auth_type,
-			enabled, manual_models, manual_models_mode, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
-    [
-      id,
-      userId,
-      connection.name,
-      connection.providerType,
-      connection.baseUrl,
-      connection.key,
-      JSON.stringify(connection.headers || {}),
-      connection.authType,
-      connection.enabled ? 1 : 0,
-      JSON.stringify(connection.manualModels || []),
-      connection.manualModelsMode || 'all',
-    ]
+				id, user_id, name, provider_type, base_url, key, headers, auth_type,
+				enabled, manual_models, manual_models_mode, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+    insertUserConnectionParams({ id, userId, connection })
   );
 
   return getUserOpenAIConnectionConfig({ db, userId, connectionId: id });
 }
 
-export async function updateUserOpenAIConnection(opts) {
-  // Normalize null/undefined to {} so destructuring remains null-safe;
-  // the existing fail-soft validation below produces the canonical error.
-  const { db, userId, connectionId } = opts ?? {};
-  const input = opts?.input ?? {};
+async function ensureUserConnectionContext({ db, userId, connectionId }) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
+}
+
+export async function updateUserOpenAIConnection(opts) {
+  const { db, userId, connectionId, input } = extractUpdateUserConnectionOpts(opts);
+  await ensureUserConnectionContext({ db, userId, connectionId });
 
   const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return null;
 
   const connection = normalizeUserConnectionInput({ input, existing });
-  if (!connection.name) throw new Error('name is required');
-  if (!connection.baseUrl) throw new Error('base_url is required');
+  validateUserConnectionPayload(connection);
 
   await db.run(
     `UPDATE user_connections SET
-			name = ?, provider_type = ?, base_url = ?, key = ?, headers = ?,
-			auth_type = ?, enabled = ?, manual_models = ?, manual_models_mode = ?,
-			updated_at = unixepoch()
-		WHERE user_id = ? AND id = ?`,
-    [
-      connection.name,
-      connection.providerType,
-      connection.baseUrl,
-      connection.key,
-      JSON.stringify(connection.headers || {}),
-      connection.authType,
-      connection.enabled ? 1 : 0,
-      JSON.stringify(connection.manualModels || []),
-      connection.manualModelsMode || 'all',
-      userId,
-      connectionId,
-    ]
+				name = ?, provider_type = ?, base_url = ?, key = ?, headers = ?,
+				auth_type = ?, enabled = ?, manual_models = ?, manual_models_mode = ?,
+				updated_at = unixepoch()
+			WHERE user_id = ? AND id = ?`,
+    updateUserConnectionParams({ userId, connectionId, connection })
   );
 
   return getUserOpenAIConnectionConfig(db, userId, connectionId);
 }
 
 export async function deleteUserOpenAIConnection(options) {
-  // Normalize null/undefined to {} so destructuring remains null-safe;
-  // the existing fail-soft validation below produces the canonical error.
   const { db, userId, connectionId } = options ?? {};
-  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
-  await ensureUserConnectionsTable(db);
+  await ensureUserConnectionContext({ db, userId, connectionId });
 
   const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return false;
 
   await db.run('DELETE FROM user_connections WHERE user_id = ? AND id = ?', [userId, connectionId]);
   return true;
+}
+
+function extractCreateUserConnectionOpts(opts) {
+  return {
+    db: opts?.db,
+    userId: opts?.userId,
+    input: opts?.input ?? {},
+  };
+}
+
+function extractUpdateUserConnectionOpts(opts) {
+  return {
+    db: opts?.db,
+    userId: opts?.userId,
+    connectionId: opts?.connectionId,
+    input: opts?.input ?? {},
+  };
+}
+
+function validateUserConnectionContext({ db, userId }) {
+  if (!db || !userId) throw new Error('User id is required');
+}
+
+function validateUserConnectionPayload(connection) {
+  if (!connection.name) throw new Error('name is required');
+  if (!connection.baseUrl) throw new Error('base_url is required');
+}
+
+function insertUserConnectionParams({ id, userId, connection }) {
+  return [
+    id,
+    userId,
+    connection.name,
+    connection.providerType,
+    connection.baseUrl,
+    connection.key,
+    JSON.stringify(connection.headers || {}),
+    connection.authType,
+    connection.enabled ? 1 : 0,
+    JSON.stringify(connection.manualModels || []),
+    connection.manualModelsMode || 'all',
+  ];
+}
+
+function updateUserConnectionParams({ userId, connectionId, connection }) {
+  return [
+    connection.name,
+    connection.providerType,
+    connection.baseUrl,
+    connection.key,
+    JSON.stringify(connection.headers || {}),
+    connection.authType,
+    connection.enabled ? 1 : 0,
+    JSON.stringify(connection.manualModels || []),
+    connection.manualModelsMode || 'all',
+    userId,
+    connectionId,
+  ];
 }

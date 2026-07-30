@@ -10,42 +10,14 @@ import {
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
-import { renderLoadingSkeleton } from './acl-modal-shared.js';
+import { renderLoadingSkeleton, updateToggleButton } from './acl-modal-shared.js';
+import { updateToolToggle } from '../../../shared/components/tool-toggle.js';
+import { updateAuthFields as sharedUpdateAuthFields } from '../../../shared/components/integrations-shared.js';
 
 export function createIntegrationsModalOps(deps) {
   const { container, integrationsState } = deps;
 
-  const updateServerToggle = (btn, enabled) => {
-    if (!btn) return;
-    btn.classList.toggle('bg-primary', enabled);
-    btn.classList.toggle('bg-gray-200', !enabled);
-    const knob = btn.querySelector('span');
-    if (knob) {
-      knob.classList.toggle('translate-x-4', enabled);
-      knob.classList.toggle('translate-x-0', !enabled);
-    }
-  };
-
-  const updateToolToggle = (btn, enabled, serverEnabled) => {
-    if (!btn) return;
-    btn.disabled = !serverEnabled;
-    btn.classList.toggle('bg-primary', enabled);
-    btn.classList.toggle('bg-gray-200', !enabled);
-    btn.classList.toggle('opacity-40', !serverEnabled);
-    btn.classList.toggle('cursor-not-allowed', !serverEnabled);
-    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-    btn.setAttribute('aria-disabled', serverEnabled ? 'false' : 'true');
-    btn.title = serverEnabled
-      ? enabled
-        ? 'Disable tool'
-        : 'Enable tool'
-      : 'Enable the server to edit tools';
-    const knob = btn.querySelector('span');
-    if (knob) {
-      knob.classList.toggle('translate-x-4', enabled);
-      knob.classList.toggle('translate-x-0', !enabled);
-    }
-  };
+  const updateServerToggle = (btn, enabled) => updateToggleButton(btn, enabled);
 
   const sanitizeServers = () => sanitizeIntegrationsServers(integrationsState.toolServers);
 
@@ -122,50 +94,100 @@ export function createIntegrationsModalOps(deps) {
   };
 
   const updateAuthFields = (authType) => {
-    const bearer = container.querySelector('#auth-bearer-fields');
-    const basic = container.querySelector('#auth-basic-fields');
-    const oauth = container.querySelector('#auth-oauth-fields');
-    if (bearer) bearer.classList.toggle('hidden', !shouldShowAuthField(authType, 'bearer'));
-    if (basic) basic.classList.toggle('hidden', !shouldShowAuthField(authType, 'basic'));
-    if (oauth) oauth.classList.toggle('hidden', !shouldShowAuthField(authType, 'oauth'));
+    sharedUpdateAuthFields(container, authType);
   };
 
+  const queryIntegrationModalRefs = () => ({
+    nameInput: container.querySelector('#server-name'),
+    urlInput: container.querySelector('#server-url'),
+    headersInput: container.querySelector('#server-headers'),
+    authTypeSelect: container.querySelector('#server-auth-type'),
+    bearerInput: container.querySelector('#server-auth-bearer'),
+    basicUserInput: container.querySelector('#server-auth-basic-username'),
+    basicPassInput: container.querySelector('#server-auth-basic-password'),
+    oauthClientNameInput: container.querySelector('#server-auth-oauth-client-name'),
+    oauthScopeInput: container.querySelector('#server-auth-oauth-scope'),
+    oauthClientIdInput: container.querySelector('#server-auth-oauth-client-id'),
+    oauthClientSecretInput: container.querySelector('#server-auth-oauth-client-secret'),
+    oauthTokenMethodSelect: container.querySelector('#server-auth-oauth-token-method'),
+    oauthStatus: container.querySelector('#oauth-status'),
+    title: container.querySelector('#server-modal-title'),
+    deleteBtn: container.querySelector('#delete-server'),
+  });
+
+  const setElementValue = (el, value) => {
+    if (el) el.value = value;
+  };
+
+  const setElementText = (el, text) => {
+    if (el) el.textContent = text;
+  };
+
+  const toggleElementClass = (el, className, force) => {
+    if (el) el.classList.toggle(className, force);
+  };
+
+  const fillBasicServerFields = (refs, server) => {
+    setElementValue(refs.nameInput, server?.name || '');
+    setElementValue(refs.urlInput, server?.url || '');
+    setElementValue(refs.headersInput, server?.headers || '');
+    setElementValue(refs.authTypeSelect, server?.auth_type || 'none');
+  };
+
+  const fillBearerAuthField = (refs, server) => {
+    setElementValue(refs.bearerInput, server?.auth_bearer_token || '');
+  };
+
+  const fillBasicAuthFields = (refs, server) => {
+    setElementValue(refs.basicUserInput, server?.auth_basic_username || '');
+    setElementValue(refs.basicPassInput, server?.auth_basic_password || '');
+  };
+
+  const fillOAuthClientNameField = (refs, server) => {
+    setElementValue(refs.oauthClientNameInput, server?.oauth_client_name || '');
+  };
+
+  const fillOAuthScopeField = (refs, server) => {
+    setElementValue(refs.oauthScopeInput, server?.oauth_scope || '');
+  };
+
+  const fillOAuthClientIdField = (refs, server) => {
+    setElementValue(refs.oauthClientIdInput, server?.oauth_client_id || '');
+  };
+
+  const fillOAuthClientSecretField = (refs, server) => {
+    setElementValue(refs.oauthClientSecretInput, server?.oauth_client_secret || '');
+  };
+
+  const fillOAuthTokenMethodField = (refs, server) => {
+    setElementValue(refs.oauthTokenMethodSelect, server?.oauth_token_auth_method || '');
+  };
+
+  const fillOAuthStatus = (refs, server) => {
+    setElementText(refs.oauthStatus, server?.oauth_connected ? 'Connected' : 'Not connected');
+  };
+
+  const INTEGRATION_MODAL_TITLES = {
+    update: 'Edit MCP Server',
+    default: 'Add MCP Server',
+  };
+
+  const resolveIntegrationModalTitle = (modalMode) =>
+    modalMode === 'update' ? INTEGRATION_MODAL_TITLES.update : INTEGRATION_MODAL_TITLES.default;
+
   const fillModalFields = (server) => {
-    const nameInput = container.querySelector('#server-name');
-    const urlInput = container.querySelector('#server-url');
-    const headersInput = container.querySelector('#server-headers');
-    const authTypeSelect = container.querySelector('#server-auth-type');
-    const bearerInput = container.querySelector('#server-auth-bearer');
-    const basicUserInput = container.querySelector('#server-auth-basic-username');
-    const basicPassInput = container.querySelector('#server-auth-basic-password');
-    const oauthClientNameInput = container.querySelector('#server-auth-oauth-client-name');
-    const oauthScopeInput = container.querySelector('#server-auth-oauth-scope');
-    const oauthClientIdInput = container.querySelector('#server-auth-oauth-client-id');
-    const oauthClientSecretInput = container.querySelector('#server-auth-oauth-client-secret');
-    const oauthTokenMethodSelect = container.querySelector('#server-auth-oauth-token-method');
-    const oauthStatus = container.querySelector('#oauth-status');
-    if (nameInput) nameInput.value = server?.name || '';
-    if (urlInput) urlInput.value = server?.url || '';
-    if (headersInput) headersInput.value = server?.headers || '';
-    if (authTypeSelect) authTypeSelect.value = server?.auth_type || 'none';
-    if (bearerInput) bearerInput.value = server?.auth_bearer_token || '';
-    if (basicUserInput) basicUserInput.value = server?.auth_basic_username || '';
-    if (basicPassInput) basicPassInput.value = server?.auth_basic_password || '';
-    if (oauthClientNameInput) oauthClientNameInput.value = server?.oauth_client_name || '';
-    if (oauthScopeInput) oauthScopeInput.value = server?.oauth_scope || '';
-    if (oauthClientIdInput) oauthClientIdInput.value = server?.oauth_client_id || '';
-    if (oauthClientSecretInput) oauthClientSecretInput.value = server?.oauth_client_secret || '';
-    if (oauthTokenMethodSelect)
-      oauthTokenMethodSelect.value = server?.oauth_token_auth_method || '';
-    if (oauthStatus) {
-      oauthStatus.textContent = server?.oauth_connected ? 'Connected' : 'Not connected';
-    }
-    const title = container.querySelector('#server-modal-title');
-    if (title)
-      title.textContent =
-        integrationsState.modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server';
-    const deleteBtn = container.querySelector('#delete-server');
-    if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
+    const refs = queryIntegrationModalRefs();
+    fillBasicServerFields(refs, server);
+    fillBearerAuthField(refs, server);
+    fillBasicAuthFields(refs, server);
+    fillOAuthClientNameField(refs, server);
+    fillOAuthScopeField(refs, server);
+    fillOAuthClientIdField(refs, server);
+    fillOAuthClientSecretField(refs, server);
+    fillOAuthTokenMethodField(refs, server);
+    fillOAuthStatus(refs, server);
+    setElementText(refs.title, resolveIntegrationModalTitle(integrationsState.modalMode));
+    toggleElementClass(refs.deleteBtn, 'hidden', !server);
     setTestStatus('idle', '');
     updateAuthFields(server?.auth_type || 'none');
   };

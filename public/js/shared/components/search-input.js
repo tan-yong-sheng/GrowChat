@@ -28,6 +28,7 @@ export function renderSearchInput(inputEl) {
       return;
     }
 
+    // Tokens are hard-coded and labels/descriptions are escaped before interpolation.
     dropdown.innerHTML = tokens
       .map(
         (t, i) => `
@@ -99,35 +100,50 @@ export function renderSearchInput(inputEl) {
     }
   };
 
+  const handleArrowDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // prevent modal from scrolling
+    if (selectedIndex < activeTokens.length - 1) {
+      selectedIndex++;
+      updateDropdownSelection();
+    }
+  };
+
+  const handleArrowUp = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (selectedIndex > 0) {
+      selectedIndex--;
+      updateDropdownSelection();
+    }
+  };
+
+  const handleEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (selectedIndex >= 0 && activeTokens[selectedIndex]) {
+      insertToken(activeTokens[selectedIndex].label);
+    }
+  };
+
+  const handleEscape = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropdown.classList.add('hidden');
+    isDropdownOpen = false;
+  };
+
+  const KEY_HANDLERS = {
+    ArrowDown: handleArrowDown,
+    ArrowUp: handleArrowUp,
+    Enter: handleEnter,
+    Escape: handleEscape,
+  };
+
   const onKeyDown = (e) => {
     if (!isDropdownOpen) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      e.stopPropagation(); // prevent modal from scrolling
-      if (selectedIndex < activeTokens.length - 1) {
-        selectedIndex++;
-        updateDropdownSelection();
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (selectedIndex > 0) {
-        selectedIndex--;
-        updateDropdownSelection();
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (selectedIndex >= 0 && activeTokens[selectedIndex]) {
-        insertToken(activeTokens[selectedIndex].label);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      dropdown.classList.add('hidden');
-      isDropdownOpen = false;
-    }
+    const handler = KEY_HANDLERS[e.key];
+    if (handler) handler(e);
   };
 
   // Close dropdown on outside click

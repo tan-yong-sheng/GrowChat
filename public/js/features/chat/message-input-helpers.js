@@ -5,6 +5,17 @@ import {
   getAllowedNonLocalKinds,
 } from '../../shared/utils/attachment-types.js';
 
+export function findStreamingMessageId(messages = []) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    const status = String(msg?.status || '');
+    if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
+      return msg.id;
+    }
+  }
+  return null;
+}
+
 export function getAttachmentAcceptTypes(currentState) {
   const allowedKinds = getAllowedAttachmentKinds(currentState, { localTextLabel: 'text-local' });
   const accepts = [];

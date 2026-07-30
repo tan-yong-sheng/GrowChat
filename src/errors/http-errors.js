@@ -1,36 +1,7 @@
-export class HttpError extends Error {
-  constructor(message, statusCode = 500, code = 'http_error', details = null) {
-    super(message);
-    this.name = this.constructor.name;
-    this.statusCode = statusCode;
-    this.code = code;
-    this.details = details;
-  }
-}
+import { HTTP_STATUS } from '../shared/http-status.js';
+import { HttpError } from './http-error-base.js';
 
-export class ValidationError extends HttpError {
-  constructor(message, details = null) {
-    super(message, 400, 'validation_error', details);
-  }
-}
-
-export class UnauthorizedError extends HttpError {
-  constructor(message = 'Unauthorized', details = null) {
-    super(message, 401, 'unauthorized', details);
-  }
-}
-
-export class ForbiddenError extends HttpError {
-  constructor(message = 'Forbidden', details = null) {
-    super(message, 403, 'forbidden', details);
-  }
-}
-
-export class NotFoundError extends HttpError {
-  constructor(message = 'Not found', details = null) {
-    super(message, 404, 'not_found', details);
-  }
-}
+export { HttpError };
 
 export function isHttpError(error) {
   return error instanceof HttpError;
@@ -49,10 +20,15 @@ export function toHttpErrorPayload(error) {
   }
 
   return {
-    status: 500,
+    status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
     body: {
       error: 'internal_error',
       message: 'Internal server error',
     },
   };
 }
+
+export { ValidationError } from './http-errors-validation.js';
+export { UnauthorizedError } from './http-errors-unauthorized.js';
+export { ForbiddenError } from './http-errors-forbidden.js';
+export { NotFoundError } from './http-errors-not-found.js';

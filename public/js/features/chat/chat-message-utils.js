@@ -1,40 +1,61 @@
+const THINKING_TAG_NAMES = ['thinking', 'thoughts', 'think', 'reasoning', 'reason'];
+
+function findNextThinkingTag(source, lower, cursor) {
+  let nextTag = null;
+  for (const tag of THINKING_TAG_NAMES) {
+    const openToken = `<${tag}`;
+    const idx = lower.indexOf(openToken, cursor);
+    if (idx !== -1 && (nextTag === null || idx < nextTag.index)) {
+      nextTag = { tag, index: idx };
+    }
+  }
+  return nextTag;
+}
+
+function pushTextSegment(segments, text) {
+  if (text.trim()) segments.push({ type: 'text', text });
+}
+
+function pushThinkingSegment(segments, text) {
+  if (text.trim()) segments.push({ type: 'thinking', text });
+}
+
+function parseNextThinkingSegment(source, lower, nextTag) {
+  const openEnd = source.indexOf('>', nextTag.index);
+  if (openEnd === -1) return { remainder: source.slice(nextTag.index) };
+  const closeToken = `</${nextTag.tag}>`;
+  const closeIdx = lower.indexOf(closeToken, openEnd + 1);
+  if (closeIdx === -1) {
+    return { remainder: source.slice(openEnd + 1) };
+  }
+  return {
+    inner: source.slice(openEnd + 1, closeIdx),
+    cursor: closeIdx + closeToken.length,
+  };
+}
+
 export function splitThinkingSegments(raw) {
   const source = String(raw || '');
   if (!source) return [];
   const segments = [];
-  const tagNames = ['thinking', 'thoughts', 'think', 'reasoning', 'reason'];
   let cursor = 0;
   const lower = source.toLowerCase();
   while (cursor < source.length) {
-    let nextTag = null;
-    for (const tag of tagNames) {
-      const openToken = `<${tag}`;
-      const idx = lower.indexOf(openToken, cursor);
-      if (idx !== -1 && (nextTag === null || idx < nextTag.index)) {
-        nextTag = { tag, index: idx };
-      }
-    }
+    const nextTag = findNextThinkingTag(source, lower, cursor);
     if (!nextTag) {
-      const text = source.slice(cursor);
-      if (text.trim()) segments.push({ type: 'text', text });
+      pushTextSegment(segments, source.slice(cursor));
       break;
     }
     if (nextTag.index > cursor) {
-      const text = source.slice(cursor, nextTag.index);
-      if (text.trim()) segments.push({ type: 'text', text });
+      pushTextSegment(segments, source.slice(cursor, nextTag.index));
     }
-    const openEnd = source.indexOf('>', nextTag.index);
-    if (openEnd === -1) break;
-    const closeToken = `</${nextTag.tag}>`;
-    const closeIdx = lower.indexOf(closeToken, openEnd + 1);
-    if (closeIdx === -1) {
-      const remainder = source.slice(openEnd + 1);
-      if (remainder.trim()) segments.push({ type: 'thinking', text: remainder });
+    const parsed = parseNextThinkingSegment(source, lower, nextTag);
+    if (parsed.remainder !== undefined) {
+      pushThinkingSegment(segments, parsed.remainder);
       break;
     }
-    const inner = source.slice(openEnd + 1, closeIdx);
-    if (inner.trim()) segments.push({ type: 'thinking', text: inner });
-    cursor = closeIdx + closeToken.length;
+    pushThinkingSegment(segments, parsed.inner);
+    cursor = parsed.cursor;
   }
   return segments;
 }
@@ -85,6 +106,26 @@ export function formatApiErrorMessage(payload, fallback) {
   return message;
 }
 
+function findTagOpen(text, openToken) {
+  const lower = text.toLowerCase();
+  const openIdx = lower.indexOf(openToken);
+  if (openIdx === -1) return null;
+  const openEnd = text.indexOf('>', openIdx);
+  if (openEnd === -1) return null;
+  return { openIdx, openEnd };
+}
+
+function extractTagContents(text, openIdx, openEnd, closeToken) {
+  const lower = text.toLowerCase();
+  const closeIdx = lower.indexOf(closeToken, openEnd + 1);
+  const content = closeIdx === -1 ? text.slice(openEnd + 1) : text.slice(openEnd + 1, closeIdx);
+  const nextText =
+    closeIdx === -1
+      ? text.slice(0, openIdx)
+      : text.slice(0, openIdx) + text.slice(closeIdx + closeToken.length);
+  return { content, text: nextText };
+}
+
 export function extractThinkingBlocks(raw) {
   const source = String(raw || '');
   let text = source;
@@ -95,21 +136,16 @@ export function extractThinkingBlocks(raw) {
     const openToken = `<${tag}`;
     const closeToken = `</${tag}>`;
     while (true) {
-      const lower = text.toLowerCase();
-      const openIdx = lower.indexOf(openToken);
-      if (openIdx === -1) break;
-      const openEnd = text.indexOf('>', openIdx);
-      if (openEnd === -1) break;
-      const closeIdx = lower.indexOf(closeToken, openEnd + 1);
-      if (closeIdx === -1) {
-        const remainder = text.slice(openEnd + 1);
-        if (remainder.trim()) collected.push(remainder);
-        text = text.slice(0, openIdx);
-        break;
-      }
-      const inner = text.slice(openEnd + 1, closeIdx);
-      if (inner.trim()) collected.push(inner);
-      text = text.slice(0, openIdx) + text.slice(closeIdx + closeToken.length);
+      const match = findTagOpen(text, openToken);
+      if (!match) break;
+      const { content, text: nextText } = extractTagContents(
+        text,
+        match.openIdx,
+        match.openEnd,
+        closeToken
+      );
+      if (content.trim()) collected.push(content);
+      text = nextText;
     }
   }
 
@@ -168,20 +204,52 @@ export function normalizeMessageBlockRecord(raw, index = 0) {
   };
 }
 
+function resolveToolCallId(raw) {
+  return raw.id || raw.tool_call_id || raw.toolCallId;
+}
+
+function pickToolCallName(raw) {
+  return raw.name || raw.tool_name || raw.toolName || null;
+}
+
+function normalizeToolName(name) {
+  return String(name || 'Tool').trim() || 'Tool';
+}
+
+function resolveToolCallInput(raw) {
+  if (raw.input != null) return raw.input;
+  if (raw.arguments != null) return raw.arguments;
+  return raw.args ?? '';
+}
+
+function resolveToolCallOutput(raw) {
+  return raw.output ?? raw.result ?? '';
+}
+
+function resolveToolCallStatus(raw, error, output) {
+  if (raw.status || raw.state) return raw.status || raw.state;
+  if (error) return 'error';
+  return output ? 'completed' : 'running';
+}
+
+function normalizeToolCallValue(value) {
+  return value == null ? '' : String(value);
+}
+
 export function normalizeToolCallRecord(raw) {
   if (!raw) return null;
-  const id = raw.id || raw.tool_call_id || raw.toolCallId;
+  const id = resolveToolCallId(raw);
   if (!id) return null;
-  const name = String(raw.name || raw.tool_name || raw.toolName || 'Tool').trim() || 'Tool';
-  const input = raw.input ?? raw.arguments ?? raw.args ?? '';
-  const output = raw.output ?? raw.result ?? '';
+  const name = normalizeToolName(pickToolCallName(raw));
+  const input = resolveToolCallInput(raw);
+  const output = resolveToolCallOutput(raw);
   const error = raw.error ?? null;
-  const status = raw.status || raw.state || (error ? 'error' : output ? 'completed' : 'running');
+  const status = resolveToolCallStatus(raw, error, output);
   return {
     id: String(id),
     name,
-    input: input == null ? '' : String(input),
-    output: output == null ? '' : String(output),
+    input: normalizeToolCallValue(input),
+    output: normalizeToolCallValue(output),
     error: error == null ? null : String(error),
     status: String(status),
   };

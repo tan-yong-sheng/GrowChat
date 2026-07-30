@@ -6,6 +6,32 @@
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
+/**
+ * Update a toggle button's visual state (background, knob position).
+ * @param {HTMLElement|null} btn
+ * @param {boolean} enabled
+ */
+export function updateToggleButton(btn, enabled) {
+  if (!btn) return;
+  btn.classList.toggle('bg-primary', enabled);
+  btn.classList.toggle('bg-gray-200', !enabled);
+  const knob = btn.querySelector('span');
+  if (knob) {
+    knob.classList.toggle('translate-x-4', enabled);
+    knob.classList.toggle('translate-x-0', !enabled);
+  }
+}
+
+export function bindAclEffectListeners(listEl, effectClass, onChange) {
+  listEl.querySelectorAll(`.${effectClass}`).forEach((select) => {
+    select.addEventListener('change', () => {
+      const groupId = select.getAttribute('data-group-id');
+      if (!groupId) return;
+      onChange(groupId, String(select.value || 'none'));
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // ACL rule helpers
 // ---------------------------------------------------------------------------
@@ -153,6 +179,70 @@ export function bindAclModalBodyRender({
   return renderAll;
 }
 
+export function createAclModalState() {
+  return {
+    loading: true,
+    saving: false,
+    error: null,
+    groups: [],
+    rulesByGroup: new Map(),
+  };
+}
+
+export function buildRulesByGroup(rules) {
+  return new Map(
+    (Array.isArray(rules) ? rules : [])
+      .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
+      .map((rule) => [
+        String(rule.principal_id || '').trim(),
+        String(rule.effect || 'allow')
+          .trim()
+          .toLowerCase() === 'deny'
+          ? 'deny'
+          : 'allow',
+      ])
+      .filter(([groupId]) => Boolean(groupId))
+  );
+}
+
+export function buildAclSaveRules(rulesByGroup) {
+  return Array.from(rulesByGroup.entries()).map(([groupId, effect]) => ({
+    principal_type: 'group',
+    principal_id: groupId,
+    effect,
+    action: 'use',
+  }));
+}
+
+export async function loadAdminAclModalAccess({ fetchAccess, state, renderAll }) {
+  state.loading = true;
+  state.error = null;
+  renderAll();
+  try {
+    const payload = await fetchAccess();
+    state.groups = Array.isArray(payload.groups) ? payload.groups : [];
+    return { rules: cloneAclRules(payload.rules || []), groups: state.groups };
+  } catch (err) {
+    state.error = err?.message || 'Failed to load access';
+    return { rules: [], groups: state.groups };
+  } finally {
+    state.loading = false;
+    renderAll();
+  }
+}
+
+export function queryAclModalElements(modal, prefix) {
+  return {
+    listEl: modal.querySelector(`#${prefix}-list`),
+    errorEl: modal.querySelector(`#${prefix}-error`),
+    saveErrorEl: modal.querySelector(`#${prefix}-save-error`),
+    summaryEl: modal.querySelector(`#${prefix}-summary`),
+    countEl: modal.querySelector(`#${prefix}-count`),
+    reasonEl: modal.querySelector(`#${prefix}-reason`),
+    saveBtn: modal.querySelector(`#${prefix}-save-btn`),
+  };
+}
+
 export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChange }) {
   if (!listEl) return;
   if (state.loading) {
@@ -209,22 +299,51 @@ export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChan
     })
     .join('');
 
-  listEl.querySelectorAll(`.${effectClass}`).forEach((select) => {
-    select.addEventListener('change', () => {
-      const groupId = select.getAttribute('data-group-id');
-      if (!groupId) return;
-      const effect = String(select.value || 'none');
-      if (effect === 'none') {
-        state.rulesByGroup.delete(groupId);
-      } else {
-        state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
-      }
-      // Notify the caller so it can re-render the summary / counts.
-      // Without this, the summary text stays stale until the user saves
-      // or reopens the modal.
-      if (typeof onChange === 'function') {
-        onChange();
-      }
-    });
+  bindAclEffectListeners(listEl, effectClass, (groupId, effect) => {
+    if (effect === 'none') {
+      state.rulesByGroup.delete(groupId);
+    } else {
+      state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
+    }
+    // Notify the caller so it can re-render the summary / counts.
+    // Without this, the summary text stays stale until the user saves
+    // or reopens the modal.
+    if (typeof onChange === 'function') {
+      onChange();
+    }
   });
+}
+
+/**
+ * Wrap an ACL save-button click handler with the standard preamble (saving guard,
+ * save-error clear, save state) and catch/finally block. Returns an async
+ * function for use as `addEventListener('click', ...)` callback.
+ *
+ * The `onExecute` callback receives the parsed `rules` from the shared preamble,
+ * so each modal only writes the business-logic part. `sameAsBase` is computed
+ * inside the `onExecute` callback using `baseRules` from its caller's closure.
+ *
+ * @param {object} opts
+ * @param {object} opts.state - ACL modal state (must have .saving property)
+ * @param {HTMLElement|null} opts.saveBtn - Save button element
+ * @param {HTMLElement|null} opts.saveErrorEl - Error display element
+ * @param {string} opts.saveErrorMsg - Default error message for the catch block
+ * @param {function} opts.onExecute - async ({ rules }) => void
+ */
+export function wrapAclSaveHandler({ state, saveBtn, saveErrorEl, saveErrorMsg, onExecute }) {
+  return async () => {
+    if (state.saving) return;
+    if (saveErrorEl) saveErrorEl.textContent = '';
+    state.saving = true;
+    updateSaveButton(saveBtn, state);
+    try {
+      const rules = buildAclSaveRules(state.rulesByGroup);
+      await onExecute({ rules });
+    } catch (err) {
+      if (saveErrorEl) saveErrorEl.textContent = err.message || saveErrorMsg;
+    } finally {
+      state.saving = false;
+      updateSaveButton(saveBtn, state);
+    }
+  };
 }

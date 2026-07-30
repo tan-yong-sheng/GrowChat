@@ -54,19 +54,7 @@ export function restoreSearchInputState(container, inputId, snapshot) {
   const focusInput = () => {
     const input = container.querySelector(`#${inputId}`);
     if (!input) return;
-    try {
-      input.focus({ preventScroll: true });
-    } catch {
-      input.focus();
-    }
-    const len = input.value.length;
-    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
-    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
-    try {
-      input.setSelectionRange(start, end);
-    } catch {
-      // Ignore selection restore errors for browsers that do not support it.
-    }
+    focusAndSetSelection(input, snapshot);
   };
 
   if (typeof requestAnimationFrame === 'function') {
@@ -74,6 +62,23 @@ export function restoreSearchInputState(container, inputId, snapshot) {
     return;
   }
   setTimeout(focusInput, 0);
+}
+
+function focusAndSetSelection(input, snapshot) {
+  if (!input) return;
+  const len = input.value.length;
+  const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
+  const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
+  try {
+    input.focus({ preventScroll: true });
+  } catch {
+    input.focus();
+  }
+  try {
+    input.setSelectionRange(start, end);
+  } catch {
+    // Ignore selection restore errors for browsers that do not support it.
+  }
 }
 
 function escapeSelectorValue(value) {
@@ -127,19 +132,7 @@ export function restoreRenderState(
     if (!targetId) return;
     const input = container.querySelector(`#${escapeSelectorValue(targetId)}`);
     if (!input) return;
-    try {
-      input.focus({ preventScroll: true });
-    } catch {
-      input.focus();
-    }
-    const len = input.value.length;
-    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
-    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
-    try {
-      input.setSelectionRange(start, end);
-    } catch {
-      // Ignore selection restore errors for browsers that do not support it.
-    }
+    focusAndSetSelection(input, snapshot);
   };
 
   const run = () => {

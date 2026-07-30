@@ -1,5 +1,25 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 
+function collectDescendantIds(rootId, prevMessages) {
+  const byParent = new Map();
+  prevMessages.forEach((msg) => {
+    const parentKey = msg.parent_id ? String(msg.parent_id) : '__root__';
+    if (!byParent.has(parentKey)) byParent.set(parentKey, []);
+    byParent.get(parentKey).push(String(msg.id));
+  });
+
+  const idsToDelete = new Set();
+  const stack = [String(rootId)];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || idsToDelete.has(current)) continue;
+    idsToDelete.add(current);
+    const children = byParent.get(String(current)) || [];
+    children.forEach((child) => stack.push(String(child)));
+  }
+  return idsToDelete;
+}
+
 export function bindChatMessageDeleteActions({
   messagesList,
   chatId,
@@ -63,21 +83,7 @@ export function bindChatMessageDeleteActions({
         ? new Map(branchSelectionByChat.get(chatId))
         : null;
 
-      const byParent = new Map();
-      prevMessages.forEach((msg) => {
-        const parentKey = msg.parent_id ? String(msg.parent_id) : '__root__';
-        if (!byParent.has(parentKey)) byParent.set(parentKey, []);
-        byParent.get(parentKey).push(String(msg.id));
-      });
-      const idsToDelete = new Set();
-      const stack = [String(id)];
-      while (stack.length) {
-        const current = stack.pop();
-        if (!current || idsToDelete.has(current)) continue;
-        idsToDelete.add(current);
-        const children = byParent.get(String(current)) || [];
-        children.forEach((child) => stack.push(String(child)));
-      }
+      const idsToDelete = collectDescendantIds(id, prevMessages);
 
       const rollbackDelete = () => {
         if (!prevMessages.length) return;
@@ -90,42 +96,65 @@ export function bindChatMessageDeleteActions({
         if (state.activeChatId === chatId) drawMessages(prevMessages);
       };
 
+      const cancelStreamIfActive = () => {
+        const activeAbort = getActiveStreamAbort();
+        if (!activeAbort) return false;
+        activeAbort?.();
+        clearGlobalStreamAbort(activeAbort);
+        setActiveStreamAbort(null);
+        streamingOverrideByChat.delete(chatId);
+        return true;
+      };
+
+      const shouldCancelStreaming = (streamingTarget) => {
+        const streamingId = resolveTempMessageId(chatId, streamingTarget);
+        return streamingId && idsToDelete.has(String(streamingId));
+      };
+
+      const filterRemainingMessages = () => {
+        return prevMessages.filter((msg) => !idsToDelete.has(String(msg.id)));
+      };
+
+      const computeNextLeafId = (remaining) => {
+        if (!remaining.length) return null;
+        return remaining[remaining.length - 1].id;
+      };
+
+      const updateLeafByChat = (nextLeaf) => {
+        if (nextLeaf) currentLeafByChatId.set(chatId, String(nextLeaf));
+        else currentLeafByChatId.delete(chatId);
+      };
+
+      const buildNextBranchMap = () => {
+        if (!prevBranchMap) return null;
+        const nextMap = new Map();
+        prevBranchMap.forEach((v, k) => {
+          if (idsToDelete.has(String(k)) || idsToDelete.has(String(v))) return;
+          nextMap.set(k, v);
+        });
+        return nextMap;
+      };
+
       const applyOptimisticDelete = () => {
-        if (idsToDelete.size > 0) {
-          const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
-          const streamingId = streamingTarget
-            ? resolveTempMessageId(chatId, streamingTarget)
-            : null;
-          if (streamingId && idsToDelete.has(String(streamingId))) {
-            const activeAbort = getActiveStreamAbort();
-            activeAbort?.();
-            clearGlobalStreamAbort(activeAbort);
-            setActiveStreamAbort(null);
-            streamingOverrideByChat.delete(chatId);
-          }
+        if (idsToDelete.size === 0) return;
 
-          const remaining = prevMessages.filter((msg) => !idsToDelete.has(String(msg.id)));
-          const nextLeaf = remaining.length ? remaining[remaining.length - 1].id : null;
-          if (nextLeaf) currentLeafByChatId.set(chatId, String(nextLeaf));
-          else currentLeafByChatId.delete(chatId);
+        const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
+        if (streamingTarget && shouldCancelStreaming(streamingTarget)) {
+          cancelStreamIfActive();
+        }
 
-          if (prevBranchMap) {
-            const nextMap = new Map();
-            for (const [k, v] of prevBranchMap.entries()) {
-              if (idsToDelete.has(String(k)) || idsToDelete.has(String(v))) continue;
-              nextMap.set(k, v);
-            }
-            branchSelectionByChat.set(chatId, nextMap);
-          }
+        const remaining = filterRemainingMessages();
+        const nextLeaf = computeNextLeafId(remaining);
+        updateLeafByChat(nextLeaf);
 
-          setState((prev) => ({
-            messagesByChat: { ...prev.messagesByChat, [chatId]: remaining },
-          }));
-          if (state.activeChatId === chatId) {
-            requestAnimationFrame(() => {
-              drawMessages(remaining);
-            });
-          }
+        const nextMap = buildNextBranchMap();
+        if (nextMap) branchSelectionByChat.set(chatId, nextMap);
+
+        setState((prev) => ({
+          messagesByChat: { ...prev.messagesByChat, [chatId]: remaining },
+        }));
+        if (state.activeChatId === chatId) {
+          requestAnimationFrame(() => drawMessages(remaining));
         }
       };
       applyOptimisticDelete();

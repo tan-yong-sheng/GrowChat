@@ -115,12 +115,24 @@ describe('handleGetChat', () => {
 
   it('rejects unauthorized', async () => {
     mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
-    const res = await handleGetChat(makeReq('/api/chats/c1', 'GET'), env, db, user, 'c1');
+    const res = await handleGetChat({
+      req: makeReq('/api/chats/c1', 'GET'),
+      env,
+      db,
+      user,
+      chatId: 'c1',
+    });
     expect(res.status).toBe(403);
   });
 
   it('returns chat with messages', async () => {
-    const res = await handleGetChat(makeReq('/api/chats/c1', 'GET'), env, db, user, 'c1');
+    const res = await handleGetChat({
+      req: makeReq('/api/chats/c1', 'GET'),
+      env,
+      db,
+      user,
+      chatId: 'c1',
+    });
     expect(res.status).toBe(200);
     const payload = await res.json();
     expect(payload.chat).toBeDefined();
@@ -131,7 +143,13 @@ describe('handleGetChat', () => {
     mocks.requireOwnedChat.mockResolvedValue({
       error: new Response(JSON.stringify({ error: 'Not found' }), { status: 404 }),
     });
-    const res = await handleGetChat(makeReq('/api/chats/c1', 'GET'), env, db, user, 'c1');
+    const res = await handleGetChat({
+      req: makeReq('/api/chats/c1', 'GET'),
+      env,
+      db,
+      user,
+      chatId: 'c1',
+    });
     expect(res.status).toBe(404);
   });
 });
@@ -175,29 +193,29 @@ describe('handleCloneChat', () => {
 
   it('rejects unauthorized', async () => {
     mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
-    const res = await handleCloneChat(
-      makeReq('/api/chats/c1/clone', 'POST'),
+    const res = await handleCloneChat({
+      req: makeReq('/api/chats/c1/clone', 'POST'),
       env,
       db,
       user,
-      'c1',
-      's1',
-      vi.fn().mockResolvedValue(true)
-    );
+      sourceChatId: 'c1',
+      originSessionId: 's1',
+      publishRealtimeNow: vi.fn().mockResolvedValue(true),
+    });
     expect(res.status).toBe(403);
   });
 
   it('clones chat successfully', async () => {
     db.all.mockResolvedValue([]);
-    const res = await handleCloneChat(
-      makeReq('/api/chats/c1/clone', 'POST'),
+    const res = await handleCloneChat({
+      req: makeReq('/api/chats/c1/clone', 'POST'),
       env,
       db,
       user,
-      'c1',
-      's1',
-      vi.fn().mockResolvedValue(true)
-    );
+      sourceChatId: 'c1',
+      originSessionId: 's1',
+      publishRealtimeNow: vi.fn().mockResolvedValue(true),
+    });
     expect(res.status).toBe(201);
     expect(db.batch).toHaveBeenCalled();
   });

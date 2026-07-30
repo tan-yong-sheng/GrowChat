@@ -1,3 +1,6 @@
+const EVENT_DEDUP_WINDOW_MS = 120000;
+const EVENT_DEDUP_MAX_SIZE = 1000;
+
 export function createChatRealtimeController({
   state,
   setState = () => {},
@@ -21,24 +24,34 @@ export function createChatRealtimeController({
 } = {}) {
   function upsertChatFromEvent(chat) {
     if (!chat?.id) return;
-    const nextChats = [...state.chats];
-    const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
-    if (index >= 0) {
-      const existing = nextChats[index];
-      const merged = { ...existing, ...chat };
-      if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
-        merged.title = existing.title;
-      }
-      nextChats[index] = merged;
-    } else {
-      nextChats.unshift(chat);
-    }
-    nextChats.sort((a, b) => {
-      const updatedDelta = Number(b?.updated_at || 0) - Number(a?.updated_at || 0);
-      if (updatedDelta !== 0) return updatedDelta;
-      return Number(b?.created_at || 0) - Number(a?.created_at || 0);
-    });
+    const nextChats = mergeChatEntry([...state.chats], chat);
+    nextChats.sort(sortChatsByRecency);
     setState({ chats: nextChats });
+  }
+
+  function mergeChatEntry(nextChats, chat) {
+    const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
+    if (index < 0) {
+      nextChats.unshift(chat);
+      return nextChats;
+    }
+    const existing = nextChats[index];
+    const merged = { ...existing, ...chat };
+    if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
+      merged.title = existing.title;
+    }
+    nextChats[index] = merged;
+    return nextChats;
+  }
+
+  function sortChatsByRecency(a, b) {
+    const updatedDelta = timestampOf(b, 'updated_at') - timestampOf(a, 'updated_at');
+    if (updatedDelta !== 0) return updatedDelta;
+    return timestampOf(b, 'created_at') - timestampOf(a, 'created_at');
+  }
+
+  function timestampOf(chat, field) {
+    return Number(chat?.[field] || 0);
   }
 
   function updateChatTitleLocal(chatId, title) {
@@ -51,229 +64,349 @@ export function createChatRealtimeController({
     }));
   }
 
+  function findExistingMessageIndex(workingMessages, realId) {
+    return workingMessages.findIndex((item) => String(item?.id) === realId);
+  }
+
+  function resolveMessageMatchFields(message) {
+    return {
+      msgRole: String(message.role || ''),
+      msgContent: String(message.content || ''),
+      msgParent: message.parent_id ? String(message.parent_id) : null,
+    };
+  }
+
+  function matchesTempMessage(item, { msgRole, msgContent, msgParent }) {
+    if (!item) return false;
+    if (!String(item.id).startsWith('temp-')) return false;
+    if (String(item.role) !== msgRole) return false;
+    if (String(item.parent_id) !== String(msgParent)) return false;
+    if (msgRole !== 'assistant' && String(item.content) !== msgContent) return false;
+    return true;
+  }
+
+  function findTempMessageReplacementIndex(chatId, workingMessages, matchFields, realId) {
+    const tempIdx = workingMessages.findIndex((item) => matchesTempMessage(item, matchFields));
+    if (tempIdx < 0) return { workingMessages, index: -1 };
+    replaceTempMessageId(chatId, workingMessages[tempIdx].id, realId);
+    const refreshedMessages = [...(state.messagesByChat[chatId] || [])];
+    return {
+      workingMessages: refreshedMessages,
+      index: findExistingMessageIndex(refreshedMessages, realId),
+    };
+  }
+
+  function mergeEventMessage(workingMessages, message, index) {
+    const normalized = { ...message, done: true };
+    if (index >= 0) {
+      workingMessages[index] = { ...workingMessages[index], ...normalized };
+      return workingMessages;
+    }
+    workingMessages.push(normalized);
+    workingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+    return workingMessages;
+  }
+
+  function commitMessagesForChat(chatId, workingMessages, realId) {
+    currentLeafByChatId.set(chatId, realId);
+    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: workingMessages } });
+  }
+
   function upsertMessageFromEvent(chatId, message, { draw = true } = {}) {
     if (!chatId || !message?.id) return;
     let workingMessages = [...(state.messagesByChat[chatId] || [])];
     const realId = String(message.id);
-    let index = workingMessages.findIndex((item) => String(item?.id) === realId);
+    let index = findExistingMessageIndex(workingMessages, realId);
 
-    // If the real ID isn't found, check whether a temp message with matching
-    // role + content + parent_id exists. This handles the race where the
-    // realtime message.created arrives before the SSE start event has had a
-    // chance to call replaceTempMessageId. Without this, both the temp and
-    // real message coexist briefly, causing a spurious "2 / 2" branch indicator.
     if (index < 0) {
-      const msgRole = String(message.role || '');
-      const msgContent = String(message.content || '');
-      const msgParent = message.parent_id ? String(message.parent_id) : null;
-      const tempIdx = workingMessages.findIndex((item) => {
-        if (!String(item?.id || '').startsWith('temp-')) return false;
-        if (String(item.role || '') !== msgRole) return false;
-        if (String(item.parent_id || '') !== String(msgParent || '')) return false;
-        if (msgRole !== 'assistant' && String(item.content || '') !== msgContent) return false;
-        return true;
-      });
-      if (tempIdx >= 0) {
-        // replaceTempMessageId updates state synchronously (swaps temp→real ID
-        // and fixes all parent_id references). Re-read the fresh state afterward
-        // so subsequent mutations build on the correct data.
-        replaceTempMessageId(chatId, workingMessages[tempIdx].id, realId);
-        workingMessages = [...(state.messagesByChat[chatId] || [])];
-        index = workingMessages.findIndex((item) => String(item?.id) === realId);
+      const matchFields = resolveMessageMatchFields(message);
+      const replacement = findTempMessageReplacementIndex(
+        chatId,
+        workingMessages,
+        matchFields,
+        realId
+      );
+      workingMessages = replacement.workingMessages;
+      index = replacement.index;
+    }
+
+    workingMessages = mergeEventMessage(workingMessages, message, index);
+    commitMessagesForChat(chatId, workingMessages, realId);
+    if (draw && state.activeChatId === chatId) drawMessages(workingMessages);
+  }
+
+  function buildEventKey(event) {
+    const fields = EVENT_KEY_FIELDS.map((field) => String((event && event[field]) || ''));
+    fields.push(String((event && event.data && event.data.seq) || ''));
+    return fields.join('|');
+  }
+
+  const EVENT_KEY_FIELDS = ['type', 'chat_id', 'message_id', 'user_id', 'ts'];
+
+  function isDuplicateEvent(eventKey) {
+    const now = Date.now();
+    const seenAt = processedRealtimeEvents.get(eventKey);
+    if (seenAt && now - seenAt < EVENT_DEDUP_WINDOW_MS) return true;
+    processedRealtimeEvents.set(eventKey, now);
+    if (processedRealtimeEvents.size > EVENT_DEDUP_MAX_SIZE) {
+      for (const [key, ts] of processedRealtimeEvents.entries()) {
+        if (now - ts >= EVENT_DEDUP_WINDOW_MS) processedRealtimeEvents.delete(key);
       }
     }
+    return false;
+  }
 
-    const normalized = { ...message, done: true };
-    if (index >= 0) {
-      workingMessages[index] = { ...workingMessages[index], ...normalized };
-    } else {
-      workingMessages.push(normalized);
-      workingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+  function isSameSession(event) {
+    return !!event.origin_session_id && event.origin_session_id === clientSessionId;
+  }
+
+  async function handleChatEvent(event) {
+    const type = String(event.type || '');
+    if (type === 'chat.deleted') {
+      handleChatDeletedEvent(event);
+      return;
     }
-    currentLeafByChatId.set(chatId, realId);
-    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: workingMessages } });
-    if (draw && state.activeChatId === chatId) drawMessages(workingMessages);
+
+    const eventChat = event?.data?.chat || null;
+    if (eventChat) {
+      upsertChatFromEvent(eventChat);
+      return;
+    }
+
+    await refreshActiveChatForEvent(event);
+  }
+
+  function handleChatDeletedEvent(event) {
+    const nextChats = state.chats.filter(
+      (chat) => String(chat?.id) !== String(event.chat_id || '')
+    );
+    const nextActiveChatId =
+      state.activeChatId === event.chat_id ? nextChats[0]?.id || null : state.activeChatId;
+    setState({ chats: nextChats, activeChatId: nextActiveChatId });
+    if (!nextActiveChatId) drawMessages([]);
+  }
+
+  async function refreshActiveChatForEvent(event) {
+    const previousActiveChatId = state.activeChatId;
+    await loadChats();
+    if (shouldSkipRefresh(event, previousActiveChatId)) return;
+    await reloadActiveChatIfChanged(event, previousActiveChatId);
+    if (!state.activeChatId) drawMessages([]);
+  }
+
+  function shouldSkipRefresh(event, previousActiveChatId) {
+    return (
+      isSameSession(event) &&
+      Boolean(getActiveStreamAbort()) &&
+      event.chat_id === previousActiveChatId
+    );
+  }
+
+  async function reloadActiveChatIfChanged(event, previousActiveChatId) {
+    if (
+      !state.activeChatId ||
+      (event.chat_id !== state.activeChatId && state.activeChatId === previousActiveChatId)
+    ) {
+      return;
+    }
+    await loadMessages(state.activeChatId);
+  }
+
+  function handleToolEvent(event) {
+    const chatId = event.chat_id;
+    if (!chatId) return;
+    const messageId = String(event.message_id || '');
+    if (!messageId) return;
+    const payload = event?.data || {};
+    updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
+    if (state.activeChatId === chatId) {
+      updateMessageContentDom(
+        messageId,
+        state.messagesByChat[chatId]?.find((m) => String(m.id) === messageId)?.content || '',
+        {
+          isError: false,
+          isStreaming: true,
+        }
+      );
+    }
+  }
+
+  function stopActiveStreamForChat(chatId) {
+    streamingOverrideByChat.delete(chatId);
+    setStreamingState(chatId, false);
+    const activeAbort = getActiveStreamAbort();
+    if (activeAbort) {
+      clearGlobalStreamAbort(activeAbort);
+      setActiveStreamAbort(null);
+    }
+  }
+
+  async function refreshChatFromEvent(eventChat) {
+    if (eventChat) {
+      upsertChatFromEvent(eventChat);
+    } else {
+      await loadChats();
+    }
+  }
+
+  async function refreshMessageFromEvent(event) {
+    const eventMessage = event?.data?.message || null;
+    if (eventMessage) {
+      upsertMessageFromEvent(event.chat_id, eventMessage, {
+        draw: event.chat_id === state.activeChatId,
+      });
+    } else if (event.chat_id && event.chat_id === state.activeChatId) {
+      await loadMessages(event.chat_id);
+    }
+  }
+
+  function stopStreamIfActive(chatId) {
+    if (chatId && chatId === state.activeChatId) {
+      stopActiveStreamForChat(chatId);
+    }
+  }
+
+  async function handleMessageCancelled(event) {
+    await refreshChatFromEvent(event?.data?.chat || null);
+    await refreshMessageFromEvent(event);
+    stopStreamIfActive(event.chat_id);
+  }
+
+  function applyMessageDelta(chatId, messageId, delta, model) {
+    const messages = [...(state.messagesByChat[chatId] || [])];
+    const existingIdx = messageId
+      ? messages.findIndex((m) => String(m?.id || '') === messageId)
+      : -1;
+
+    if (existingIdx >= 0) {
+      const existing = messages[existingIdx] || {};
+      messages[existingIdx] = {
+        ...existing,
+        id: messageId,
+        role: 'assistant',
+        model: existing.model || model,
+        content: `${existing.content || ''}${delta}`,
+        done: false,
+      };
+    } else {
+      messages.push({
+        id: messageId || `remote-${Date.now()}`,
+        role: 'assistant',
+        model,
+        content: delta,
+        done: false,
+      });
+    }
+
+    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: messages } });
+    drawMessages(messages);
+  }
+
+  function isDeltaFromSelfSession(event) {
+    return !event.origin_session_id || event.origin_session_id === clientSessionId;
+  }
+
+  function shouldSkipDelta(event) {
+    const chatId = event.chat_id;
+    if (!chatId || chatId !== state.activeChatId) return true;
+    return getActiveStreamAbort() && isDeltaFromSelfSession(event);
+  }
+
+  function handleMessageDelta(event) {
+    if (shouldSkipDelta(event)) return;
+    const eventData = event.data || {};
+    const delta = String(eventData.delta || '');
+    if (!delta) return;
+
+    applyMessageDelta(
+      event.chat_id,
+      String(event.message_id || ''),
+      delta,
+      eventData.model || state.activeModelId
+    );
+  }
+
+  function shouldMatchPendingTemp(event, eventMessage) {
+    return isSameSession(event) && eventMessage?.role === 'user';
+  }
+
+  function shouldReloadMessages(event) {
+    return event.chat_id && event.chat_id === state.activeChatId;
+  }
+
+  function upsertEventMessage(event, eventMessage) {
+    if (shouldMatchPendingTemp(event, eventMessage)) {
+      matchPendingTempMessage(event.chat_id, eventMessage);
+    }
+    upsertMessageFromEvent(event.chat_id, eventMessage, {
+      draw: event.chat_id === state.activeChatId,
+    });
+  }
+
+  async function handleMessageCreatedOrCompleted(event) {
+    const data = event?.data || {};
+    const eventChat = data.chat || null;
+    const eventMessage = data.message || null;
+
+    if (eventChat) {
+      upsertChatFromEvent(eventChat);
+    } else {
+      await loadChats();
+    }
+
+    if (eventMessage) {
+      upsertEventMessage(event, eventMessage);
+      return;
+    }
+
+    if (shouldReloadMessages(event)) {
+      await loadMessages(event.chat_id);
+    }
+  }
+
+  function shouldIgnoreStreamedLifecycleEvent(event) {
+    const type = String(event.type || '');
+    return (
+      (type === 'message.created' || type === 'message.delta' || type === 'message.completed') &&
+      isSameSession(event) &&
+      getActiveStreamAbort()
+    );
+  }
+
+  function handleRealtimeChatEvent(event) {
+    return handleChatEvent(event);
+  }
+
+  const REALTIME_EVENT_DISPATCH = {
+    'chat.': handleRealtimeChatEvent,
+    'tool.status': handleToolEvent,
+    'tool.result': handleToolEvent,
+    'message.cancelled': handleMessageCancelled,
+    'message.delta': handleMessageDelta,
+    'message.created': handleMessageCreatedOrCompleted,
+    'message.completed': handleMessageCreatedOrCompleted,
+  };
+
+  function findRealtimeEventDispatcher(type) {
+    const exactMatch = REALTIME_EVENT_DISPATCH[type];
+    if (exactMatch) return exactMatch;
+    const prefixKey = Object.keys(REALTIME_EVENT_DISPATCH).find((key) => type.startsWith(key));
+    return prefixKey ? REALTIME_EVENT_DISPATCH[prefixKey] : null;
   }
 
   const onRealtimeEvent = async (evt) => {
     const event = evt?.detail || {};
     const type = String(event.type || '');
     if (!type) return;
-    const eventKey = [
-      type,
-      String(event.chat_id || ''),
-      String(event.message_id || ''),
-      String(event.user_id || ''),
-      String(event.ts || ''),
-      String(event?.data?.seq || ''),
-    ].join('|');
-    const now = Date.now();
-    const seenAt = processedRealtimeEvents.get(eventKey);
-    if (seenAt && now - seenAt < 120000) return;
-    processedRealtimeEvents.set(eventKey, now);
-    if (processedRealtimeEvents.size > 1000) {
-      for (const [key, ts] of processedRealtimeEvents.entries()) {
-        if (now - ts >= 120000) processedRealtimeEvents.delete(key);
-      }
+
+    if (isDuplicateEvent(buildEventKey(event))) return;
+    if (shouldIgnoreStreamedLifecycleEvent(event)) return;
+
+    const handler = findRealtimeEventDispatcher(type);
+    if (handler) {
+      await handler(event);
     }
-
-    const isSameSession = !!event.origin_session_id && event.origin_session_id === clientSessionId;
-    const eventChat = event?.data?.chat || null;
-    const eventMessage = event?.data?.message || null;
-
-    if (type.startsWith('chat.')) {
-      if (type === 'chat.deleted') {
-        const nextChats = state.chats.filter(
-          (chat) => String(chat?.id) !== String(event.chat_id || '')
-        );
-        const nextActiveChatId =
-          state.activeChatId === event.chat_id ? nextChats[0]?.id || null : state.activeChatId;
-        setState({ chats: nextChats, activeChatId: nextActiveChatId });
-        if (!nextActiveChatId) drawMessages([]);
-        return;
-      }
-
-      if (eventChat) {
-        upsertChatFromEvent(eventChat);
-        return;
-      }
-
-      const previousActiveChatId = state.activeChatId;
-      await loadChats();
-      if (isSameSession && getActiveStreamAbort() && event.chat_id === previousActiveChatId) {
-        return;
-      }
-      if (
-        state.activeChatId &&
-        (event.chat_id === state.activeChatId || state.activeChatId !== previousActiveChatId)
-      ) {
-        await loadMessages(state.activeChatId);
-      }
-      if (!state.activeChatId) {
-        drawMessages([]);
-      }
-      return;
-    }
-
-    if (type === 'tool.status' || type === 'tool.result') {
-      const chatId = event.chat_id;
-      if (!chatId) return;
-      const messageId = String(event.message_id || '');
-      if (!messageId) return;
-      const payload = event?.data || {};
-      updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
-      if (state.activeChatId === chatId) {
-        updateMessageContentDom(
-          messageId,
-          state.messagesByChat[chatId]?.find((m) => String(m.id) === messageId)?.content || '',
-          {
-            isError: false,
-            isStreaming: true,
-          }
-        );
-      }
-      return;
-    }
-
-    if (type === 'message.cancelled') {
-      if (eventChat) {
-        upsertChatFromEvent(eventChat);
-      } else {
-        await loadChats();
-      }
-
-      if (eventMessage) {
-        upsertMessageFromEvent(event.chat_id, eventMessage, {
-          draw: event.chat_id === state.activeChatId,
-        });
-      } else if (event.chat_id && event.chat_id === state.activeChatId) {
-        await loadMessages(event.chat_id);
-      }
-
-      if (event.chat_id && event.chat_id === state.activeChatId) {
-        streamingOverrideByChat.delete(event.chat_id);
-        setStreamingState(event.chat_id, false);
-        const activeAbort = getActiveStreamAbort();
-        if (activeAbort) {
-          clearGlobalStreamAbort(activeAbort);
-          setActiveStreamAbort(null);
-        }
-      }
-      return;
-    }
-
-    if (
-      (type === 'message.created' || type === 'message.delta' || type === 'message.completed') &&
-      isSameSession &&
-      getActiveStreamAbort()
-    ) {
-      return;
-    }
-
-    if (type === 'message.delta') {
-      if (!event.chat_id || event.chat_id !== state.activeChatId) return;
-      if (
-        getActiveStreamAbort() &&
-        (!event.origin_session_id || event.origin_session_id === clientSessionId)
-      )
-        return;
-      const delta = String(event?.data?.delta || '');
-      if (!delta) return;
-
-      const chatId = event.chat_id;
-      const messageId = String(event.message_id || '');
-      const model = event?.data?.model || state.activeModelId;
-      const messages = [...(state.messagesByChat[chatId] || [])];
-      const existingIdx = messageId
-        ? messages.findIndex((m) => String(m?.id || '') === messageId)
-        : -1;
-
-      if (existingIdx >= 0) {
-        const existing = messages[existingIdx] || {};
-        messages[existingIdx] = {
-          ...existing,
-          id: messageId,
-          role: 'assistant',
-          model: existing.model || model,
-          content: `${existing.content || ''}${delta}`,
-          done: false,
-        };
-      } else {
-        messages.push({
-          id: messageId || `remote-${Date.now()}`,
-          role: 'assistant',
-          model,
-          content: delta,
-          done: false,
-        });
-      }
-
-      setState({ messagesByChat: { ...state.messagesByChat, [chatId]: messages } });
-      drawMessages(messages);
-      return;
-    }
-
-    if (type === 'message.created' || type === 'message.completed') {
-      if (eventChat) {
-        upsertChatFromEvent(eventChat);
-      } else {
-        await loadChats();
-      }
-
-      if (eventMessage) {
-        if (isSameSession && eventMessage?.role === 'user') {
-          matchPendingTempMessage(event.chat_id, eventMessage);
-        }
-        upsertMessageFromEvent(event.chat_id, eventMessage, {
-          draw: event.chat_id === state.activeChatId,
-        });
-        return;
-      }
-
-      if (event.chat_id && event.chat_id === state.activeChatId) {
-        await loadMessages(event.chat_id);
-      }
-    }
+    return;
   };
 
   return {
