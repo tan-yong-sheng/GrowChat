@@ -4,30 +4,49 @@
  * Usage: node scripts/ensure-port.js [port]
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+
+/** Default port for the GrowChat dev server. Must match wrangler's --port. */
+const DEFAULT_PORT = 8787;
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('-'));
-const PORT = args[0] || process.env.GROWCHAT_PORT || 8787;
+const rawPort = args[0] || process.env.GROWCHAT_PORT || DEFAULT_PORT;
+// Defense against CodeQL shell-command-injection findings: reject anything
+// that isn't a positive integer in [1, 65535] before passing to lsof. The
+// regex also rejects strings like "8787; rm -rf /", negatives, decimals,
+// and zero (port 0 isn't bindable for our purposes).
+const portMatch = String(rawPort).match(
+  /^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$/
+);
+if (!portMatch) {
+  console.warn(`⚠️  Invalid port "${rawPort}" — treating port as free.`);
+  process.exit(0);
+}
+const PORT = Number(portMatch[1]);
 
 try {
-  const pidList = execSync(`lsof -ti:${PORT}`, { encoding: 'utf8' }).trim();
+  const pidList = execFileSync('lsof', ['-t', '-i', `:${PORT}`], { encoding: 'utf8' }).trim();
   if (!pidList) {
     process.exit(0);
   }
 
   const pids = pidList.split('\n').filter(Boolean);
-  for (const pid of pids) {
+  for (const rawPid of pids) {
+    // Defense in depth: validate the PID we just read from lsof before passing
+    // it on to ps / kill, even though lsof output is normally digits only.
+    if (!/^\d+$/.test(rawPid)) continue;
     try {
-      const comm = execSync(`ps -o comm= -p ${pid}`, { encoding: 'utf8' }).trim();
-      console.log(`🔪  Killing "${comm}" (PID ${pid}) on port ${PORT}`);
-      execSync(`kill -9 ${pid}`);
+      const comm = execFileSync('ps', ['-o', 'comm=', '-p', rawPid], { encoding: 'utf8' }).trim();
+      console.log(`🔪  Killing "${comm}" (PID ${rawPid}) on port ${PORT}`);
+      execFileSync('kill', ['-9', rawPid]);
     } catch {
       // Already gone
     }
   }
 
-  // Wait for OS to release the port
-  execSync(`sleep 0.5`);
+  // Wait for OS to release the port. execFileSync ignores the result; we just
+  // need the wall-clock pause.
+  execFileSync('sleep', ['0.5']);
   console.log(`✅  Port ${PORT} is now free`);
 } catch (err) {
   if (err.status === 1) {

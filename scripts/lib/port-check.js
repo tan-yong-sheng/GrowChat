@@ -8,7 +8,7 @@
  * a fast, clear failure so we never kill unrelated user processes.
  */
 import { createServer } from 'node:net';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -18,6 +18,31 @@ const PORT_POLL_MS = 100;
 
 /** Names that identify a process we (the E2E runner) are allowed to kill. */
 const OUR_PROCESS_NAMES = ['wrangler', 'workerd', 'node'];
+
+/**
+ * Coerce a value to a positive integer suitable for use as a TCP port or POSIX
+ * PID. Throws TypeError on anything else so callers fail fast instead of
+ * reaching the shell with a tainted value (CodeQL: shell-command-injection).
+ *
+ * Accepts integer-valued strings ("8787") but rejects strings with extra
+ * characters (`"8787; rm -rf /"`) — `Number.parseInt` alone would silently
+ * truncate the latter to `8787`.
+ *
+ * @param {unknown} value
+ * @param {string} label  Used in the error message.
+ * @returns {number}
+ */
+function toPositiveInteger(value, label) {
+  // Reject anything that isn't a finite integer or a numeric-only string.
+  if (typeof value === 'string' && !/^\d+$/.test(value)) {
+    throw new TypeError(`${label} must be a positive integer, got string "${value}"`);
+  }
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new TypeError(`${label} must be a positive integer, got ${value}`);
+  }
+  return n;
+}
 
 /**
  * Test whether a TCP port is currently occupied by attempting to bind it.
@@ -52,8 +77,10 @@ export function checkPortOccupied(port) {
  * @returns {number|null}
  */
 export function findPortPid(port) {
+  const safePort = toPositiveInteger(port, 'port');
+
   try {
-    const out = execSync(`lsof -t -i :${port}`, { encoding: 'utf8' }).trim();
+    const out = execFileSync('lsof', ['-t', '-i', `:${safePort}`], { encoding: 'utf8' }).trim();
     const pids = out
       .split('\n')
       .filter(Boolean)
@@ -65,7 +92,7 @@ export function findPortPid(port) {
   }
 
   try {
-    const out = execSync(`ss -tlnp 'sport = :${port}'`, { encoding: 'utf8' }).trim();
+    const out = execFileSync('ss', ['-tlnp', `sport = :${safePort}`], { encoding: 'utf8' }).trim();
     const match = out.match(/pid=(\d+)/);
     if (match) return Number.parseInt(match[1], 10);
   } catch {
@@ -84,14 +111,16 @@ export function findPortPid(port) {
  * @returns {string|null}
  */
 export function getProcessName(pid) {
+  const safePid = toPositiveInteger(pid, 'pid');
+
   try {
-    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim();
+    return readFileSync(`/proc/${safePid}/comm`, 'utf8').trim();
   } catch {
     // Not Linux or PID vanished.
   }
 
   try {
-    return execSync(`ps -o comm= -p ${pid}`, { encoding: 'utf8' }).trim();
+    return execFileSync('ps', ['-o', 'comm=', '-p', String(safePid)], { encoding: 'utf8' }).trim();
   } catch {
     return null;
   }

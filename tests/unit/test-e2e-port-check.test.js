@@ -30,6 +30,7 @@ vi.mock('node:net', () => {
 vi.mock('node:child_process', () => {
   childProcessMocks = {
     execSync: vi.fn(),
+    execFileSync: vi.fn(),
   };
   return childProcessMocks;
 });
@@ -107,34 +108,47 @@ describe('checkPortOccupied', () => {
 });
 
 describe('findPortPid', () => {
-  it('returns the PID from lsof output', () => {
-    childProcessMocks.execSync.mockReturnValue('12345\n');
+  it('returns the PID from lsof output without invoking a shell', () => {
+    childProcessMocks.execFileSync.mockReturnValue('12345\n');
 
     expect(findPortPid(8788)).toBe(12345);
-    expect(childProcessMocks.execSync).toHaveBeenCalledWith('lsof -t -i :8788', {
+    expect(childProcessMocks.execFileSync).toHaveBeenCalledWith('lsof', ['-t', '-i', ':8788'], {
       encoding: 'utf8',
     });
+    // Regression guard: the module must not invoke execSync (shell) for the lsof path.
+    expect(childProcessMocks.execSync).not.toHaveBeenCalled();
   });
 
   it('falls back to ss when lsof fails', () => {
-    childProcessMocks.execSync
+    childProcessMocks.execFileSync
       .mockImplementationOnce(() => {
         throw new Error('lsof failed');
       })
       .mockReturnValue('LISTEN 0 511 0.0.0.0:8788 0.0.0.0:* users:(("node",pid=67890,fd=12))');
 
     expect(findPortPid(8788)).toBe(67890);
-    expect(childProcessMocks.execSync).toHaveBeenLastCalledWith("ss -tlnp 'sport = :8788'", {
-      encoding: 'utf8',
-    });
+    expect(childProcessMocks.execFileSync).toHaveBeenLastCalledWith(
+      'ss',
+      ['-tlnp', 'sport = :8788'],
+      { encoding: 'utf8' }
+    );
   });
 
   it('returns null when no listener is found', () => {
-    childProcessMocks.execSync.mockImplementation(() => {
+    childProcessMocks.execFileSync.mockImplementation(() => {
       throw new Error('no results');
     });
 
     expect(findPortPid(8788)).toBeNull();
+  });
+
+  it('throws TypeError on a non-integer port (defense against CodeQL injection findings)', () => {
+    expect(() => findPortPid('8787; rm -rf /')).toThrow(TypeError);
+    expect(() => findPortPid(0)).toThrow(TypeError);
+    expect(() => findPortPid(-1)).toThrow(TypeError);
+    expect(() => findPortPid(3.14)).toThrow(TypeError);
+    expect(() => findPortPid(Number.NaN)).toThrow(TypeError);
+    expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
   });
 });
 
@@ -146,27 +160,40 @@ describe('getProcessName', () => {
     expect(fsMocks.readFileSync).toHaveBeenCalledWith('/proc/12345/comm', 'utf8');
   });
 
-  it('falls back to ps when /proc is unavailable', () => {
+  it('falls back to ps without invoking a shell when /proc is unavailable', () => {
     fsMocks.readFileSync.mockImplementation(() => {
       throw new Error('ENOENT');
     });
-    childProcessMocks.execSync.mockReturnValue('node\n');
+    childProcessMocks.execFileSync.mockReturnValue('node\n');
 
     expect(getProcessName(12345)).toBe('node');
-    expect(childProcessMocks.execSync).toHaveBeenCalledWith('ps -o comm= -p 12345', {
-      encoding: 'utf8',
-    });
+    expect(childProcessMocks.execFileSync).toHaveBeenCalledWith(
+      'ps',
+      ['-o', 'comm=', '-p', '12345'],
+      { encoding: 'utf8' }
+    );
+    // Regression guard: no shell interpolation.
+    expect(childProcessMocks.execSync).not.toHaveBeenCalled();
   });
 
   it('returns null when both sources fail', () => {
     fsMocks.readFileSync.mockImplementation(() => {
       throw new Error('ENOENT');
     });
-    childProcessMocks.execSync.mockImplementation(() => {
+    childProcessMocks.execFileSync.mockImplementation(() => {
       throw new Error('no such process');
     });
 
     expect(getProcessName(12345)).toBeNull();
+  });
+
+  it('throws TypeError on a non-integer pid (defense against CodeQL injection findings)', () => {
+    expect(() => getProcessName('12345; rm -rf /')).toThrow(TypeError);
+    expect(() => getProcessName(0)).toThrow(TypeError);
+    expect(() => getProcessName(-42)).toThrow(TypeError);
+    expect(() => getProcessName(1.5)).toThrow(TypeError);
+    expect(() => getProcessName(Number.NaN)).toThrow(TypeError);
+    expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
   });
 });
 
@@ -187,7 +214,7 @@ describe('isOurProcess', () => {
 
 describe('killPortProcess', () => {
   it('kills a wrangler listener and waits for the port to free', async () => {
-    childProcessMocks.execSync
+    childProcessMocks.execFileSync
       .mockReturnValueOnce('12345') // lsof
       .mockReturnValueOnce('wrangler\n'); // ps comm
 
@@ -221,7 +248,7 @@ describe('killPortProcess', () => {
   });
 
   it('refuses to kill a foreign process and reports not-ours', async () => {
-    childProcessMocks.execSync
+    childProcessMocks.execFileSync
       .mockReturnValueOnce('12345') // lsof
       .mockReturnValueOnce('chrome\n'); // ps comm
 
@@ -231,7 +258,7 @@ describe('killPortProcess', () => {
   });
 
   it('returns killed:false when no listener PID is found', async () => {
-    childProcessMocks.execSync.mockImplementation(() => {
+    childProcessMocks.execFileSync.mockImplementation(() => {
       throw new Error('no results');
     });
 
