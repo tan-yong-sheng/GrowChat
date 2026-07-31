@@ -2,7 +2,7 @@
 
 GrowChat uses Cloudflare D1 (SQLite). Migrations are **forward-only, sequentially numbered**, applied at startup by `src/bootstrap/migration-runner.js`. New schema changes should be additive only; filenames must stay sequential. Validation runs before deploy to catch duplicates and ordering mistakes.
 
-**Migration files:** `migrations/001_initial.sql`, `002_settings_permissions.sql`, `003_password_reset_tokens.sql`, `004_email_verification.sql`, `005_message_editing.sql`, `006_audit_logging.sql`
+**Migration files:** `migrations/001_initial.sql`, `002_settings_permissions.sql`, `003_password_reset_tokens.sql`, `005_message_editing.sql`, `006_audit_logging.sql`, `007_reduction.sql`
 
 ## Core Tables (22 tables)
 
