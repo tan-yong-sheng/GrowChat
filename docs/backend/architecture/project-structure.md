@@ -64,10 +64,8 @@ src/
 │   ├── rate-limit.js      # Rate limiting
 │   ├── realtime-bus.js    # Real-time pub/sub
 │   ├── uploads.js         # Upload handling
-│   ├── extraction.js      # Document text extraction
 │   ├── workspace-settings.js # Shared workspace settings shaping
-│   ├── email/             # Email service (Resend)
-│   └── parsers/           # Input parsers
+│   └── email/             # Email service (Resend)
 ├── chat/                   # Chat-domain helpers
 │   ├── assistant-runner.js # Orchestrates LLM calls with tools
 │   ├── stream-lifecycle.js # Stream state machine

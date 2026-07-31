@@ -34,16 +34,43 @@ vi.mock('../utils/authorize.js', () => ({
   logAuditEvent: (...args) => mocks.logAuditEvent(...args),
 }));
 
-vi.mock('../services/uploads.js', () => ({
-  validateFile: (...args) => mocks.validateFile(...args),
-  resolveContentType: (...args) => mocks.resolveContentType(...args),
-  uploadFileToR2: (...args) => mocks.uploadFileToR2(...args),
-  storeFileMetadata: (...args) => mocks.storeFileMetadata(...args),
-  getFileMetadata: (...args) => mocks.getFileMetadata(...args),
-  listUserDocuments: (...args) => mocks.listUserDocuments(...args),
-  deleteDocument: (...args) => mocks.deleteDocument(...args),
-  requireOwnedDocument: (...args) => mocks.requireOwnedDocument(...args),
-}));
+vi.mock('../services/uploads.js', () => {
+  const TEXT_LIKE_TYPES = new Set([
+    'application/csv',
+    'application/x-iif',
+    'application/json',
+    'application/json5',
+    'application/x-json5',
+    'application/x-ndjson',
+    'application/ndjson',
+    'application/xml',
+    'application/x-xml',
+    'application/yaml',
+    'application/x-yaml',
+    'application/javascript',
+    'application/x-javascript',
+    'application/typescript',
+  ]);
+  const isTextLikeContentType = (type) => {
+    const normalized = String(type || '').toLowerCase();
+    if (!normalized) return false;
+    if (normalized.startsWith('text/')) return true;
+    return TEXT_LIKE_TYPES.has(normalized);
+  };
+
+  return {
+    validateFile: (...args) => mocks.validateFile(...args),
+    resolveContentType: (...args) => mocks.resolveContentType(...args),
+    uploadFileToR2: (...args) => mocks.uploadFileToR2(...args),
+    storeFileMetadata: (...args) => mocks.storeFileMetadata(...args),
+    getFileMetadata: (...args) => mocks.getFileMetadata(...args),
+    listUserDocuments: (...args) => mocks.listUserDocuments(...args),
+    deleteDocument: (...args) => mocks.deleteDocument(...args),
+    requireOwnedDocument: (...args) => mocks.requireOwnedDocument(...args),
+    isTextLikeContentType,
+    MAX_FILE_SIZE: 50 * 1024 * 1024,
+  };
+});
 
 vi.mock('../utils/logger.js', () => ({
   createLogger: (...args) => mocks.createLogger(...args),
@@ -1595,6 +1622,87 @@ describe('filesRouter', () => {
         '/api/files/d1/content'
       );
       expect(res.status).toBe(500);
+    });
+
+    it('reads text content from R2 on demand', async () => {
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          arrayBuffer: async () => new TextEncoder().encode('r2 text').buffer,
+        }),
+      };
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          content_type: 'text/plain',
+          text_excerpt: null,
+          extraction_status: 1,
+          r2_key: 'k1',
+          file_size: 7,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        { ...env, FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.content).toBe('r2 text');
+      expect(mockFiles.get).toHaveBeenCalledWith('k1');
+    });
+
+    it('reads JSON content from R2 on demand', async () => {
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          arrayBuffer: async () => new TextEncoder().encode('{"a":1}').buffer,
+        }),
+      };
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'data.json',
+          content_type: 'application/json',
+          text_excerpt: null,
+          extraction_status: 1,
+          r2_key: 'k2',
+          file_size: 7,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        { ...env, FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body.content).toEqual({ a: 1 });
+    });
+
+    it('returns 404 when R2 object is missing for a text-like file', async () => {
+      const mockFiles = { get: vi.fn().mockResolvedValue(null) };
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          content_type: 'text/plain',
+          text_excerpt: null,
+          extraction_status: 1,
+          r2_key: 'k1',
+          file_size: 5,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        { ...env, FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      expect(res.status).toBe(404);
     });
   });
 

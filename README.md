@@ -17,7 +17,6 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 
 - RAG with Cloudflare Vectorize for FAQ and document vector search
 - File uploads with R2 cloud storage
-- Document text extraction (plain text, markdown, images with OCR)
 - Semantic chunking for document embeddings
 - Admin panel for managing FAQs and documents
 - Citation tracking for LLM responses
@@ -176,7 +175,7 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 
 ### Files & Documents
 
-- `POST /api/files/upload` - Upload file to R2 with extraction
+- `POST /api/files/upload` - Upload file to R2
 - `GET /api/files` - List user's documents
 - `GET /api/files/:id` - Get document metadata
 - `DELETE /api/files/:id` - Delete document and R2 file

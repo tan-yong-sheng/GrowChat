@@ -10,6 +10,32 @@ import { createRootLogger } from '../utils/logger.js';
 import { withTimeout } from '../utils/promise.js';
 const logger = createRootLogger({});
 
+export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+const TEXT_LIKE_TYPES = new Set([
+  'application/csv',
+  'application/x-iif',
+  'application/json',
+  'application/json5',
+  'application/x-json5',
+  'application/x-ndjson',
+  'application/ndjson',
+  'application/xml',
+  'application/x-xml',
+  'application/yaml',
+  'application/x-yaml',
+  'application/javascript',
+  'application/x-javascript',
+  'application/typescript',
+]);
+
+export function isTextLikeContentType(type) {
+  const normalized = String(type || '').toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith('text/')) return true;
+  return TEXT_LIKE_TYPES.has(normalized);
+}
+
 /**
  * Validate file before upload
  * @param {Object} options
@@ -19,36 +45,13 @@ const logger = createRootLogger({});
  * @returns {Object} - {valid: boolean, error?: string}
  */
 export function validateFile({ filename, contentType, fileSize } = {}) {
-  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   const normalizedType = String(contentType || '').toLowerCase();
-  const textLikeTypes = new Set([
-    'application/csv',
-    'application/x-iif',
-    'application/json',
-    'application/json5',
-    'application/x-json5',
-    'application/x-ndjson',
-    'application/ndjson',
-    'application/xml',
-    'application/x-xml',
-    'application/yaml',
-    'application/x-yaml',
-    'application/javascript',
-    'application/x-javascript',
-    'application/typescript',
-  ]);
-
-  const isTextLike = (type) => {
-    if (!type) return false;
-    if (type.startsWith('text/')) return true;
-    return textLikeTypes.has(type);
-  };
 
   const isAllowedType = (type) => {
     if (!type) return false;
     if (type.startsWith('image/')) return true;
     if (type === 'application/pdf') return true;
-    if (isTextLike(type)) return true;
+    if (isTextLikeContentType(type)) return true;
     return false;
   };
 

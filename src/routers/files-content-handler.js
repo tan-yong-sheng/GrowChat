@@ -5,23 +5,48 @@
  */
 import { json, error } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-import { requireOwnedDocument } from '../services/uploads.js';
+import { requireOwnedDocument, isTextLikeContentType, MAX_FILE_SIZE } from '../services/uploads.js';
 import { prepareFileHandlerContext } from './files-handler-helpers.js';
 
-/**
- * Resolves file content representation based on document type.
- */
-function resolveFileContent(doc) {
-  if (doc.content_type?.startsWith('application/json')) {
+function parseTextContent(contentType, text) {
+  if (contentType?.startsWith('application/json')) {
     try {
-      return JSON.parse(doc.text_excerpt || '{}');
+      return JSON.parse(text || '{}');
     } catch {
       return { error: 'Failed to parse JSON content' };
     }
   }
-  if (doc.content_type?.startsWith('text/')) {
-    return doc.text_excerpt || '[No text content extracted]';
+  return text || '[No text content extracted]';
+}
+
+async function fetchTextContent(req, files, doc) {
+  if (typeof files?.get !== 'function') {
+    return { content: parseTextContent(doc.content_type, doc.text_excerpt) };
   }
+
+  if (doc.file_size > MAX_FILE_SIZE) {
+    return {
+      response: error(req, 'File too large to preview', HTTP_STATUS.BAD_REQUEST),
+    };
+  }
+
+  const object = await files.get(doc.r2_key);
+  if (!object) {
+    return { response: error(req, 'File not found', HTTP_STATUS.NOT_FOUND) };
+  }
+
+  try {
+    const buffer = await object.arrayBuffer();
+    const text = new TextDecoder().decode(buffer);
+    return { content: parseTextContent(doc.content_type, text) };
+  } catch (err) {
+    return {
+      response: error(req, 'Failed to read file content', HTTP_STATUS.INTERNAL_SERVER_ERROR),
+    };
+  }
+}
+
+function resolveBinaryContent(doc) {
   return {
     filename: doc.filename,
     type: doc.content_type,
@@ -29,6 +54,7 @@ function resolveFileContent(doc) {
     note: 'Binary file - text excerpt not available',
   };
 }
+
 export async function handleFileContent({
   req,
   env,
@@ -47,7 +73,14 @@ export async function handleFileContent({
     if (owned.error) return owned.error;
     const doc = owned.doc;
 
-    const content = resolveFileContent(doc);
+    let content;
+    if (isTextLikeContentType(doc.content_type)) {
+      const result = await fetchTextContent(req, env.FILES, doc);
+      if (result.response) return result.response;
+      content = result.content;
+    } else {
+      content = resolveBinaryContent(doc);
+    }
 
     return json(req, {
       id: doc.id,
