@@ -184,10 +184,7 @@ Policy: Forward-only, sequential filenames, additive-only after baseline.
 
 ### Required Secrets
 
-```bash
-wrangler secret put JWT_SECRET
-wrangler secret put RESEND_API_KEY
-```
+See [docs/DEPLOY.md](../../../DEPLOY.md#secrets-stored-in-cloudflare-never-in-files) for how production and local secrets are managed.
 
 ## Key Commands
 

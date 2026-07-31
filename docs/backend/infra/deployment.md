@@ -83,10 +83,7 @@ pnpm dev
 
 ### JWT_SECRET not configured
 
-```bash
-pnpm exec wrangler secret put JWT_SECRET
-pnpm run deploy
-```
+See [docs/DEPLOY.md](../../DEPLOY.md#troubleshooting).
 
 ### D1 Database errors
 
