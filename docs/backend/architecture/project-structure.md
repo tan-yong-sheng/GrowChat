@@ -35,7 +35,7 @@ src/
 ├── realtime.js             # Realtime/EventSource handler
 ├── async-session-processor.js  # Background processing
 ├── bootstrap/              # Startup concerns
-│   ├── router-registry.js  # API route registration (11 routers)
+│   ├── router-registry.js  # API route registration (12 routers)
 │   ├── migration-runner.js # D1 migration execution
 │   ├── migration-audit.js  # Migration validation
 │   └── worker-context.js   # Worker binding setup
