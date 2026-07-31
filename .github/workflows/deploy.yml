@@ -112,7 +112,8 @@ jobs:
             local value=$2
             local required=${3:-true}
             if node -e "
-              const secrets = JSON.parse(process.stdin.read());
+              const fs = require('fs');
+              const secrets = JSON.parse(fs.readFileSync(0, 'utf8'));
               process.exit(secrets.some((s) => s.name === '$name') ? 0 : 1);
             " <<< "$SECRETS_JSON"; then
               echo "$name is already set in the Cloudflare production environment."
