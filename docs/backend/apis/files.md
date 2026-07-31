@@ -26,6 +26,6 @@
 **Responsibility**: Returns the safely extracted, plain-text representation of a document. Used by the LLM Context injection system for Retrieval-Augmented Generation (RAG).
 
 ### Side Effects
-- For text-like files (`text/*`, `application/json`, `.txt`, `.md`, `.csv`, etc.), the handler reads the stored blob from R2 on demand, decodes it as UTF-8, and returns the parsed content.
-- For JSON types, the response is the parsed JSON object.
+- For text-like files (`text/*`, `application/json`, `.txt`, `.md`, `.csv`, etc.), the handler reads the stored blob from R2 on demand, decodes it as UTF-8, and returns the parsed content truncated to the first 500 characters.
+- For JSON types, the response is the parsed JSON object, also bounded to the first 500 characters of decoded text.
 - For binary files, the response is a status object indicating the file type and that no text preview is available.
