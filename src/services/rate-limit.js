@@ -131,10 +131,6 @@ export const RATE_LIMITS = {
     limit: 5,
     windowSeconds: 3600,
   },
-  authResendVerification: {
-    limit: 5,
-    windowSeconds: 3600,
-  },
   fileUpload: {
     limit: APP_LIMITS.maxFileUploadPerHour,
     windowSeconds: 3600,

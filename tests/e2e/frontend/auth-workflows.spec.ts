@@ -1,24 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Auth Workflows QA', () => {
-  test('Email Verification - Pending State', async ({ page }) => {
-    // Navigate to /verify without a token
-    await page.goto('/verify?email=test@example.com');
-
-    // Should show the pending screen
-    await expect(page.locator('text=Check your email')).toBeVisible();
-    await expect(page.locator('text=test@example.com')).toBeVisible();
-
-    // Resend button should initially be disabled
-    const resendBtn = page.locator('button', { hasText: 'Resend email' });
-    await expect(resendBtn).toBeDisabled();
-
-    // Continue button should be present and styled with primary color
-    const continueBtn = page.locator('button', { hasText: "I've verified my email" });
-    await expect(continueBtn).toBeVisible();
-    await expect(continueBtn).toHaveClass(/btn-primary/);
-  });
-
   test('Password Reset - Modal Activation', async ({ page }) => {
     // Navigate to auth page with a reset token
     await page.goto('/auth.html?token=dummy-reset-token');

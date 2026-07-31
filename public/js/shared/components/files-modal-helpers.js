@@ -1,12 +1,8 @@
 import { escapeHtml } from '../utils/dom-escape.js';
 import { formatBytes, formatDate } from '../utils.js';
 
-export function getFileStatus(file) {
-  return file.extraction_status === 1
-    ? 'ready'
-    : file.extraction_status === -1
-      ? 'failed'
-      : 'processing';
+export function getFileStatus() {
+  return 'ready';
 }
 
 export function canDeleteFiles(currentState) {
@@ -43,12 +39,6 @@ export function renderFilesListMarkup(files = [], currentState = {}) {
       const isSelected =
         Array.isArray(currentState.files?.selectedIds) &&
         currentState.files.selectedIds.includes(file.id);
-      const status = getFileStatus(file);
-      const statusColors = {
-        ready: 'bg-green-100 text-green-700',
-        failed: 'bg-red-100 text-red-700',
-        processing: 'bg-surface-container text-on-surface animate-pulse',
-      };
       const canDelete = canDeleteFiles(currentState);
 
       return `
@@ -59,7 +49,6 @@ export function renderFilesListMarkup(files = [], currentState = {}) {
         <div class="flex-grow min-w-0 flex flex-col">
           <div class="flex items-center gap-2">
             <span class="truncate font-medium text-gray-800 text-sm">${escapeHtml(file.filename)}</span>
-            <span class="px-1.5 py-0.5 rounded text-label-sm font-bold uppercase tracking-wider ${statusColors[status]}">${status}</span>
           </div>
           <div class="flex items-center gap-2 text-label-sm text-gray-400">
             <span>${formatBytes(file.file_size)}</span>

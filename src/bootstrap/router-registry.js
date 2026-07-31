@@ -34,12 +34,6 @@ export const PUBLIC_ROUTES = [
   { method: 'POST', path: '/api/auth/login', description: 'User login' },
   { method: 'POST', path: '/api/auth/refresh', description: 'Token refresh' },
   { method: 'POST', path: '/api/auth/logout', description: 'Logout' },
-  { method: 'GET', path: '/api/auth/verify-email', description: 'Verify email address' },
-  {
-    method: 'POST',
-    path: '/api/auth/resend-verification',
-    description: 'Resend verification email',
-  },
   { method: 'GET', path: /^\/s\/[^/]+$/, description: 'View shared chat' },
   {
     method: 'GET',

@@ -12,10 +12,9 @@ import {
   uploadFileToR2,
   storeFileMetadata,
 } from '../services/uploads.js';
-import { extractDocumentText } from '../services/extraction.js';
 
 const MILLISECONDS_PER_SECOND = 1000;
-const EXTRACTION_STATUS_PENDING = 0;
+const EXTRACTION_STATUS_DONE = 1;
 
 export function getRequestLogger(env, requestContext) {
   return requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
@@ -85,27 +84,10 @@ export async function logFileUploadEvent(env, user, documentId, fileData) {
   });
 }
 
-export function scheduleDocumentExtraction(ctx, documentId, fileData, deps) {
-  const { env, db, logger } = deps;
-  const { contentType, buffer } = fileData;
-  if (contentType.includes('json')) {
-    logger.info('Document extraction skipped for JSON file', { documentId });
-    return;
-  }
-  ctx.waitUntil(
-    extractDocumentText({ env, db, documentId, contentType, buffer })
-      .then((r) => {
-        if (r?.skipped)
-          logger.info('Document extraction skipped', { documentId, reason: r.reason });
-        else logger.info('Document extraction complete', { documentId });
-      })
-      .catch((err) =>
-        logger.error('Failed to process document extraction', {
-          documentId,
-          error: err?.message || err,
-        })
-      )
-  );
+// Extraction removed in repo-reduction pass (see docs/REDUCTION_EXECUTION_REPORT.md row 4).
+// Replaced with a no-op; documents are inserted with extraction_status = 1 (done).
+export function scheduleDocumentExtraction(_ctx, _documentId, _fileData, deps) {
+  deps?.logger?.info?.('Document extraction removed (repo-reduction pass)', {});
 }
 
 export function buildUploadResponse(req, documentId, fileData, r2Result) {
@@ -119,7 +101,7 @@ export function buildUploadResponse(req, documentId, fileData, r2Result) {
       file_size: fileSize,
       r2_key: r2Result.r2Key,
       r2_url: r2Result.r2Url,
-      extraction_status: EXTRACTION_STATUS_PENDING,
+      extraction_status: EXTRACTION_STATUS_DONE,
       created_at: Math.floor(Date.now() / MILLISECONDS_PER_SECOND),
     },
     HTTP_STATUS.CREATED

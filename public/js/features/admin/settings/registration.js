@@ -13,8 +13,7 @@ function parseRegistrationPayload(payload) {
     .trim()
     .toLowerCase();
   const registrationStatus = registrationStatusRaw === 'active' ? 'active' : 'pending';
-  const requireEmailVerification = Boolean(payload?.require_email_verification);
-  return { publicRegistration, registrationStatus, requireEmailVerification };
+  return { publicRegistration, registrationStatus };
 }
 
 function applyRegistrationSettings(settingsState, parsed) {
@@ -22,10 +21,9 @@ function applyRegistrationSettings(settingsState, parsed) {
   settingsState._initialPublicRegistration = parsed.publicRegistration;
   settingsState.registrationStatus = parsed.registrationStatus;
   settingsState._initialRegistrationStatus = parsed.registrationStatus;
-  settingsState.requireEmailVerification = parsed.requireEmailVerification;
-  settingsState._initialRequireEmailVerification = parsed.requireEmailVerification;
 }
 
+// eslint-disable-next-line max-lines-per-function -- single render function, splitting would reduce cohesion
 export function renderRegistrationSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'registration';
 
@@ -34,7 +32,6 @@ export function renderRegistrationSettings(container, data) {
     (data.registrationSettings = {
       publicRegistration: true,
       registrationStatus: 'pending',
-      requireEmailVerification: false,
       adminConfigLoaded: false,
     });
 
@@ -64,7 +61,6 @@ export function renderRegistrationSettings(container, data) {
     if (!isActiveTab()) return;
 
     const regToggleState = getToggleState(settingsState.publicRegistration);
-    const verifyToggleState = getToggleState(settingsState.requireEmailVerification);
 
     container.innerHTML = `
 			<div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
@@ -100,20 +96,6 @@ export function renderRegistrationSettings(container, data) {
                   { ariaLabel: 'Registration Status' }
                 )}
 								<div class="text-label-sm text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
-							</div>
-						</section>
-						<section class="space-y-1 mt-6">
-							<hr class="border-gray-100/30 my-2" />
-							<div class="text-base font-medium text-gray-900 py-2">Authentication</div>
-							<div class="py-2">
-								<div class="text-xs font-medium mb-2">Email Verification</div>
-								<div class="flex items-center gap-3">
-									<button id="require-email-verification" type="button" role="switch" aria-pressed="${verifyToggleState.ariaPressed}" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${verifyToggleState.toggleClass}">
-										<span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${verifyToggleState.isOn ? 'translate-x-5' : 'translate-x-0'}"></span>
-									</button>
-									<span class="text-sm text-gray-700">Require email verification</span>
-								</div>
-								<div class="text-label-sm text-gray-600 mt-1">New users must verify their email before accessing the app. Requires Resend.</div>
 							</div>
 						</section>
 						<div id="settings-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
@@ -168,28 +150,6 @@ export function renderRegistrationSettings(container, data) {
     });
   };
 
-  const updateEmailVerification = async (newValue) => {
-    const prevValue = settingsState.requireEmailVerification;
-    settingsState.requireEmailVerification = newValue;
-    render();
-    try {
-      const res = await apiFetch('/api/admin/config', {
-        method: 'PUT',
-        body: JSON.stringify({ require_email_verification: newValue }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update email verification');
-      }
-      settingsState._initialRequireEmailVerification = newValue;
-      showFeedback('Email verification setting saved.');
-    } catch (err) {
-      settingsState.requireEmailVerification = prevValue;
-      render();
-      showFeedback(err?.message || 'Failed to update email verification.', true);
-    }
-  };
-
   const updateHighlights = () => {
     const registrationStatusSelect = container.querySelector('#registration-status');
     const registrationStatusDirty =
@@ -203,7 +163,6 @@ export function renderRegistrationSettings(container, data) {
   const bindEvents = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
     const registrationStatusSelect = container.querySelector('#registration-status');
-    const verifyToggle = container.querySelector('#require-email-verification');
 
     regToggle?.addEventListener('click', () => {
       updatePublicRegistration(!settingsState.publicRegistration);
@@ -213,10 +172,7 @@ export function renderRegistrationSettings(container, data) {
       updateRegistrationStatus(e.target.value);
     });
 
-    verifyToggle?.addEventListener('click', () => {
-      const isOn = verifyToggle.getAttribute('aria-pressed') === 'true';
-      updateEmailVerification(!isOn);
-    });
+    // Email verification toggle removed.
   };
 
   const loadConfig = async () => {
