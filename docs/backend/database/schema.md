@@ -26,7 +26,7 @@ GrowChat uses Cloudflare D1 (SQLite). Migrations are **forward-only, sequentiall
 
 | Table                   | Columns                                                                                                                                                                                                         | Notes                                                                |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| **`documents`**         | `id` PK, `user_id` (FK→users), `chat_id` (FK→chats, SET NULL), `filename`, `content_type`, `file_size`, `r2_key`, `r2_url`, `text_excerpt`, `extraction_status`, `extraction_error`, `created_at`, `updated_at` | `extraction_status`: `-1` (error) \| `0` (pending) \| `1` (complete) |
+| **`documents`**         | `id` PK, `user_id` (FK→users), `chat_id` (FK→chats, SET NULL), `filename`, `content_type`, `file_size`, `r2_key`, `r2_url`, `text_excerpt`, `extraction_status`, `extraction_error`, `created_at`, `updated_at` | `extraction_status`: `1` (done; retained for backward compatibility) |
 | **`message_documents`** | `id` PK, `message_id` (FK→messages), `document_id` (FK→documents), `mention_type`, `created_at`                                                                                                                 | Many-to-many linking messages to attached documents                  |
 
 ### RBAC (Roles, Permissions, ACL)
