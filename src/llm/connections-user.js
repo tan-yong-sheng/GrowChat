@@ -1,9 +1,24 @@
 import crypto from 'node:crypto';
 import { createRootLogger } from '../utils/logger.js';
 
-import { normalizeUserConnectionRow, normalizeUserConnectionInput } from './connections-utils.js';
+import {
+  normalizeBaseUrl,
+  ensureConnectionId,
+  labelFromFamily,
+  normalizeAuthType,
+  safeParseHeaders,
+  normalizeConnectionManualModels,
+  getConnectionApiType,
+  getConnectionDefaultBaseUrl,
+} from './connections-utils.js';
+import { normalizeProviderFamily, buildProviderId } from './provider-registry.js';
+import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
+
+const logger = createRootLogger({});
 
 let tableEnsured = false;
+
+const NAME_MAX_LENGTH = 120;
 
 async function ensureUserConnectionsTable(db) {
   if (tableEnsured) return;
@@ -23,6 +38,185 @@ async function ensureUserConnectionsTable(db) {
     updated_at INTEGER
   )`);
   tableEnsured = true;
+}
+
+// -- User-connection row / input normalization (re-introduced after the
+// PR #276 refactor moved the inline functions to a shared module but never
+// exported them. The resulting `undefined is not a function` errors were
+// silently swallowed by loadUserOpenAIConnectionConfigs' catch block, so in
+// production this looked like "stored connections silently disappear".) --
+
+function parseUserConnectionHeaders(raw) {
+  return safeParseHeaders(raw);
+}
+
+function parseUserConnectionManualModels(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return normalizeConnectionManualModels(raw);
+  try {
+    const parsed = JSON.parse(String(raw));
+    return normalizeConnectionManualModels(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function resolveRowProviderType(row) {
+  const raw = String(row.provider_type || row.providerType || 'openai-compatible')
+    .trim()
+    .toLowerCase();
+  return raw || 'openai-compatible';
+}
+
+function resolveRowProviderFamily(row, providerType) {
+  const family = normalizeProviderFamily(row.provider_family || row.providerFamily || providerType);
+  return family || 'openai';
+}
+
+function resolveRowManualModelsMode(row) {
+  const mode = normalizeConnectionModelSelectionMode(
+    row.manual_models_mode || row.manualModelsMode
+  );
+  return mode || 'all';
+}
+
+function resolveRowBaseUrl(row) {
+  return normalizeBaseUrl(row.base_url || row.baseUrl || '');
+}
+
+function buildNormalizedRowIdentity(row, index) {
+  const baseUrl = resolveRowBaseUrl(row);
+  if (!baseUrl) {
+    logger.warn('Skipping user connection with unresolvable baseUrl', { id: row?.id });
+    return null;
+  }
+  const providerType = resolveRowProviderType(row);
+  const providerFamily = resolveRowProviderFamily(row, providerType);
+  const id = ensureConnectionId(
+    {
+      id: row.id,
+      providerType,
+      providerFamily,
+      baseUrl,
+      key: row.key || '',
+      headers: row.headers || '{}',
+    },
+    index
+  );
+  return { id, baseUrl, providerType, providerFamily };
+}
+
+function buildNormalizedRowShape(row, identity) {
+  return {
+    id: identity.id,
+    name: String(row.name || `${labelFromFamily(identity.providerFamily)} Personal`).slice(
+      0,
+      NAME_MAX_LENGTH
+    ),
+    baseUrl: identity.baseUrl,
+    url: identity.baseUrl,
+    key: String(row.key || '').trim(),
+    headers: parseUserConnectionHeaders(row.headers),
+    source: 'user',
+    enabled: row.enabled !== 0 && row.enabled !== false,
+    providerType: identity.providerType,
+    providerFamily: identity.providerFamily,
+    providerId: buildProviderId({
+      id: identity.id,
+      providerType: identity.providerType,
+      providerFamily: identity.providerFamily,
+    }),
+    authType: normalizeAuthType(row.auth_type || row.authType),
+    apiType: getConnectionApiType(identity.providerType),
+    manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
+    manualModelsMode: resolveRowManualModelsMode(row),
+    ownerUserId: row.user_id || row.userId || null,
+    personal: true,
+  };
+}
+
+export function normalizeUserConnectionRow({ row, index = 0 } = {}) {
+  if (!row) return null;
+  const identity = buildNormalizedRowIdentity(row, index);
+  if (!identity) return null;
+  return buildNormalizedRowShape(row, identity);
+}
+
+function resolveInputProviderType(input, existing) {
+  const raw = String(
+    input.provider_type || input.providerType || existing?.providerType || 'openai-compatible'
+  )
+    .trim()
+    .toLowerCase();
+  return raw || 'openai-compatible';
+}
+
+function resolveInputProviderFamily(input, existing, providerType) {
+  const family = normalizeProviderFamily(
+    input.provider_family || input.providerFamily || existing?.providerFamily || providerType
+  );
+  return family || 'openai';
+}
+
+function resolveInputBaseUrl(input, existing, providerType) {
+  const baseUrlRaw = input.base_url !== undefined ? input.base_url : input.baseUrl;
+  return normalizeBaseUrl(
+    baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType)
+  );
+}
+
+function resolveInputManualModels(input, existing) {
+  if (Array.isArray(input.manual_models))
+    return normalizeConnectionManualModels(input.manual_models);
+  if (Array.isArray(input.manualModels)) return normalizeConnectionManualModels(input.manualModels);
+  return normalizeConnectionManualModels(existing?.manualModels || []);
+}
+
+function resolveInputManualModelsMode(input, existing) {
+  const mode = normalizeConnectionModelSelectionMode(
+    input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
+  );
+  return mode || 'all';
+}
+
+function resolveInputKey(input, existing) {
+  const keyRaw = input.key;
+  if (keyRaw !== undefined) return String(keyRaw || '').trim();
+  return String(existing?.key || '').trim();
+}
+
+function resolveInputHeaders(input, existing) {
+  return safeParseHeaders(input.headers !== undefined ? input.headers : existing?.headers);
+}
+
+function resolveInputEnabled(input, existing) {
+  if (input.enabled !== undefined) return input.enabled !== false;
+  return existing?.enabled !== false;
+}
+
+function resolveInputAuthType(input, existing) {
+  return normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
+}
+
+export function normalizeUserConnectionInput({ input = {}, existing = null } = {}) {
+  const name = String(input.name || existing?.name || '')
+    .trim()
+    .slice(0, NAME_MAX_LENGTH);
+  const providerType = resolveInputProviderType(input, existing);
+  const providerFamily = resolveInputProviderFamily(input, existing, providerType);
+
+  return {
+    name,
+    providerType,
+    providerFamily,
+    baseUrl: resolveInputBaseUrl(input, existing, providerType),
+    key: resolveInputKey(input, existing),
+    headers: resolveInputHeaders(input, existing),
+    authType: resolveInputAuthType(input, existing),
+    enabled: resolveInputEnabled(input, existing),
+    manualModels: resolveInputManualModels(input, existing),
+    manualModelsMode: resolveInputManualModelsMode(input, existing),
+  };
 }
 
 // -- Backward-compatible options detection helpers --
