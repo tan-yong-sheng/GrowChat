@@ -184,9 +184,9 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 
 - `GET /api/admin/stats` - System statistics
 - `GET /api/admin/faqs/status` - FAQ embedding status
-- `GET /api/admin/documents/status` - Document extraction/embedding status
+
 - `POST /api/admin/faqs/reindex` - Regenerate all FAQ embeddings
-- `POST /api/admin/documents/reindex` - Regenerate all document embeddings
+
 
 ## Configuration
 
