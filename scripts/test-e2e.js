@@ -459,9 +459,9 @@ async function applyMigrations(dbPath) {
     '001_initial.sql',
     '002_settings_permissions.sql',
     '003_password_reset_tokens.sql',
-    '004_email_verification.sql',
     '005_message_editing.sql',
     '006_audit_logging.sql',
+    '007_reduction.sql',
   ];
   for (const file of files) {
     const sqlPath = path.join(process.cwd(), 'migrations', file);

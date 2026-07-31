@@ -96,6 +96,8 @@ function isLegacyResourcesPath(path) {
 }
 
 function isVerifyPath(path) {
+  // Email verification route removed in repo-reduction pass (see migration 007 + REDUCTION_EXECUTION_REPORT.md row 3b).
+  // Kept as a redirect matcher so /verify* paths redirect to '/' via applyRedirects().
   return path === '/verify' || path.startsWith('/verify/');
 }
 
@@ -106,6 +108,7 @@ const REDIRECTS = [
   { match: isAdminSettingsRootPath, to: '/admin/settings/connections' },
   { match: isLegacyAccountPath, to: '/account/settings/connections' },
   { match: isLegacyResourcesPath, to: '/' },
+  { match: isVerifyPath, to: '/' },
 ];
 
 function applyRedirects(path) {
@@ -117,31 +120,6 @@ function applyRedirects(path) {
   }
   return false;
 }
-
-async function handleVerificationRoute(path, app) {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('token');
-  const email = params.get('email') || '';
-  if (token) {
-    const { renderVerificationPage } = await import('../features/auth/verification-success.js');
-    const { apiFetch } = await import('../shared/api.js');
-    await renderVerificationPage(token, { apiFetch }, app);
-    return;
-  }
-  const { renderVerificationPendingWithApi } =
-    await import('../features/auth/verification-pending.js');
-  const { apiFetch } = await import('../shared/api.js');
-  const pendingEl = renderVerificationPendingWithApi(email, {
-    apiFetch,
-    showToast: (msg, type) => {
-      console.log(`[Toast] ${type}: ${msg}`);
-      alert(`${type.toUpperCase()}: ${msg}`);
-    },
-  });
-  app.innerHTML = '';
-  app.appendChild(pendingEl);
-}
-
 async function handleSharedChatRoute(sharedMatch, app) {
   try {
     const data = await fetchPublicSharedChat(sharedMatch[1]);
@@ -153,7 +131,6 @@ async function handleSharedChatRoute(sharedMatch, app) {
 
 function handleEarlyReturnRoutes(path, app, sharedMatch) {
   if (applyRedirects(path)) return { redirect: true };
-  if (isVerifyPath(path)) return { handler: () => handleVerificationRoute(path, app) };
   if (sharedMatch) return { handler: () => handleSharedChatRoute(sharedMatch, app) };
   return null;
 }

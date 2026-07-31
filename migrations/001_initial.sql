@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS documents (
   r2_key TEXT NOT NULL,
   r2_url TEXT,
   text_excerpt TEXT,
-  extraction_status INTEGER NOT NULL DEFAULT 0 CHECK (extraction_status IN (-1, 0, 1)),
+  extraction_status INTEGER NOT NULL DEFAULT 1 CHECK (extraction_status IN (-1, 0, 1)),
   extraction_error TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())

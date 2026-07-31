@@ -35,7 +35,7 @@ src/
 ├── realtime.js             # Realtime/EventSource handler
 ├── async-session-processor.js  # Background processing
 ├── bootstrap/              # Startup concerns
-│   ├── router-registry.js  # API route registration (11 routers)
+│   ├── router-registry.js  # API route registration (12 routers)
 │   ├── migration-runner.js # D1 migration execution
 │   ├── migration-audit.js  # Migration validation
 │   └── worker-context.js   # Worker binding setup
@@ -64,10 +64,8 @@ src/
 │   ├── rate-limit.js      # Rate limiting
 │   ├── realtime-bus.js    # Real-time pub/sub
 │   ├── uploads.js         # Upload handling
-│   ├── extraction.js      # Document text extraction
 │   ├── workspace-settings.js # Shared workspace settings shaping
-│   ├── email/             # Email service (Resend)
-│   └── parsers/           # Input parsers
+│   └── email/             # Email service (Resend)
 ├── chat/                   # Chat-domain helpers
 │   ├── assistant-runner.js # Orchestrates LLM calls with tools
 │   ├── stream-lifecycle.js # Stream state machine
@@ -160,11 +158,12 @@ Test files in `src/`: `src/**/*.test.js` — colocated unit tests.
 
 ```
 migrations/
-├── 001_initial.sql         # Core schema: 22 tables + seed (roles, permissions)
+├── 001_initial.sql              # Core schema: 22 tables + seed (roles, permissions)
 ├── 002_settings_permissions.sql # Additive: 28 new permissions + role bindings
-├── 004_email_verification.sql   # Email verification tokens
+├── 003_password_reset_tokens.sql # Password reset tokens
 ├── 005_message_editing.sql      # Message edit history
-└── 006_audit_logging.sql        # Audit log schema
+├── 006_audit_logging.sql        # Audit log schema
+└── 007_reduction.sql            # Drops email_verifications table
 ```
 
 Policy: Forward-only, sequential filenames, additive-only after baseline.
