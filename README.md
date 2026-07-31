@@ -274,8 +274,8 @@ documents (Phase 2)
   file_size (bytes)
   r2_key (R2 storage path)
   r2_url (signed retrieval URL)
-  text_excerpt (first 500 chars of extracted text)
-  extraction_status (0=pending, 1=done, -1=failed)
+  text_excerpt (legacy; no longer populated after row 4 reduction)
+  extraction_status (always 1 after row 4 reduction)
   embedding_generated (0=pending, 1=done, -1=failed)
   created_at, updated_at
 
@@ -370,10 +370,6 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 - ✅ Vector embeddings with Cloudflare Vectorize (768-dim, cosine similarity)
 - ✅ FAQ management with semantic search
 - ✅ File uploads with R2 storage
-- ✅ Document text extraction:
-  - Plain text and markdown: direct extraction
-  - Images: OCR via Workers AI @cf/wit/ocr
-  - PDF: deferred to Phase 3
 - ✅ Semantic chunking (500-char chunks with 50-char overlap)
 - ✅ RAG context injection into LLM prompts
 - ✅ Citation tracking in messages
@@ -383,7 +379,6 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 
 ### Phase 3 (Planned)
 
-- [ ] PDF file support with text extraction
 - [ ] Chat sharing and export
 - [ ] Advanced analytics dashboard
 - [ ] Prompt templates and workflows

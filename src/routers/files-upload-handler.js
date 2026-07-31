@@ -2,7 +2,8 @@
  * File upload handler (POST /api/files/upload)
  *
  * Handles multipart/form-data file uploads to R2 with metadata storage in D1,
- * async document extraction, rate limiting, and audit logging.
+ * rate limiting, and audit logging. Document extraction is a no-op after row 4
+ * reduction; uploads are stored with extraction_status set to 1 (done).
  */
 import { createDB } from '../db.js';
 import {
