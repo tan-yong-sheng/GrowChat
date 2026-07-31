@@ -24,7 +24,7 @@ Measured via `find … | xargs wc -l` after applying rows 3b and 4.
 
 | Gate                 | Status |
 | -------------------- | ------ |
-| `pnpm test`          | Passing (same as origin/main) |
+| `pnpm test`          | 206 failures (same as origin/main) |
 | `pnpm run lint`      | 0 new errors |
 | `pnpm run typecheck` | Clean |
 | `pnpm run test:e2e`  | Blocked on missing `sqlite3` CLI binary |

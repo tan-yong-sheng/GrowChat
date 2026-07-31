@@ -84,7 +84,7 @@ export async function logFileUploadEvent(env, user, documentId, fileData) {
   });
 }
 
-// Extraction removed in repo-reduction pass (see docs/REDUCTION_HANDOFF_PLAN.md row 4).
+// Extraction removed in repo-reduction pass (see docs/REDUCTION_EXECUTION_REPORT.md row 4).
 // Replaced with a no-op; documents are inserted with extraction_status = 1 (done).
 export function scheduleDocumentExtraction(_ctx, _documentId, _fileData, deps) {
   deps?.logger?.info?.('Document extraction removed (repo-reduction pass)', {});

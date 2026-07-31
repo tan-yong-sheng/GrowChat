@@ -96,7 +96,7 @@ function isLegacyResourcesPath(path) {
 }
 
 function isVerifyPath(path) {
-  // Email verification route removed in repo-reduction pass (see migration 007 + REDUCTION_HANDOFF_PLAN.md row 3b).
+  // Email verification route removed in repo-reduction pass (see migration 007 + REDUCTION_EXECUTION_REPORT.md row 3b).
   // Kept as a redirect matcher so /verify* paths redirect to '/' via applyRedirects().
   return path === '/verify' || path.startsWith('/verify/');
 }

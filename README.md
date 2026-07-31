@@ -151,7 +151,6 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 - `POST /api/auth/logout` - Logout
 - `POST /api/auth/forgot-password` - Request password reset email
 - `POST /api/auth/reset-password` - Reset password with token
-- `POST /api/auth/resend-verification` - Resend email verification
 
 ### Users
 

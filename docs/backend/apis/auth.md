@@ -137,25 +137,6 @@ _Note: If account requires approval, returns 201 with `account_status: 'pending'
 
 ---
 
-## `POST /api/auth/resend-verification`
-
-**Responsibility**: Resends the email verification message for a pending account. Subject to rate limiting.
-
-### Request
-
-- `email` (string, required)
-
-### Errors
-
-- `429 Too Many Requests`: Rate limit exceeded.
-
-### Side Effects
-
-- Triggers `emailService.send()` to deliver the verification email.
-- Rate-limited via `checkRateLimit` with KV-backed counter.
-
----
-
 ## `POST /api/auth/change-password`
 
 **Responsibility**: Changes the current user's password while authenticated. Requires an active session and a valid user record.

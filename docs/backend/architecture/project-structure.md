@@ -160,11 +160,12 @@ Test files in `src/`: `src/**/*.test.js` — colocated unit tests.
 
 ```
 migrations/
-├── 001_initial.sql         # Core schema: 22 tables + seed (roles, permissions)
+├── 001_initial.sql              # Core schema: 22 tables + seed (roles, permissions)
 ├── 002_settings_permissions.sql # Additive: 28 new permissions + role bindings
-├── 004_email_verification.sql   # Email verification tokens
+├── 003_password_reset_tokens.sql # Password reset tokens
 ├── 005_message_editing.sql      # Message edit history
-└── 006_audit_logging.sql        # Audit log schema
+├── 006_audit_logging.sql        # Audit log schema
+└── 007_reduction.sql            # Drops email_verifications table
 ```
 
 Policy: Forward-only, sequential filenames, additive-only after baseline.
