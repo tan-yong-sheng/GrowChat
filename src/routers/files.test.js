@@ -1651,7 +1651,7 @@ describe('filesRouter', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.content).toBe('r2 text');
-      expect(mockFiles.get).toHaveBeenCalledWith('k1');
+      expect(mockFiles.get).toHaveBeenCalledWith('k1', { range: { length: 2000 } });
     });
 
     it('reads JSON content from R2 on demand', async () => {
@@ -1703,6 +1703,56 @@ describe('filesRouter', () => {
         '/api/files/d1/content'
       );
       expect(res.status).toBe(404);
+    });
+
+    it('returns 400 when text-like file exceeds preview size limit', async () => {
+      const mockFiles = { get: vi.fn() };
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'huge.txt',
+          content_type: 'text/plain',
+          text_excerpt: null,
+          extraction_status: 1,
+          r2_key: 'k1',
+          file_size: 100 * 1024 * 1024,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        { ...env, FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      expect(res.status).toBe(400);
+      expect(mockFiles.get).not.toHaveBeenCalled();
+      const body = await res.json();
+      expect(body.error).toMatch(/too large/i);
+    });
+
+    it('falls back to text_excerpt when FILES binding is unavailable', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          content_type: 'text/plain',
+          text_excerpt: 'legacy excerpt',
+          extraction_status: 1,
+          r2_key: 'k1',
+          file_size: 7,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        { ...env, FILES: undefined },
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.content).toBe('legacy excerpt');
     });
   });
 

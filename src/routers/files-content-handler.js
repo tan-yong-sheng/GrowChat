@@ -30,7 +30,9 @@ async function fetchTextContent(req, files, doc) {
     };
   }
 
-  const object = await files.get(doc.r2_key);
+  // Fetch only the bytes needed for the 500-char preview plus UTF-8 headroom.
+  // R2's range option avoids buffering the full object into Worker memory.
+  const object = await files.get(doc.r2_key, { range: { length: 2000 } });
   if (!object) {
     return { response: error(req, 'File not found', HTTP_STATUS.NOT_FOUND) };
   }
