@@ -56,7 +56,7 @@ async function replaceSecretLine(content, generated, match) {
 async function appendSecretLine(content, generated) {
   const needsSeparator = content.length > 0 && !content.endsWith('\n');
   const separator = needsSeparator ? '\n' : '';
-  await writeFile(DEV_VARS_PATH, `${content}${separator}JWT_SECRET=${generated}\n`, {
+  await writeFile(DEV_VARS_PATH, `${separator}JWT_SECRET=${generated}\n`, {
     flag: 'a',
   });
 }

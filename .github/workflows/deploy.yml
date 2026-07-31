@@ -101,6 +101,7 @@ jobs:
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           echo "Listing production secrets..."
@@ -109,6 +110,7 @@ jobs:
           ensure_secret() {
             local name=$1
             local value=$2
+            local required=${3:-true}
             if node -e "
               const secrets = JSON.parse(process.stdin.read());
               process.exit(secrets.some((s) => s.name === '$name') ? 0 : 1);
@@ -117,6 +119,10 @@ jobs:
               return
             fi
             if [ -z "$value" ]; then
+              if [ "$required" = "false" ]; then
+                echo "::warning::$name is not set in GitHub or Cloudflare; continuing without it."
+                return
+              fi
               echo "::error::GitHub repository secret $name is not set. Add it at Settings > Secrets and variables > Actions > Repository secrets, then re-run this workflow."
               exit 1
             fi
@@ -124,8 +130,8 @@ jobs:
             printf '%s' "$value" | pnpm exec wrangler secret put "$name" --env production
           }
 
-          ensure_secret JWT_SECRET "$JWT_SECRET"
-          ensure_secret RESEND_API_KEY "$RESEND_API_KEY"
+          ensure_secret JWT_SECRET "$JWT_SECRET" true
+          ensure_secret RESEND_API_KEY "$RESEND_API_KEY" false
 
       - name: Deploy to Cloudflare Workers
         run: pnpm exec wrangler deploy --env production
