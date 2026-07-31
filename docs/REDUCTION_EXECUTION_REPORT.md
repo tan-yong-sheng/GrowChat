@@ -6,8 +6,8 @@ Records the repo-reduction pass for rows 3b (email verification) and 4 (RAG extr
 
 | Row    | What                          | Result |
 | ------ | ----------------------------- | ------ |
-| **3b** | Email verification            | Dropped `src/routers/email-verification.js` (+ `.test.js`), `src/routers/auth-verify-email.js`, `src/routers/auth-resend-verification.js`, frontend verification pages, email template, and `migrations/004_email_verification.sql`. Removed admin toggle in `registration.js`. Added `migrations/007_reduction.sql` to drop the `email_verifications` table. Redirected `/verify*` paths to `/`. |
-| **4**  | RAG async extraction pipeline | Dropped `src/services/extraction.js` (+ `.test.js`), `src/services/parsers/index.js`, and async extraction tests. `buildUploadResponse` now returns `extraction_status: 1` (always done). Removed extraction status badge from `files-modal-helpers.js` `getFileStatus`. |
+| **3b** | Email verification            | Dropped `src/routers/email-verification.js` (+ `.test.js`), `src/routers/auth/auth-verify-email.js`, `src/routers/auth/auth-resend-verification.js`, frontend verification pages, email template, and `migrations/004_email_verification.sql`. Removed admin toggle in `registration.js`. Added `migrations/007_reduction.sql` to drop the `email_verifications` table. Redirected `/verify*` paths to `/`. |
+| **4**  | RAG async extraction pipeline | Dropped `src/services/extraction.js` (+ `.test.js`), `src/services/parsers/index.js`, and async extraction tests. `buildUploadResponse` now returns `extraction_status: 1` (always done). Removed extraction status badge from `files-modal-helpers.js` `getFileStatus`. `GET /api/files/:id/content` now reads text-like files from R2 on demand and truncates the result to the first 500 characters. |
 
 ## 2. LOC delta
 
@@ -35,8 +35,8 @@ Measured via `find … | xargs wc -l` after applying rows 3b and 4.
 D migrations/004_email_verification.sql
 D public/js/features/auth/verification-pending.js
 D public/js/features/auth/verification-success.js
-D src/routers/auth-resend-verification.js
-D src/routers/auth-verify-email.js
+D src/routers/auth/auth-resend-verification.js
+D src/routers/auth/auth-verify-email.js
 D src/routers/email-verification.js
 D src/routers/email-verification.test.js
 D src/services/email/templates/email-verification.html

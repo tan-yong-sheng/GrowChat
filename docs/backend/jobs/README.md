@@ -10,4 +10,4 @@ As of the repo-reduction pass (see `docs/REDUCTION_EXECUTION_REPORT.md` row 4), 
 - `extractDocumentText` is no longer called from `files-upload-helpers.js`.
 - New document rows are inserted with `extraction_status = 1` (done) immediately.
 - The `/api/files/:id/process/status` endpoint returns `done`.
-- The `/api/files/:id/content` endpoint returns the parsed JSON or text excerpt for JSON/text files, or a status object for binary files.
+- The `/api/files/:id/content` endpoint returns the parsed JSON or text content for JSON/text files, or a status object for binary files.

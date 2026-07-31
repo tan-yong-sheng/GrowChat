@@ -37,9 +37,9 @@ async function fetchTextContent(req, files, doc) {
 
   try {
     const buffer = await object.arrayBuffer();
-    const text = new TextDecoder().decode(buffer);
+    const text = new TextDecoder().decode(buffer).slice(0, 500);
     return { content: parseTextContent(doc.content_type, text) };
-  } catch (err) {
+  } catch (_err) {
     return {
       response: error(req, 'Failed to read file content', HTTP_STATUS.INTERNAL_SERVER_ERROR),
     };
