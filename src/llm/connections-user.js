@@ -14,6 +14,8 @@ import {
 import { normalizeProviderFamily, buildProviderId } from './provider-registry.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
+const logger = createRootLogger({});
+
 let tableEnsured = false;
 
 const NAME_MAX_LENGTH = 120;
@@ -84,7 +86,10 @@ function resolveRowBaseUrl(row) {
 
 function buildNormalizedRowIdentity(row, index) {
   const baseUrl = resolveRowBaseUrl(row);
-  if (!baseUrl) return null;
+  if (!baseUrl) {
+    logger.warn('Skipping user connection with unresolvable baseUrl', { id: row?.id });
+    return null;
+  }
   const providerType = resolveRowProviderType(row);
   const providerFamily = resolveRowProviderFamily(row, providerType);
   const id = ensureConnectionId(
@@ -181,9 +186,7 @@ function resolveInputKey(input, existing) {
 }
 
 function resolveInputHeaders(input, existing) {
-  const headersRaw = input.headers !== undefined ? input.headers : existing?.headers;
-  if (headersRaw !== undefined) return safeParseHeaders(headersRaw);
-  return safeParseHeaders(existing?.headers);
+  return safeParseHeaders(input.headers !== undefined ? input.headers : existing?.headers);
 }
 
 function resolveInputEnabled(input, existing) {
@@ -196,7 +199,9 @@ function resolveInputAuthType(input, existing) {
 }
 
 export function normalizeUserConnectionInput({ input = {}, existing = null } = {}) {
-  const name = String(input.name || existing?.name || '').trim();
+  const name = String(input.name || existing?.name || '')
+    .trim()
+    .slice(0, NAME_MAX_LENGTH);
   const providerType = resolveInputProviderType(input, existing);
   const providerFamily = resolveInputProviderFamily(input, existing, providerType);
 
