@@ -97,18 +97,35 @@ jobs:
       - name: Validate migrations
         run: pnpm run validate:migrations
 
-      - name: Check required secrets
+      - name: Ensure required secrets
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          echo "Checking production secrets..."
-          SECRETS=$(pnpm exec wrangler secret list --env production 2>/dev/null || echo "[]")
-          if ! echo "$SECRETS" | grep -q "JWT_SECRET"; then
-            echo "::error::JWT_SECRET is missing in production environment — set it with: wrangler secret put JWT_SECRET --env production"
-            exit 1
-          fi
-          if ! echo "$SECRETS" | grep -q "RESEND_API_KEY"; then
-            echo "::error::RESEND_API_KEY is missing in production environment — set it with: wrangler secret put RESEND_API_KEY --env production"
-            exit 1
-          fi
+          set -euo pipefail
+          echo "Listing production secrets..."
+          SECRETS_JSON=$(pnpm exec wrangler secret list --env production --format json)
+
+          ensure_secret() {
+            local name=$1
+            local value=$2
+            if node -e "
+              const secrets = JSON.parse(process.stdin.read());
+              process.exit(secrets.some((s) => s.name === '$name') ? 0 : 1);
+            " <<< "$SECRETS_JSON"; then
+              echo "$name is already set in the Cloudflare production environment."
+              return
+            fi
+            if [ -z "$value" ]; then
+              echo "::error::GitHub repository secret $name is not set. Add it at Settings > Secrets and variables > Actions > Repository secrets, then re-run this workflow."
+              exit 1
+            fi
+            echo "Uploading $name to the Cloudflare production environment..."
+            printf '%s' "$value" | pnpm exec wrangler secret put "$name" --env production
+          }
+
+          ensure_secret JWT_SECRET "$JWT_SECRET"
+          ensure_secret RESEND_API_KEY "$RESEND_API_KEY"
 
       - name: Deploy to Cloudflare Workers
         run: pnpm exec wrangler deploy --env production

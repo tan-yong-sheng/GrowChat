@@ -78,6 +78,7 @@ pnpm run dev
 ```
 
 Open `http://localhost:8787` in your browser.
+On first run, a `.dev.vars` file is created from `template/.dev.vars.example` and a random `JWT_SECRET` is generated automatically if one is not already set.
 
 ### Manual Setup (advanced)
 
@@ -186,7 +187,6 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 - `GET /api/admin/faqs/status` - FAQ embedding status
 
 - `POST /api/admin/faqs/reindex` - Regenerate all FAQ embeddings
-
 
 ## Configuration
 
