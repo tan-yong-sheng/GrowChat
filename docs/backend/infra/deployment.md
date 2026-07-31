@@ -72,21 +72,18 @@ pnpm run dev
 
 Opens `http://localhost:8787`. Uses local D1 (`.wrangler/state/`) and local KV/R2.
 
-For local env vars, copy the template:
+On first run, `.dev.vars` is created from `template/.dev.vars.example` and a random `JWT_SECRET` is generated automatically if one is not already set.
 
 ```bash
-cp template/.dev.vars.example .dev.vars
-# Edit .dev.vars with your local values
+pnpm dev
+# Edit .dev.vars afterwards if you need custom local values
 ```
 
 ## Troubleshooting
 
 ### JWT_SECRET not configured
 
-```bash
-pnpm exec wrangler secret put JWT_SECRET
-pnpm run deploy
-```
+See [docs/DEPLOY.md](../../DEPLOY.md#troubleshooting).
 
 ### D1 Database errors
 

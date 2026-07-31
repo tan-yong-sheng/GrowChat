@@ -78,6 +78,7 @@ pnpm run dev
 ```
 
 Open `http://localhost:8787` in your browser.
+On first run, a `.dev.vars` file is created from `template/.dev.vars.example` and a random `JWT_SECRET` is generated automatically if one is not already set.
 
 ### Manual Setup (advanced)
 
@@ -187,15 +188,16 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 
 - `POST /api/admin/faqs/reindex` - Regenerate all FAQ embeddings
 
-
 ## Configuration
 
 ### Environment Variables
 
 ```env
-# Copy .dev.vars.example → .dev.vars for local development
-JWT_SECRET=...  # Set via wrangler secret or .dev.vars for local dev
-RESEND_API_KEY=...  # Set via wrangler secret (Resend email delivery)
+# Local dev: run `pnpm dev` once to create .dev.vars from the template and
+# auto-generate JWT_SECRET. Production secrets are uploaded automatically from
+# GitHub repository secrets by the Conditional Deploy workflow.
+JWT_SECRET=...  # Auto-generated in .dev.vars for local dev; GitHub secret for production
+RESEND_API_KEY=...  # Optional; GitHub secret for production or .dev.vars for local testing
 EMAIL_FROM=noreply@resend.dev
 APP_URL=http://localhost:8787
 ALLOWED_ORIGINS=*
@@ -338,17 +340,11 @@ pnpm run prepush                  # Pre-push gate (typecheck + format + Fallow c
 
 ### JWT_SECRET not configured
 
-```bash
-wrangler secret put JWT_SECRET
-# Re-deploy: pnpm run deploy
-```
+See the [deployment secrets guide](docs/DEPLOY.md#secrets-stored-in-cloudflare-never-in-files).
 
 ### RESEND_API_KEY missing
 
-```bash
-wrangler secret put RESEND_API_KEY
-# Re-deploy: pnpm run deploy
-```
+See the [deployment secrets guide](docs/DEPLOY.md#secrets-stored-in-cloudflare-never-in-files).
 
 ### D1 Database errors
 
