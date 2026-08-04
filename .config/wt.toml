@@ -1,0 +1,65 @@
+# ── Worktrunk project hooks ────────────────────────────────────────────────
+#
+# This file configures Worktrunk hooks for the growchat project.
+# Worktrunk fires hooks when creating, switching, merging, and removing worktrees
+# (not git hooks — those are in .husky/). These are complementary.
+#
+# Hooks are the user's opt-in: each must be approved via `wt config approvals add`
+# before it runs. See https://worktrunk.dev/docs/hooks.
+#
+# ── Pre-start (blocks worktree creation until complete) ──
+#
+# These ensure the worktree has dependencies and config ready before it's created.
+# Each entry in a named table runs independently (concurrent); sequential steps
+# use separate [[pre-start]] entries (they run in order).
+
+[pre-start]
+  install = "pnpm install"
+  dotenv   = "cp .env.example .env"
+  dotvars  = "cp .dev.vars.example .dev.vars"
+
+# ── Post-start (background / non-blocking) ──
+#
+# Runs after the worktree is created and the shell has been switched.
+# These are setup steps that don't need to block creation.
+
+[post-start]
+  css-build = "pnpm run build:css"
+  db-init    = "node scripts/init-local-db.js"
+
+# ── Pre-commit (blocks commit until checks pass) ──
+#
+# Catches type errors before the commit message is composed.
+# Complements Husky's secret-scan + lint-staged.
+
+[pre-commit]
+  typecheck = "pnpm run typecheck"
+
+# ── Pre-merge (blocks merge until checks pass) ──
+#
+# Runs before a merge is completed. These must all pass before the merge proceeds.
+
+[pre-merge]
+  typecheck = "pnpm run typecheck"
+  test      = "pnpm run test"
+
+# ── Post-merge (background) ──
+#
+# Runs after a merge completes. Deploy-related steps.
+
+[post-merge]
+  deploy     = "pnpm run deploy"
+
+# ── Post-switch (background) ──
+#
+# After switching to an existing branch, start the dev server.
+
+[post-switch]
+  dev = "pnpm run dev"
+
+# ── Pre-remove (blocks removal) ──
+#
+# Before a worktree is removed, archive any uncommitted work and stop services.
+
+[pre-remove]
+  save-artifacts = "git stash || true"
