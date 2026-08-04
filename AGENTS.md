@@ -4,24 +4,26 @@ This file gives coding agents project-specific context. Keep it short and update
 
 ## Project Overview
 
-- Primary app or package:
-- Main entry points:
-- Important directories:
+- **Primary app or package**: `growchat` — Cloudflare Workers app (package.json: `growchat@1.0.0`)
+- **Main entry points**: `src/` — ES modules for each routing concern (chat, models, auth, files, users)
+- **Important directories**: `src/routers/` (API routes), `src/llm/` (LLM providers), `public/js/` (client-side JS), `scripts/` (build/dev tools)
 
 ## Architecture Notes
 
-- Module boundaries:
-- Generated or vendored code:
-- Sensitive areas:
+- **Module boundaries**: Each `src/routers/` file exports one handler — clear module boundary per route
+- **Generated or vendored code**: `no-mistakes` owns `CHANGELOG.md` and some `.config/` files — do not hand-edit
+- **Sensitive areas**: `src/routers/auth/` (JWT), `src/routers/chat/` (data access), `src/llm/` (API keys through env)
 
 ## Commands
 
-<!-- fallow init prefilled these from package.json; confirm before relying on them -->
-
-- Install: pnpm install
-- Build:
-- Test:
-- Typecheck or lint: tsc --noEmit
+- **Install**: `pnpm install`
+- **Build**: `pnpm run build` — builds the Cloudflare Worker
+- **Test**: `pnpm run test` — runs unit tests
+- **Typecheck**: `tsc --noEmit`
+- **E2E**: `pnpm run test:e2e` — Playwright-based
+- **Lint/audit**: `fallow audit --format json --quiet`
+- **Secret scan**: `node scripts/secret-scan.cjs` (pre-commit hook)
+- **Dev server**: `pnpm run dev` — starts Cloudflare Workers dev server
 
 ## Fallow
 
@@ -49,9 +51,10 @@ This file gives coding agents project-specific context. Keep it short and update
 
 ## Agent Rules
 
-- Do not edit:
-- Always ask before:
-- Preferred style:
+- **Do not edit**: Files owned by `no-mistakes` pipeline (CHANGELOG.md, `.config/wt.toml` during an active gate)
+- **Always ask before**: Adding new npm dependencies, changing `pnpm-lock.yaml`, modifying the `wt.toml` hook config, deleting a file that might be referenced
+- **Preferred style**: `fallow` output is JSON — pipe through `jq` or `--format json` for structured evaluation
+- **Git**: Use `wt switch` for worktrees, `wt merge` for PRs — never `--force` push unless explicitly approved
 
 ---
 
@@ -83,12 +86,28 @@ For non-skill agents, treat the task map below as the local onboarding source: r
 
 <!-- fallow:setup-hooks:end -->
 
-<!-- OPENWIKI:START -->
+## no-mistakes
 
-## OpenWiki
+Before `git push`, run the no-mistakes pipeline to validate changes and auto-fix findings:
 
-This repository uses OpenWiki for recurring code documentation. Start with `openwiki/quickstart.md`, then follow its links to architecture, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+```bash
+no-mistakes axi run --intent "<description of changes>"
+```
 
-The scheduled OpenWiki GitHub Actions workflow refreshes the repository wiki. Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting OpenWiki regenerate.
+When at a `gate:` step, respond with:
 
-<!-- OPENWIKI:END -->
+- `--action approve` — accept the gate and continue
+- `--action fix --findings <ids>` — auto-fix selected findings (do not edit files yourself; the pipeline fixes them)
+- `--action skip` — skip the step
+
+After the pipeline completes (`outcome: checks-passed` or `outcome: failed`):
+
+- If `checks-passed`, create a PR with `gh pr create`
+- If `failed`, fix the reported issues and retry with `no-mistakes rerun`
+- If `aborted` or `cancelled`, recover with `no-mistakes sync --recover --yes`
+
+<!-- no-mistakes:review:start -->
+
+Before pushing changes to origin, run `no-mistakes axi respond --action fix --findings <ids>` to have the pipeline fix any review findings automatically. Do not edit the files yourself — the pipeline owns the fix commit.
+
+<!-- no-mistakes:review:end -->
