@@ -37,7 +37,8 @@
 
 # ── Pre-merge (blocks merge until checks pass) ──
 #
-# Runs before a merge is completed. These must all pass before the merge proceeds.
+# Runs after rebase, before merge to target. These must all pass
+# before the merge proceeds.
 
 [pre-merge]
   typecheck = "pnpm run typecheck"
@@ -57,17 +58,30 @@
 [post-switch]
   dev = "pnpm run dev"
 
-# ── Pre-push (blocks push until checks pass) ──
-#
-# Run no-mistakes validation before pushing.
-# Catches issues before they reach the remote.
-
-[pre-push]
-  no-mistakes = "git push no-mistakes"
-
 # ── Pre-remove (blocks removal) ──
 #
 # Before a worktree is removed, archive any uncommitted work and stop services.
 
 [pre-remove]
   save-artifacts = "git stash || true"
+
+# ── Notes ──────────────────────────────────────────────────────────────────
+#
+# This repo has no-mistakes initialized as a local Git gate.
+#   git remote -v | grep no-mistakes
+#   ->  /home/tys203831/.no-mistakes/repos/9f45ffe636b5.git
+#
+# The gate runs a 9-step validation pipeline (intent, rebase, review,
+# test, document, lint, push, PR, CI) in a disposable worktree before
+# forwarding to origin.
+#
+# To validate changes through the gate:
+#   no-mistakes axi run --intent "<what you set out to accomplish>"
+#
+# Or push directly to the gate (replaces git push origin):
+#   git push no-mistakes <branch>
+#
+# There is no [pre-push] hook in Worktrunk — the gate is a separate
+# remote, not a hook. Use the [pre-merge] and [pre-commit] hooks above
+# for local validation, and push through the no-mistakes gate to
+# trigger the full pipeline before changes reach origin.
