@@ -49,14 +49,18 @@
 # Runs after a merge completes. Deploy-related steps.
 
 [post-merge]
-  deploy     = "pnpm run deploy"
+  deploy     = """
+if [ "{{ target }}" = "main" ]; then
+  pnpm run deploy
+fi
+"""
 
 # ── Post-switch (background) ──
 #
 # After switching to an existing branch, start the dev server.
 
 [post-switch]
-  dev = "pnpm run dev"
+  dev = "GROWCHAT_PORT={{ branch | hash_port }} pnpm run dev"
 
 # ── Pre-remove (blocks removal) ──
 #
