@@ -14,7 +14,7 @@
 # use separate [[pre-start]] entries (they run in order).
 
 [pre-start]
-  install = "pnpm install"
+  install = "pnpm install --frozen-lockfile"
   dotenv   = "cp .env.example .env"
   dotvars  = "cp .dev.vars.example .dev.vars"
 
@@ -52,7 +52,8 @@
 
 # ── Post-merge (background) ──
 #
-# Runs after a merge completes. Only deploys from main or master.
+# Runs after a merge completes. Only deploys from main.
+# (Comment matches the condition: only main triggers deploy.)
 
 [post-merge]
   deploy     = """
@@ -72,6 +73,8 @@ fi
 # ── Pre-remove (blocks removal) ──
 #
 # Before a worktree is removed, archive any uncommitted work and stop services.
+# The dev server started by post-switch is managed via 'wt tether' and is
+# automatically torn down when the worktree is removed.
 # Uses -u to capture untracked files too (e.g. .env files, build artifacts).
 
 [pre-remove]
