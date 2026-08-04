@@ -18,21 +18,6 @@
   dotenv   = "cp .env.example .env"
   dotvars  = "cp .dev.vars.example .dev.vars"
 
-# ── Post-start (background / non-blocking) ──
-#
-# Runs after the worktree is created and the shell has been switched.
-# These are setup steps that don't need to block creation.
-#
-# WARNING: `pnpm run dev` (in post-switch) also runs build:css and
-# init-local-db.js. These are split into a [[post-start]] pipeline so
-# they complete before post-switch fires.
-
-[[post-start]]
-  build = "pnpm run build:css"
-
-[[post-start]]
-  db = "node scripts/init-local-db.js"
-
 # ── Pre-commit (blocks commit until checks pass) ──
 #
 # Catches type errors before the commit message is composed.
@@ -68,7 +53,7 @@ fi
 # per-worktree port (hash_port maps to 10000-19999) to avoid collisions.
 
 [post-switch]
-  dev = "GROWCHAT_PORT={{ branch | hash_port }} pnpm run dev"
+  dev = "wt step tether -- sh -c 'GROWCHAT_PORT={{ branch | hash_port }} pnpm run dev'"
 
 # ── Pre-remove (blocks removal) ──
 #
