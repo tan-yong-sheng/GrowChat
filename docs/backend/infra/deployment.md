@@ -75,7 +75,7 @@ Opens `http://localhost:8787`. Uses local D1 (`.wrangler/state/`) and local KV/R
 For local env vars, copy the template:
 
 ```bash
-cp template/.dev.vars.example .dev.vars
+cp .dev.vars.example .dev.vars
 # Edit .dev.vars with your local values
 ```
 

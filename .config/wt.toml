@@ -1,0 +1,67 @@
+# ── Worktrunk project hooks ────────────────────────────────────────────────
+#
+# This file configures Worktrunk hooks for the growchat project.
+# Worktrunk fires hooks when creating, switching, merging, and removing worktrees
+# (not git hooks — those are in .husky/). These are complementary.
+#
+# Hooks are the user's opt-in: each must be approved via `wt config approvals add`
+# before it runs. See https://worktrunk.dev/docs/hooks.
+#
+# ── Pre-start (blocks worktree creation until complete) ──
+#
+# These ensure the worktree has dependencies and config ready before it's created.
+# Each entry in a named table runs independently (concurrent); sequential steps
+# use separate [[pre-start]] entries (they run in order).
+
+[pre-start]
+  install = "pnpm install --frozen-lockfile"
+  dotenv   = "cp .env.example .env"
+  dotvars  = "cp .dev.vars.example .dev.vars"
+
+# ── Pre-commit (blocks commit until checks pass) ──
+#
+# Catches type errors before the commit message is composed.
+# Complements Husky's secret-scan + lint-staged.
+
+[pre-commit]
+  typecheck = "pnpm run typecheck"
+
+# ── Pre-merge (blocks merge until checks pass) ──
+#
+# Runs after rebase, before merge to target. These must all pass
+# before the merge proceeds.
+
+[pre-merge]
+  typecheck = "pnpm run typecheck"
+  test      = "pnpm run test"
+
+# ── Post-merge (background) ──
+#
+# Runs after a merge completes. Only deploys from main.
+# (Comment matches the condition: only main triggers deploy.)
+
+[post-merge]
+  deploy     = """
+if [ "{{ target }}" = "main" ]; then
+  pnpm run deploy
+fi
+"""
+
+# ── Post-switch (background) ──
+#
+# After switching to an existing branch, start the dev server on a
+# per-worktree port (hash_port maps to 10000-19999) to avoid collisions.
+
+[post-switch]
+  dev = "wt step tether -- sh -c 'GROWCHAT_PORT={{ branch | hash_port }} pnpm run dev'"
+
+# ── Pre-remove (blocks removal) ──
+#
+# Before a worktree is removed, archive any uncommitted work and stop services.
+# The dev server started by post-switch is managed via 'wt tether' and is
+# automatically torn down when the worktree is removed.
+# Uses -u to capture untracked files too (e.g. .env files, build artifacts).
+
+[pre-remove]
+  save-artifacts = "git stash -u || true"
+
