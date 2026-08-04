@@ -22,10 +22,16 @@
 #
 # Runs after the worktree is created and the shell has been switched.
 # These are setup steps that don't need to block creation.
+#
+# WARNING: `pnpm run dev` (in post-switch) also runs build:css and
+# init-local-db.js. These are split into a [[post-start]] pipeline so
+# they complete before post-switch fires.
 
-[post-start]
-  css-build = "pnpm run build:css"
-  db-init    = "node scripts/init-local-db.js"
+[[post-start]]
+  build = "pnpm run build:css"
+
+[[post-start]]
+  db = "node scripts/init-local-db.js"
 
 # ── Pre-commit (blocks commit until checks pass) ──
 #
@@ -46,7 +52,7 @@
 
 # ── Post-merge (background) ──
 #
-# Runs after a merge completes. Deploy-related steps.
+# Runs after a merge completes. Only deploys from main or master.
 
 [post-merge]
   deploy     = """
@@ -57,7 +63,8 @@ fi
 
 # ── Post-switch (background) ──
 #
-# After switching to an existing branch, start the dev server.
+# After switching to an existing branch, start the dev server on a
+# per-worktree port (hash_port maps to 10000-19999) to avoid collisions.
 
 [post-switch]
   dev = "GROWCHAT_PORT={{ branch | hash_port }} pnpm run dev"
@@ -65,27 +72,8 @@ fi
 # ── Pre-remove (blocks removal) ──
 #
 # Before a worktree is removed, archive any uncommitted work and stop services.
+# Uses -u to capture untracked files too (e.g. .env files, build artifacts).
 
 [pre-remove]
-  save-artifacts = "git stash || true"
+  save-artifacts = "git stash -u || true"
 
-# ── Notes ──────────────────────────────────────────────────────────────────
-#
-# This repo has no-mistakes initialized as a local Git gate.
-#   git remote -v | grep no-mistakes
-#   ->  /home/tys203831/.no-mistakes/repos/9f45ffe636b5.git
-#
-# The gate runs a 9-step validation pipeline (intent, rebase, review,
-# test, document, lint, push, PR, CI) in a disposable worktree before
-# forwarding to origin.
-#
-# To validate changes through the gate:
-#   no-mistakes axi run --intent "<what you set out to accomplish>"
-#
-# Or push directly to the gate (replaces git push origin):
-#   git push no-mistakes <branch>
-#
-# There is no [pre-push] hook in Worktrunk — the gate is a separate
-# remote, not a hook. Use the [pre-merge] and [pre-commit] hooks above
-# for local validation, and push through the no-mistakes gate to
-# trigger the full pipeline before changes reach origin.
