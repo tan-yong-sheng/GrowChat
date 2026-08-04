@@ -83,6 +83,32 @@ For non-skill agents, treat the task map below as the local onboarding source: r
 
 <!-- fallow:setup-hooks:end -->
 
+## no-mistakes
+
+Before `git push`, run the no-mistakes pipeline to validate changes and auto-fix findings:
+
+```bash
+no-mistakes axi run --intent "<description of changes>"
+```
+
+When at a `gate:` step, respond with:
+
+- `--action approve` — accept the gate and continue
+- `--action fix --findings <ids>` — auto-fix selected findings (do not edit files yourself; the pipeline fixes them)
+- `--action skip` — skip the step
+
+After the pipeline completes (`outcome: checks-passed` or `outcome: failed`):
+
+- If `checks-passed`, create a PR with `gh pr create`
+- If `failed`, fix the reported issues and retry with `no-mistakes rerun`
+- If `aborted` or `cancelled`, recover with `no-mistakes sync --recover --yes`
+
+<!-- no-mistakes:review:start -->
+
+Before pushing changes to origin, run `no-mistakes axi respond --action fix --findings <ids>` to have the pipeline fix any review findings automatically. Do not edit the files yourself — the pipeline owns the fix commit.
+
+<!-- no-mistakes:review:end -->
+
 <!-- OPENWIKI:START -->
 
 ## OpenWiki
