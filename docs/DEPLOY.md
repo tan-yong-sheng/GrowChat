@@ -101,7 +101,7 @@ pnpm run setup
 ### Local development vars (`.dev.vars`)
 
 ```bash
-cp template/.dev.vars.example .dev.vars
+cp .dev.vars.example .dev.vars
 # Edit .dev.vars with your local values
 ```
 
