@@ -4,24 +4,26 @@ This file gives coding agents project-specific context. Keep it short and update
 
 ## Project Overview
 
-- Primary app or package:
-- Main entry points:
-- Important directories:
+- **Primary app or package**: `growchat` — Cloudflare Workers app (package.json: `growchat@1.0.0`)
+- **Main entry points**: `src/` — ES modules for each routing concern (chat, models, auth, files, users)
+- **Important directories**: `src/routers/` (API routes), `src/llm/` (LLM providers), `public/js/` (client-side JS), `scripts/` (build/dev tools)
 
 ## Architecture Notes
 
-- Module boundaries:
-- Generated or vendored code:
-- Sensitive areas:
+- **Module boundaries**: Each `src/routers/` file exports one handler — clear module boundary per route
+- **Generated or vendored code**: `no-mistakes` owns `CHANGELOG.md` and some `.config/` files — do not hand-edit
+- **Sensitive areas**: `src/routers/auth/` (JWT), `src/routers/chat/` (data access), `src/llm/` (API keys through env)
 
 ## Commands
 
-<!-- fallow init prefilled these from package.json; confirm before relying on them -->
-
-- Install: pnpm install
-- Build:
-- Test:
-- Typecheck or lint: tsc --noEmit
+- **Install**: `pnpm install`
+- **Build**: `pnpm run build` — builds the Cloudflare Worker
+- **Test**: `pnpm run test` — runs unit tests
+- **Typecheck**: `tsc --noEmit`
+- **E2E**: `pnpm run test:e2e` — Playwright-based
+- **Lint/audit**: `fallow audit --format json --quiet`
+- **Secret scan**: `node scripts/secret-scan.cjs` (pre-commit hook)
+- **Dev server**: `pnpm run dev` — starts Cloudflare Workers dev server
 
 ## Fallow
 
@@ -49,9 +51,10 @@ This file gives coding agents project-specific context. Keep it short and update
 
 ## Agent Rules
 
-- Do not edit:
-- Always ask before:
-- Preferred style:
+- **Do not edit**: Files owned by `no-mistakes` pipeline (CHANGELOG.md, `.config/wt.toml` during an active gate)
+- **Always ask before**: Adding new npm dependencies, changing `pnpm-lock.yaml`, modifying the `wt.toml` hook config, deleting a file that might be referenced
+- **Preferred style**: `fallow` output is JSON — pipe through `jq` or `--format json` for structured evaluation
+- **Git**: Use `wt switch` for worktrees, `wt merge` for PRs — never `--force` push unless explicitly approved
 
 ---
 
