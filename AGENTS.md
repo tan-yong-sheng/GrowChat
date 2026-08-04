@@ -108,13 +108,3 @@ After the pipeline completes (`outcome: checks-passed` or `outcome: failed`):
 Before pushing changes to origin, run `no-mistakes axi respond --action fix --findings <ids>` to have the pipeline fix any review findings automatically. Do not edit the files yourself — the pipeline owns the fix commit.
 
 <!-- no-mistakes:review:end -->
-
-<!-- OPENWIKI:START -->
-
-## OpenWiki
-
-This repository uses OpenWiki for recurring code documentation. Start with `openwiki/quickstart.md`, then follow its links to architecture, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-The scheduled OpenWiki GitHub Actions workflow refreshes the repository wiki. Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting OpenWiki regenerate.
-
-<!-- OPENWIKI:END -->
