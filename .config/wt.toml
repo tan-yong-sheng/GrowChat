@@ -57,6 +57,14 @@
 [post-switch]
   dev = "pnpm run dev"
 
+# ── Pre-push (blocks push until checks pass) ──
+#
+# Run no-mistakes validation before pushing.
+# Catches issues before they reach the remote.
+
+[pre-push]
+  no-mistakes = "git push no-mistakes"
+
 # ── Pre-remove (blocks removal) ──
 #
 # Before a worktree is removed, archive any uncommitted work and stop services.
