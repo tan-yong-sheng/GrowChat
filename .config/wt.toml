@@ -13,6 +13,27 @@
 # Each entry in a named table runs independently (concurrent); sequential steps
 # use separate [[pre-start]] entries (they run in order).
 
+[commit.generation]
+command = "MAX_THINKING_TOKENS=0 claude -p --no-session-persistence --model=haiku --tools='' --safe-mode --setting-sources='user' --system-prompt=''"
+
+template = """
+Write a commit message for this diff. One line, under 50 chars.
+
+Branch: {{ branch }}
+Diff:
+{{ git_diff }}
+"""
+
+squash-template = """
+Combine these {{ commit_details | length }} commits into one message:
+{% for c in commit_details %}
+- {{ c.subject }}
+{% endfor %}
+
+Diff:
+{{ git_diff }}
+"""
+
 [pre-start]
   install = "pnpm install --frozen-lockfile"
   dotenv   = "cp .env.example .env"
